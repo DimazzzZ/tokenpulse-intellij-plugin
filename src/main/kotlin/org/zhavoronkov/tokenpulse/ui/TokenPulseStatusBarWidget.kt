@@ -72,7 +72,7 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
         
         group.add(object : com.intellij.openapi.project.DumbAwareAction("Refresh All") {
             override fun actionPerformed(e: com.intellij.openapi.actionSystem.AnActionEvent) {
-                BalanceRefreshService.getInstance().refreshAll()
+                BalanceRefreshService.getInstance().refreshAll(force = true)
             }
         })
         

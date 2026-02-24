@@ -49,7 +49,7 @@ class TokenPulseDashboardDialog(project: Project) : DialogWrapper(project) {
         
         val refreshButton = javax.swing.JButton("Refresh All").apply {
             addActionListener {
-                BalanceRefreshService.getInstance().refreshAll()
+                BalanceRefreshService.getInstance().refreshAll(force = true)
             }
         }
         panel.add(refreshButton, BorderLayout.SOUTH)
