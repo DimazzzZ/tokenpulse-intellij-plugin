@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <id>org.zhavoronkov.tokenpulse</id>
+    <name>TokenPulse</name>
+    <vendor email="support@tokenpulse.com" url="https://www.tokenpulse.com">TokenPulse</vendor>
+
+    <description><![CDATA[
+    TokenPulse aggregates token balances and credit usage across multiple AI providers.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService"/>
+        <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.settings.CredentialsStore"/>
+        <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.service.BalanceRefreshService"/>
+
+        <projectConfigurable
+                parentId="tools"
+                instance="org.zhavoronkov.tokenpulse.ui.TokenPulseConfigurable"
+                id="org.zhavoronkov.tokenpulse.ui.TokenPulseConfigurable"
+                displayName="TokenPulse"/>
+
+        <statusBarWidgetFactory implementation="org.zhavoronkov.tokenpulse.ui.TokenPulseStatusBarWidgetFactory" id="TokenPulse"/>
+    </extensions>
+
+    <actions>
+        <!-- Add your actions here -->
+    </actions>
+</idea-plugin>
