@@ -1,6 +1,7 @@
 package org.zhavoronkov.tokenpulse.service
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import org.zhavoronkov.tokenpulse.model.BalanceSnapshot
@@ -17,10 +18,28 @@ import java.util.concurrent.ConcurrentHashMap
 @Service(Service.Level.APP)
 class BalanceRefreshService : Disposable {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val _snapshots = MutableStateFlow<Map<String, BalanceSnapshot>>(emptyMap())
-    val snapshots: StateFlow<Map<String, BalanceSnapshot>> = _snapshots.asStateFlow()
+    
+    // accountId -> last ProviderResult
+    private val _results = MutableStateFlow<Map<String, ProviderResult>>(emptyMap())
+    val results: StateFlow<Map<String, ProviderResult>> = _results.asStateFlow()
 
     private val refreshJobs = ConcurrentHashMap<String, Job>()
+    private var autoRefreshJob: Job? = null
+
+    init {
+        startAutoRefresh()
+    }
+
+    private fun startAutoRefresh() {
+        autoRefreshJob?.cancel()
+        autoRefreshJob = scope.launch {
+            while (isActive) {
+                val interval = TokenPulseSettingsService.getInstance().state.refreshIntervalMinutes
+                refreshAll()
+                delay(interval * 60 * 1000L)
+            }
+        }
+    }
 
     fun refreshAll() {
         val accounts = TokenPulseSettingsService.getInstance().state.accounts
@@ -38,14 +57,17 @@ class BalanceRefreshService : Disposable {
             val apiKey = CredentialsStore.getInstance().getApiKey(accountId) ?: return@launch
             val client = ProviderFactory.getClient(account.providerId)
             
-            when (val result = client.fetchBalance(accountId, apiKey)) {
-                is ProviderResult.Success -> {
-                    _snapshots.value = _snapshots.value + (accountId to result.snapshot)
-                }
-                is ProviderResult.Error -> {
-                    // TODO: Log error or notify user
-                    println("Error refreshing account ${account.name}: ${result.message}")
-                }
+            val result = client.fetchBalance(accountId, apiKey)
+            _results.value = _results.value + (accountId to result)
+            
+            // Publish event via MessageBus
+            ApplicationManager.getApplication().messageBus
+                .syncPublisher(BalanceUpdatedTopic.TOPIC)
+                .balanceUpdated(accountId, result)
+            
+            if (result is ProviderResult.Failure) {
+                // TODO: Better logging/notification
+                println("Error refreshing account ${account.name}: ${result.message}")
             }
         }
     }

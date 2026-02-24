@@ -10,6 +10,15 @@ data class BalanceSnapshot(
 )
 
 sealed class ProviderResult {
+    val timestamp: Instant = Instant.now()
+
     data class Success(val snapshot: BalanceSnapshot) : ProviderResult()
-    data class Error(val message: String, val throwable: Throwable? = null) : ProviderResult()
+    
+    sealed class Failure(val message: String, val throwable: Throwable? = null) : ProviderResult() {
+        data class AuthError(val msg: String) : Failure(msg)
+        data class RateLimited(val msg: String) : Failure(msg)
+        data class NetworkError(val msg: String, val cause: Throwable? = null) : Failure(msg, cause)
+        data class ParseError(val msg: String, val cause: Throwable? = null) : Failure(msg, cause)
+        data class UnknownError(val msg: String, val cause: Throwable? = null) : Failure(msg, cause)
+    }
 }
