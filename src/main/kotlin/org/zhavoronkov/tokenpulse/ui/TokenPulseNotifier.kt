@@ -6,23 +6,26 @@ import com.intellij.openapi.project.Project
 
 object TokenPulseNotifier {
     fun notifyInfo(project: Project?, content: String) {
+        val redacted = SecretRedactor.redact(content)
         NotificationGroupManager.getInstance()
             .getNotificationGroup("TokenPulse")
-            .createNotification(content, NotificationType.INFORMATION)
+            .createNotification(redacted, NotificationType.INFORMATION)
             .notify(project)
     }
 
     fun notifyWarning(project: Project?, content: String) {
+        val redacted = SecretRedactor.redact(content)
         NotificationGroupManager.getInstance()
             .getNotificationGroup("TokenPulse")
-            .createNotification(content, NotificationType.WARNING)
+            .createNotification(redacted, NotificationType.WARNING)
             .notify(project)
     }
 
     fun notifyError(project: Project?, content: String) {
+        val redacted = SecretRedactor.redact(content)
         NotificationGroupManager.getInstance()
             .getNotificationGroup("TokenPulse")
-            .createNotification(content, NotificationType.ERROR)
+            .createNotification(redacted, NotificationType.ERROR)
             .notify(project)
     }
 }

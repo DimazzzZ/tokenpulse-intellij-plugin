@@ -12,12 +12,9 @@
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <notificationGroup id="TokenPulse" displayType="BALLOON" displayId="TokenPulse Notifications"/>
-        <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService"/>
-        <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.settings.CredentialsStore"/>
-        <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.service.BalanceRefreshService"/>
+        <notificationGroup id="TokenPulse" displayType="BALLOON"/>
 
-        <projectConfigurable
+        <applicationConfigurable
                 parentId="tools"
                 instance="org.zhavoronkov.tokenpulse.ui.TokenPulseConfigurable"
                 id="org.zhavoronkov.tokenpulse.ui.TokenPulseConfigurable"

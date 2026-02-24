@@ -10,7 +10,8 @@ import java.math.BigDecimal
 
 class OpenRouterProviderClient(
     private val httpClient: OkHttpClient = OkHttpClient(),
-    private val gson: Gson = Gson()
+    private val gson: Gson = Gson(),
+    private val baseUrl: String = "https://openrouter.ai"
 ) : ProviderClient {
 
     override fun fetchBalance(account: Account, secret: String): ProviderResult {
@@ -24,7 +25,7 @@ class OpenRouterProviderClient(
     private fun fetchProvisioningKeyBalance(account: Account, secret: String): ProviderResult {
         return try {
             val creditsRequest = Request.Builder()
-                .url("https://openrouter.ai/api/v1/credits")
+                .url("$baseUrl/api/v1/credits")
                 .header("Authorization", "Bearer $secret")
                 .build()
 
@@ -39,7 +40,7 @@ class OpenRouterProviderClient(
             }
 
             val activityRequest = Request.Builder()
-                .url("https://openrouter.ai/api/v1/activity")
+                .url("$baseUrl/api/v1/activity")
                 .header("Authorization", "Bearer $secret")
                 .build()
 
@@ -69,7 +70,7 @@ class OpenRouterProviderClient(
     private fun fetchApiKeyBalance(account: Account, secret: String): ProviderResult {
         return try {
             val keyRequest = Request.Builder()
-                .url("https://openrouter.ai/api/v1/key")
+                .url("$baseUrl/api/v1/key")
                 .header("Authorization", "Bearer $secret")
                 .build()
 

@@ -9,10 +9,9 @@ import java.math.BigDecimal
 
 class ClineProviderClient(
     private val httpClient: OkHttpClient = OkHttpClient(),
-    private val gson: Gson = Gson()
+    private val gson: Gson = Gson(),
+    private val baseUrl: String = "https://api.cline.bot"
 ) : ProviderClient {
-
-    private val baseUrl = "https://api.cline.bot"
 
     override fun fetchBalance(account: Account, secret: String): ProviderResult {
         return try {
@@ -56,11 +55,7 @@ class ClineProviderClient(
         return httpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return null
             val body = response.body?.string() ?: return null
-            gson.fromJson(body, ApiResponse::class.java).data as? UserResponse 
-                // Note: Gson might need help with nested generic data if not careful,
-                // but for MVP this structure is likely enough.
-                // Actually, let's use a concrete wrapper for safety.
-                gson.fromJson(body, UserInfoWrapper::class.java).data
+            gson.fromJson(body, UserInfoWrapper::class.java).data
         }
     }
 
@@ -85,7 +80,6 @@ class ClineProviderClient(
         return httpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return null
             val body = response.body?.string() ?: return null
-            // We expect the { success: true, data: T } wrapper
             val jsonObject = gson.fromJson(body, com.google.gson.JsonObject::class.java)
             if (jsonObject.get("success")?.asBoolean == true) {
                 gson.fromJson(jsonObject.get("data"), T::class.java)
@@ -101,7 +95,6 @@ class ClineProviderClient(
         }
     }
 
-    private data class ApiResponse(val success: Boolean, val data: Any?)
     private data class UserInfoWrapper(val data: UserResponse)
     private data class UserResponse(val id: String, val organizations: List<OrgInfo>?)
     private data class OrgInfo(val organizationId: String, val memberId: String, val active: Boolean)
