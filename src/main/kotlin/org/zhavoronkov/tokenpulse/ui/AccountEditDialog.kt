@@ -73,10 +73,20 @@ class AccountEditDialog(
             override fun actionPerformed(e: java.awt.event.ActionEvent?) {
                 val apiKey = getApiKey()
                 val providerId = getProvider()
+                val authType = getAuthType()
+                val name = getAccountName()
+                
+                // Create a temporary account for testing
+                val tempAccount = Account(
+                    id = account?.id ?: "test-account",
+                    name = name.ifBlank { "Test" },
+                    providerId = providerId,
+                    authType = authType
+                )
                 
                 com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
                     val client = org.zhavoronkov.tokenpulse.provider.ProviderFactory.getClient(providerId)
-                    val result = client.testCredentials(apiKey)
+                    val result = client.testCredentials(tempAccount, apiKey)
                     
                     com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                         when (result) {

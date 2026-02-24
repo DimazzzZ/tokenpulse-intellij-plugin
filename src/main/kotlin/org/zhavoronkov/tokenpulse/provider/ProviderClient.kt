@@ -1,8 +1,9 @@
 package org.zhavoronkov.tokenpulse.provider
 
 import org.zhavoronkov.tokenpulse.model.ProviderResult
+import org.zhavoronkov.tokenpulse.settings.Account
 
 interface ProviderClient {
-    fun fetchBalance(accountId: String, apiKey: String): ProviderResult
-    fun testCredentials(apiKey: String): ProviderResult
+    fun fetchBalance(account: Account, secret: String): ProviderResult
+    fun testCredentials(account: Account, secret: String): ProviderResult
 }

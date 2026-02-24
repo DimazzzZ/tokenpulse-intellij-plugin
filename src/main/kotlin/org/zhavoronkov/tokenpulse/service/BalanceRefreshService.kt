@@ -57,7 +57,7 @@ class BalanceRefreshService : Disposable {
             val apiKey = CredentialsStore.getInstance().getApiKey(accountId) ?: return@launch
             val client = ProviderFactory.getClient(account.providerId)
             
-            val result = client.fetchBalance(accountId, apiKey)
+            val result = client.fetchBalance(account, apiKey)
             _results.value = _results.value + (accountId to result)
             
             // Publish event via MessageBus
