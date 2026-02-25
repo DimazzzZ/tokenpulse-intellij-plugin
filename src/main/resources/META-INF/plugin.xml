@@ -3,24 +3,55 @@
 <idea-plugin>
     <id>org.zhavoronkov.tokenpulse</id>
     <name>TokenPulse</name>
-    <vendor email="support@tokenpulse.com" url="https://www.tokenpulse.com">TokenPulse</vendor>
+    <vendor email="support@tokenpulse.com" url="https://github.com/DimazzzZ/token-pulse">TokenPulse</vendor>
 
     <description><![CDATA[
-    TokenPulse aggregates token balances and credit usage across multiple AI providers.
+    <b>TokenPulse</b> aggregates token balances and credit usage across multiple AI providers
+    (OpenRouter, Cline) directly in your IDE status bar.<br><br>
+    <ul>
+        <li>Live credit &amp; token balance in the status bar</li>
+        <li>Supports OpenRouter (API Key &amp; Provisioning Key) and Cline (Personal &amp; Org)</li>
+        <li>Configurable auto-refresh with TTL caching to avoid rate limits</li>
+        <li>Secure API key storage via IntelliJ PasswordSafe</li>
+        <li>Dashboard overview with per-account status</li>
+    </ul>
     ]]></description>
+
+    <change-notes><![CDATA[
+    <b>0.1.0</b> — Initial release<br>
+    <ul>
+        <li>OpenRouter and Cline provider support</li>
+        <li>Status bar widget with live aggregate balance</li>
+        <li>Settings page with CRUD account management</li>
+        <li>Dashboard dialog with per-account details</li>
+        <li>TTL caching and single-flight refresh coalescing</li>
+        <li>Secure credential storage via IntelliJ PasswordSafe</li>
+    </ul>
+    ]]></change-notes>
 
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
+        <!-- Application services -->
+        <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.service.HttpClientService"/>
+        <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.service.BalanceRefreshService"/>
+        <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService"/>
+        <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.settings.CredentialsStore"/>
+
+        <!-- Notifications -->
         <notificationGroup id="TokenPulse" displayType="BALLOON"/>
 
+        <!-- Settings page under Tools -->
         <applicationConfigurable
                 parentId="tools"
                 instance="org.zhavoronkov.tokenpulse.ui.TokenPulseConfigurable"
                 id="org.zhavoronkov.tokenpulse.ui.TokenPulseConfigurable"
                 displayName="TokenPulse"/>
 
-        <statusBarWidgetFactory implementation="org.zhavoronkov.tokenpulse.ui.TokenPulseStatusBarWidgetFactory" id="TokenPulse"/>
+        <!-- Status bar widget -->
+        <statusBarWidgetFactory
+                implementation="org.zhavoronkov.tokenpulse.ui.TokenPulseStatusBarWidgetFactory"
+                id="TokenPulse"/>
     </extensions>
 
     <actions>

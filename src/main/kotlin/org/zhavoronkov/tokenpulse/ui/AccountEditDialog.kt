@@ -1,12 +1,14 @@
 package org.zhavoronkov.tokenpulse.ui
 
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.COLUMNS_MEDIUM
 import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
 import org.zhavoronkov.tokenpulse.model.ProviderId
+import org.zhavoronkov.tokenpulse.service.HttpClientService
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.settings.AuthType
 import javax.swing.DefaultComboBoxModel
@@ -68,6 +70,16 @@ class AccountEditDialog(
     fun getAuthType(): AuthType = authTypeCombo.selectedItem as AuthType
     fun getApiKey(): String = String(apiKeyField.password)
 
+    override fun doValidate(): ValidationInfo? {
+        if (nameField.text.isBlank()) {
+            return ValidationInfo("Name cannot be blank", nameField)
+        }
+        if (String(apiKeyField.password).isBlank()) {
+            return ValidationInfo("API key cannot be blank", apiKeyField)
+        }
+        return null
+    }
+
     override fun createActions(): Array<javax.swing.Action> {
         val testAction = object : javax.swing.AbstractAction("Test Connection") {
             override fun actionPerformed(e: java.awt.event.ActionEvent?) {
@@ -85,7 +97,7 @@ class AccountEditDialog(
                 )
                 
                 com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
-                    val client = org.zhavoronkov.tokenpulse.provider.ProviderFactory.getClient(providerId)
+                    val client = HttpClientService.getInstance().providerRegistry.getClient(providerId)
                     val result = client.testCredentials(tempAccount, apiKey)
                     
                     com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
