@@ -3,7 +3,7 @@
 <idea-plugin>
     <id>org.zhavoronkov.tokenpulse</id>
     <name>TokenPulse</name>
-    <vendor email="support@tokenpulse.com" url="https://github.com/DimazzzZ/token-pulse">TokenPulse</vendor>
+    <vendor email="tokenpulse-plugin@zhavoronkov.org" url="https://github.com/DimazzzZ/token-pulse">TokenPulse</vendor>
 
     <description><![CDATA[
     <b>TokenPulse</b> aggregates token balances and credit usage across multiple AI providers
@@ -37,7 +37,13 @@
         <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService"/>
 
         <!-- Notifications -->
-        <notificationGroup id="TokenPulse" displayType="BALLOON"/>
+        <notificationGroup id="TokenPulse" displayType="BALLOON" isLogByDefault="true"/>
+        <notificationGroup id="TokenPulse Updates" displayType="BALLOON" isLogByDefault="true"/>
+        <notificationGroup id="TokenPulse Notifications" displayType="BALLOON" isLogByDefault="true"/>
+
+        <!-- Startup activities -->
+        <postStartupActivity implementation="org.zhavoronkov.tokenpulse.startup.WelcomeNotificationActivity"/>
+        <postStartupActivity implementation="org.zhavoronkov.tokenpulse.startup.WhatsNewNotificationActivity"/>
 
         <!-- Settings page under Tools -->
         <applicationConfigurable
