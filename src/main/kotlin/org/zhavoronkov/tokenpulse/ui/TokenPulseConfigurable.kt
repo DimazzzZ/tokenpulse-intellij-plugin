@@ -3,31 +3,35 @@ package org.zhavoronkov.tokenpulse.ui
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.options.Configurable
 import com.intellij.ui.ToolbarDecorator
+import com.intellij.ui.dsl.builder.Panel
 import com.intellij.ui.dsl.builder.bindIntText
 import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.panel
-import com.intellij.ui.dsl.builder.Panel
 import com.intellij.ui.table.JBTable
+import com.intellij.util.ui.JBUI
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import org.zhavoronkov.tokenpulse.service.BalanceRefreshService
-import org.zhavoronkov.tokenpulse.settings.*
-import kotlinx.coroutines.*
-import java.awt.BorderLayout
+import org.zhavoronkov.tokenpulse.settings.Account
+import org.zhavoronkov.tokenpulse.settings.CredentialsStore
+import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
 import javax.swing.JComponent
-import javax.swing.JPanel
 
 class TokenPulseConfigurable : Configurable, Disposable {
     private val settingsService = TokenPulseSettingsService.getInstance()
     private val settings = settingsService.state
     private val tableModel = AccountTableModel()
     private val table = JBTable(tableModel)
-    
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var myModified = false
 
     companion object {
         private const val MAX_MINUTES = 1440
-        private const val PREFERRED_WIDTH = 500
-        private const val PREFERRED_HEIGHT = 250
     }
 
     override fun createComponent(): JComponent {
@@ -35,22 +39,18 @@ class TokenPulseConfigurable : Configurable, Disposable {
 
         // Subscribe to refresh results to update table
         scope.launch {
-            BalanceRefreshService.getInstance().results.collect {
+            BalanceRefreshService.getInstance().results.collectLatest {
                 tableModel.fireTableDataChanged()
             }
         }
 
         val decorator = createTableDecorator()
-        val tablePanel = JPanel(BorderLayout())
-        tablePanel.add(decorator.createPanel(), BorderLayout.CENTER)
 
         return panel {
             preferencesGroup()
             group("Accounts") {
                 row {
-                    cell(tablePanel).applyToComponent {
-                        preferredSize = com.intellij.util.ui.JBUI.size(PREFERRED_WIDTH, PREFERRED_HEIGHT)
-                    }
+                    cell(decorator.createPanel()).resizableColumn()
                 }
             }
         }

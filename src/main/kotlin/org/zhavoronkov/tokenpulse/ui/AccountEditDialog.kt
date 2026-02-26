@@ -2,117 +2,97 @@ package org.zhavoronkov.tokenpulse.ui
 
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
-import com.intellij.ui.components.JBPasswordField
-import com.intellij.ui.components.JBTextField
-import com.intellij.ui.dsl.builder.COLUMNS_MEDIUM
-import com.intellij.ui.dsl.builder.columns
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.util.ui.UIUtil
 import org.zhavoronkov.tokenpulse.model.ProviderId
-import org.zhavoronkov.tokenpulse.service.HttpClientService
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.settings.AuthType
-import javax.swing.DefaultComboBoxModel
 import javax.swing.JComponent
+import javax.swing.JTextField
 
+/**
+ * Dialog for editing an AI provider account.
+ */
 class AccountEditDialog(
     private val account: Account?,
-    private val existingApiKey: String?
+    private val apiKey: String?
 ) : DialogWrapper(true) {
-
-    private val nameField = JBTextField(account?.name ?: "")
-    private val providerCombo = com.intellij.openapi.ui.ComboBox(DefaultComboBoxModel(ProviderId.values()))
-    private val authTypeCombo = com.intellij.openapi.ui.ComboBox(DefaultComboBoxModel(AuthType.values()))
-    private val apiKeyField = JBPasswordField().apply { text = existingApiKey ?: "" }
+    private val nameField = JTextField(account?.name ?: "")
+    private val providerIdField = JTextField(account?.providerId?.name ?: ProviderId.OPENROUTER.name)
+    private val authTypeField = JTextField(account?.authType?.name ?: AuthType.OPENROUTER_API_KEY.name)
+    private val apiKeyField = JTextField(apiKey ?: "")
 
     init {
         title = if (account == null) "Add Account" else "Edit Account"
-        
-        providerCombo.addActionListener {
-            updateAuthTypes()
-        }
-        
-        if (account != null) {
-            providerCombo.selectedItem = account.providerId
-            updateAuthTypes()
-            authTypeCombo.selectedItem = account.authType
-        } else {
-            updateAuthTypes()
-        }
-        
         init()
-    }
-
-    private fun updateAuthTypes() {
-        val selectedProvider = providerCombo.selectedItem as ProviderId
-        val types = AuthType.values().filter { it.name.startsWith(selectedProvider.name) }
-        authTypeCombo.model = DefaultComboBoxModel(types.toTypedArray())
     }
 
     override fun createCenterPanel(): JComponent {
         return panel {
             row("Name:") {
-                cell(nameField).columns(COLUMNS_MEDIUM)
+                cell(nameField)
             }
             row("Provider:") {
-                cell(providerCombo)
+                cell(providerIdField)
+                comment("Valid values: OPENROUTER, CLINE")
             }
             row("Auth Type:") {
-                cell(authTypeCombo)
+                cell(authTypeField)
+                comment("Valid values: OPENROUTER_API_KEY, OPENROUTER_PROVISIONING_KEY, CLINE_TOKEN")
             }
-            row("API/Provisioning Key:") {
-                cell(apiKeyField).columns(COLUMNS_MEDIUM)
+            row("API Key:") {
+                cell(apiKeyField)
+            }
+            row {
+                cell(JBLabel("Note: Provider and Auth Type are currently case-sensitive.")).applyToComponent {
+                    foreground = UIUtil.getContextHelpForeground()
+                }
             }
         }
     }
 
     fun getAccountName(): String = nameField.text.trim()
-    fun getProvider(): ProviderId = providerCombo.selectedItem as ProviderId
-    fun getAuthType(): AuthType = authTypeCombo.selectedItem as AuthType
-    fun getApiKey(): String = String(apiKeyField.password)
+    fun getProvider(): ProviderId = ProviderId.valueOf(providerIdField.text.trim().uppercase())
+    fun getAuthType(): AuthType = AuthType.valueOf(authTypeField.text.trim().uppercase())
+    fun getApiKey(): String = apiKeyField.text.trim()
 
     override fun doValidate(): ValidationInfo? {
-        if (nameField.text.isBlank()) {
-            return ValidationInfo("Name cannot be blank", nameField)
-        }
-        if (String(apiKeyField.password).isBlank()) {
-            return ValidationInfo("API key cannot be blank", apiKeyField)
-        }
-        return null
+        val nameValidation = validateName()
+        if (nameValidation != null) return nameValidation
+
+        val providerValidation = validateProvider()
+        if (providerValidation != null) return providerValidation
+
+        val authValidation = validateAuthType()
+        if (authValidation != null) return authValidation
+
+        return validateApiKey()
     }
 
-    override fun createActions(): Array<javax.swing.Action> {
-        val testAction = object : javax.swing.AbstractAction("Test Connection") {
-            override fun actionPerformed(e: java.awt.event.ActionEvent?) {
-                val apiKey = getApiKey()
-                val providerId = getProvider()
-                val authType = getAuthType()
-                val name = getAccountName()
-                
-                // Create a temporary account for testing
-                val tempAccount = Account(
-                    id = account?.id ?: "test-account",
-                    name = name.ifBlank { "Test" },
-                    providerId = providerId,
-                    authType = authType
-                )
-                
-                com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
-                    val client = HttpClientService.getInstance().providerRegistry.getClient(providerId)
-                    val result = client.testCredentials(tempAccount, apiKey)
-                    
-                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
-                        when (result) {
-                            is org.zhavoronkov.tokenpulse.model.ProviderResult.Success -> {
-                                com.intellij.openapi.ui.Messages.showInfoMessage(rootPane, "Connection successful!", "Test Connection")
-                            }
-                            is org.zhavoronkov.tokenpulse.model.ProviderResult.Failure -> {
-                                com.intellij.openapi.ui.Messages.showErrorDialog(rootPane, "Connection failed: ${result.message}", "Test Connection")
-                            }
-                        }
-                    }
-                }
-            }
+    private fun validateName(): ValidationInfo? {
+        return if (getAccountName().isEmpty()) ValidationInfo("Name is required", nameField) else null
+    }
+
+    private fun validateProvider(): ValidationInfo? {
+        return try {
+            getProvider()
+            null
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            ValidationInfo("Invalid Provider ID", providerIdField)
         }
-        return arrayOf(testAction, okAction, cancelAction)
+    }
+
+    private fun validateAuthType(): ValidationInfo? {
+        return try {
+            getAuthType()
+            null
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            ValidationInfo("Invalid Auth Type", authTypeField)
+        }
+    }
+
+    private fun validateApiKey(): ValidationInfo? {
+        return if (getApiKey().isEmpty()) ValidationInfo("API Key is required", apiKeyField) else null
     }
 }

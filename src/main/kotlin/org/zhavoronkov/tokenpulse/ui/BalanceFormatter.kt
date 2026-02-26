@@ -1,46 +1,64 @@
 package org.zhavoronkov.tokenpulse.ui
 
-import com.intellij.util.ui.ColumnInfo
-import com.intellij.util.ui.ListTableModel
 import org.zhavoronkov.tokenpulse.model.Balance
-import org.zhavoronkov.tokenpulse.model.ProviderResult
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.text.NumberFormat
-import java.util.*
+import java.util.Locale
 
 object BalanceFormatter {
-    private val currencyFormat = NumberFormat.getCurrencyInstance(Locale.US)
     private val numberFormat = NumberFormat.getNumberInstance(Locale.US)
 
     fun format(balance: Balance): String {
-        val settings = org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService.getInstance().state
+        val credits = balance.credits?.remaining
+        val tokens = balance.tokens?.remaining
+
+        return when {
+            credits != null && tokens != null -> {
+                val creditsStr = formatCredits(credits)
+                val tokensStr = formatTokens(tokens)
+                "$creditsStr ($tokensStr)"
+            }
+            credits != null -> formatCredits(credits)
+            tokens != null -> formatTokens(tokens)
+            else -> "--"
+        }
+    }
+
+    private fun formatCredits(credits: BigDecimal): String {
+        return "$${credits.setScale(2, RoundingMode.HALF_UP)}"
+    }
+
+    private fun formatTokens(tokens: Long): String {
+        return String.format(Locale.US, "%,d", tokens)
+    }
+
+    fun formatDetailed(balance: Balance, showCredits: Boolean, showTokens: Boolean): String {
         val parts = mutableListOf<String>()
 
-        val showCredits = settings.showCredits
-        val showTokens = settings.showTokens
-
         if (showCredits) {
-            balance.credits?.let { credits ->
-                credits.remaining?.let { 
-                    parts.add(currencyFormat.format(it)) 
-                } ?: credits.used?.let {
-                    parts.add("${currencyFormat.format(it)} used")
-                }
-            }
+            addCreditsPart(balance, parts)
         }
-        
+
         if (showTokens) {
-            balance.tokens?.let { tokens ->
-                tokens.used?.let { used ->
-                    val totalStr = tokens.total?.let { "/ ${formatNumber(it)}" } ?: ""
-                    parts.add("${formatNumber(used)}$totalStr tokens")
-                }
-            }
+            addTokensPart(balance, parts)
         }
-        
+
         return if (parts.isEmpty()) "--" else parts.joinToString(" + ")
     }
 
+    private fun addCreditsPart(balance: Balance, parts: MutableList<String>) {
+        balance.credits?.remaining?.let { remaining ->
+            parts.add(formatCredits(remaining))
+        }
+    }
+
+    private fun addTokensPart(balance: Balance, parts: MutableList<String>) {
+        balance.tokens?.used?.let { used ->
+            val totalStr = balance.tokens.total?.let { "/ ${formatNumber(it)}" } ?: ""
+            parts.add("${formatNumber(used)}$totalStr tokens")
+        }
+    }
+
     private fun formatNumber(number: Long): String = numberFormat.format(number)
-    private fun formatNumber(number: BigDecimal): String = numberFormat.format(number)
 }
