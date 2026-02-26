@@ -104,10 +104,15 @@ class OpenRouterProviderClient(
 
     private fun mapError(code: Int, message: String): ProviderResult.Failure {
         return when (code) {
-            401 -> ProviderResult.Failure.AuthError("Invalid OpenRouter API key")
-            429 -> ProviderResult.Failure.RateLimited("OpenRouter rate limit exceeded")
+            HTTP_UNAUTHORIZED -> ProviderResult.Failure.AuthError("Invalid OpenRouter API key")
+            HTTP_TOO_MANY_REQUESTS -> ProviderResult.Failure.RateLimited("OpenRouter rate limit exceeded")
             else -> ProviderResult.Failure.UnknownError("OpenRouter error: $code $message")
         }
+    }
+
+    companion object {
+        private const val HTTP_UNAUTHORIZED = 401
+        private const val HTTP_TOO_MANY_REQUESTS = 429
     }
 
     private data class CreditsResponse(val data: CreditsData)

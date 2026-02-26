@@ -37,12 +37,15 @@ class BalanceRefreshService : Disposable {
         startAutoRefresh()
     }
 
-    private fun startAutoRefresh() {
+    fun restartAutoRefresh() {
         autoRefreshJob?.cancel()
+        val settings = TokenPulseSettingsService.getInstance().state
+        if (!settings.autoRefreshEnabled) return
+
         autoRefreshJob = scope.launch {
             while (isActive) {
-                val interval = TokenPulseSettingsService.getInstance().state.refreshIntervalMinutes
                 refreshAll()
+                val interval = TokenPulseSettingsService.getInstance().state.refreshIntervalMinutes
                 delay(interval * 60 * 1000L)
             }
         }
@@ -87,6 +90,10 @@ class BalanceRefreshService : Disposable {
 
     override fun dispose() {
         scope.cancel()
+    }
+
+    private fun startAutoRefresh() {
+        restartAutoRefresh()
     }
 
     companion object {

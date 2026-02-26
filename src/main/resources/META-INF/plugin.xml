@@ -33,10 +33,8 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <!-- Application services -->
-        <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.service.HttpClientService"/>
-        <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.service.BalanceRefreshService"/>
+        <!-- Note: Other services are registered automatically via @Service (Light Services) -->
         <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService"/>
-        <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.settings.CredentialsStore"/>
 
         <!-- Notifications -->
         <notificationGroup id="TokenPulse" displayType="BALLOON"/>
@@ -55,6 +53,19 @@
     </extensions>
 
     <actions>
-        <!-- Add your actions here -->
+        <action id="TokenPulse.ShowDashboard"
+                class="org.zhavoronkov.tokenpulse.actions.ShowDashboardAction"
+                text="Show TokenPulse Dashboard"
+                description="Shows a table with all configured token balances">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+        <action id="TokenPulse.RefreshAll"
+                class="org.zhavoronkov.tokenpulse.actions.RefreshAllAction"
+                text="Refresh All Token Balances"
+                description="Force a refresh of all configured account balances"/>
+        <action id="TokenPulse.OpenSettings"
+                class="org.zhavoronkov.tokenpulse.actions.OpenSettingsAction"
+                text="TokenPulse Settings..."
+                description="Configure AI provider accounts and refresh interval"/>
     </actions>
 </idea-plugin>

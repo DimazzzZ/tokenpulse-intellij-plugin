@@ -1,3 +1,5 @@
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+
 plugins {
     id("java")
     kotlin("jvm") version "1.9.22"
@@ -19,6 +21,7 @@ dependencies {
     intellijPlatform {
         intellijIdeaUltimate("2023.3.4")
         instrumentationTools()
+        testFramework(TestFrameworkType.Platform)
     }
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

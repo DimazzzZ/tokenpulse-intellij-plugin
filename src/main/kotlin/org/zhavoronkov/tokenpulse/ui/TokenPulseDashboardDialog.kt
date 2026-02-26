@@ -18,6 +18,10 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 
 class TokenPulseDashboardDialog(project: Project) : DialogWrapper(project) {
+    companion object {
+        private const val PREFERRED_WIDTH = 600
+        private const val PREFERRED_HEIGHT = 350
+    }
     private val tableModel = DashboardTableModel()
     private val table = JBTable(tableModel)
 
@@ -54,7 +58,7 @@ class TokenPulseDashboardDialog(project: Project) : DialogWrapper(project) {
         }
         panel.add(refreshButton, BorderLayout.SOUTH)
 
-        panel.preferredSize = com.intellij.util.ui.JBUI.size(600, 350)
+        panel.preferredSize = com.intellij.util.ui.JBUI.size(PREFERRED_WIDTH, PREFERRED_HEIGHT)
         return panel
     }
 

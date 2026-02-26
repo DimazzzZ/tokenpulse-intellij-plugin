@@ -13,20 +13,28 @@ object BalanceFormatter {
     private val numberFormat = NumberFormat.getNumberInstance(Locale.US)
 
     fun format(balance: Balance): String {
+        val settings = org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService.getInstance().state
         val parts = mutableListOf<String>()
-        
-        balance.credits?.let { credits ->
-            credits.remaining?.let { 
-                parts.add(currencyFormat.format(it)) 
-            } ?: credits.used?.let {
-                parts.add("${currencyFormat.format(it)} used")
+
+        val showCredits = settings.showCredits
+        val showTokens = settings.showTokens
+
+        if (showCredits) {
+            balance.credits?.let { credits ->
+                credits.remaining?.let { 
+                    parts.add(currencyFormat.format(it)) 
+                } ?: credits.used?.let {
+                    parts.add("${currencyFormat.format(it)} used")
+                }
             }
         }
         
-        balance.tokens?.let { tokens ->
-            tokens.used?.let { used ->
-                val totalStr = tokens.total?.let { "/ ${formatNumber(it)}" } ?: ""
-                parts.add("${formatNumber(used)}$totalStr tokens")
+        if (showTokens) {
+            balance.tokens?.let { tokens ->
+                tokens.used?.let { used ->
+                    val totalStr = tokens.total?.let { "/ ${formatNumber(it)}" } ?: ""
+                    parts.add("${formatNumber(used)}$totalStr tokens")
+                }
             }
         }
         
