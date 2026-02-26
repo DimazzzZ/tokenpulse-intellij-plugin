@@ -1,15 +1,19 @@
 package org.zhavoronkov.tokenpulse.service
 
-import org.zhavoronkov.tokenpulse.model.ProviderResult
-import org.zhavoronkov.tokenpulse.settings.Account
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.zhavoronkov.tokenpulse.model.ProviderResult
+import org.zhavoronkov.tokenpulse.settings.Account
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
+
+private const val DEFAULT_CACHE_TTL_SECONDS = 60L
 
 /**
  * Handles the actual refresh logic: TTL caching, single-flight coalescing,
@@ -18,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap
 class RefreshCoordinator(
     private val scope: CoroutineScope,
     private val fetcher: suspend (Account) -> ProviderResult,
-    private val cacheTtl: Duration = Duration.ofSeconds(60),
+    private val cacheTtl: Duration = Duration.ofSeconds(DEFAULT_CACHE_TTL_SECONDS),
     private val clock: Clock = Clock.systemUTC()
 ) {
     private val _results = MutableStateFlow<Map<String, ProviderResult>>(emptyMap())
@@ -31,19 +35,13 @@ class RefreshCoordinator(
 
         // Single-flight check
         val currentJob = activeJobs[account.id]
-        if (currentJob != null && currentJob.isActive && !force) {
+        if (isJobRunning(currentJob) && !force) {
             return
         }
 
         // TTL Cache check
-        if (!force) {
-            val lastResult = _results.value[account.id]
-            if (lastResult is ProviderResult.Success) {
-                val age = Duration.between(lastResult.snapshot.timestamp, Instant.now(clock))
-                if (age < cacheTtl) {
-                    return
-                }
-            }
+        if (!force && shouldSkipRefresh(account.id)) {
+            return
         }
 
         currentJob?.cancel()
@@ -52,5 +50,16 @@ class RefreshCoordinator(
             _results.value = _results.value + (account.id to result)
             onResult(result)
         }
+    }
+
+    private fun isJobRunning(job: Job?): Boolean = job?.isActive == true
+
+    private fun shouldSkipRefresh(accountId: String): Boolean {
+        val lastResult = _results.value[accountId]
+        if (lastResult is ProviderResult.Success) {
+            val age = Duration.between(lastResult.snapshot.timestamp, Instant.now(clock))
+            return age < cacheTtl
+        }
+        return false
     }
 }

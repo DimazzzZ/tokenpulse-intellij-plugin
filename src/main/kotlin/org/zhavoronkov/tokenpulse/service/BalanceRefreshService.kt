@@ -4,12 +4,19 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import org.zhavoronkov.tokenpulse.model.ProviderResult
 import org.zhavoronkov.tokenpulse.settings.CredentialsStore
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
 import org.zhavoronkov.tokenpulse.ui.TokenPulseNotifier
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.StateFlow
 
 @Service(Service.Level.APP)
 class BalanceRefreshService : Disposable {
@@ -46,7 +53,7 @@ class BalanceRefreshService : Disposable {
             while (isActive) {
                 refreshAll()
                 val interval = TokenPulseSettingsService.getInstance().state.refreshIntervalMinutes
-                delay(interval * 60 * 1000L)
+                delay(interval.toLong() * SECONDS_PER_MINUTE * MILLIS_PER_SECOND)
             }
         }
     }
@@ -60,15 +67,15 @@ class BalanceRefreshService : Disposable {
 
     fun refreshAccount(accountId: String, force: Boolean = false) {
         val account = TokenPulseSettingsService.getInstance().state.accounts.find { it.id == accountId } ?: return
-        
+
         val oldResult = results.value[accountId]
-        
+
         coordinator.refreshAccount(account, force) { newResult ->
             // Publish event via MessageBus
             ApplicationManager.getApplication().messageBus
                 .syncPublisher(BalanceUpdatedTopic.TOPIC)
                 .balanceUpdated(accountId, newResult)
-            
+
             // Notify on status change
             handleNotifications(account.name, oldResult, newResult)
         }
@@ -97,6 +104,9 @@ class BalanceRefreshService : Disposable {
     }
 
     companion object {
+        private const val SECONDS_PER_MINUTE = 60L
+        private const val MILLIS_PER_SECOND = 1000L
+
         fun getInstance(): BalanceRefreshService = service()
     }
 }
