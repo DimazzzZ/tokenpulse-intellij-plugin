@@ -1,6 +1,10 @@
 build:
-  maxIssues: 20
-  excludeCorrectable: false
+  maxIssues: 0
+  excludeCorrectable: true
+
+config:
+  validation: true
+  warningsAsErrors: true
 
 style:
   MagicNumber:
@@ -8,9 +12,47 @@ style:
     ignoreNumbers: ['-1', '0', '1', '2', '100', '1000', '60']
   UnusedPrivateMember:
     active: true
+  NewLineAtEndOfFile:
+    active: true
+    autoCorrect: true
 
 complexity:
   TooManyFunctions:
     active: true
   LongMethod:
     active: true
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
+    exceptionNames:
+      - 'ArrayIndexOutOfBoundsException'
+      - 'Error'
+      - 'IllegalMonitorStateException'
+      - 'IndexOutOfBoundsException'
+      - 'NullPointerException'
+    allowedExceptionNameRegex: '_|(ignore|expected).*'
+
+formatting:
+  active: true
+  android: false
+  autoCorrect: true
+  NoWildcardImports:
+    active: true
+    autoCorrect: true
+  ImportOrdering:
+    active: true
+    autoCorrect: true
+  MaximumLineLength:
+    active: true
+    maxLineLength: 120
+  ArgumentListWrapping:
+    active: true
+    autoCorrect: true
+  Wrapping:
+    active: true
+    autoCorrect: true
+  Indentation:
+    active: true
+    autoCorrect: true

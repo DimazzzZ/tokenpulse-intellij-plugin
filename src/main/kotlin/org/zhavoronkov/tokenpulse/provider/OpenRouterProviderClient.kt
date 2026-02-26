@@ -1,11 +1,16 @@
 package org.zhavoronkov.tokenpulse.provider
 
 import com.google.gson.Gson
-import org.zhavoronkov.tokenpulse.model.*
-import org.zhavoronkov.tokenpulse.settings.Account
-import org.zhavoronkov.tokenpulse.settings.AuthType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.zhavoronkov.tokenpulse.model.Balance
+import org.zhavoronkov.tokenpulse.model.BalanceSnapshot
+import org.zhavoronkov.tokenpulse.model.Credits
+import org.zhavoronkov.tokenpulse.model.ProviderId
+import org.zhavoronkov.tokenpulse.model.ProviderResult
+import org.zhavoronkov.tokenpulse.model.Tokens
+import org.zhavoronkov.tokenpulse.settings.Account
+import org.zhavoronkov.tokenpulse.settings.AuthType
 import java.math.BigDecimal
 
 class OpenRouterProviderClient(
@@ -62,7 +67,7 @@ class OpenRouterProviderClient(
                     balance = Balance(credits = credits, tokens = tokens)
                 )
             )
-        } catch (e: Exception) {
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             ProviderResult.Failure.NetworkError("Failed to connect to OpenRouter", e)
         }
     }
@@ -93,7 +98,7 @@ class OpenRouterProviderClient(
                     )
                 )
             }
-        } catch (e: Exception) {
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             ProviderResult.Failure.NetworkError("Failed to connect to OpenRouter", e)
         }
     }

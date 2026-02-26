@@ -35,7 +35,7 @@ class OpenRouterProviderClientTest {
         mockWebServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"data":{"total_credits": 10.50}}"""))
-        
+
         // Mock activity response
         mockWebServer.enqueue(MockResponse()
             .setResponseCode(200)

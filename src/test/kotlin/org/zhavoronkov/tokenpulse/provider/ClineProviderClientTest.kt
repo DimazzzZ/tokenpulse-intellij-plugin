@@ -35,12 +35,12 @@ class ClineProviderClientTest {
         mockWebServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"success":true,"data":{"id":"user-123","organizations":[]}}"""))
-        
+
         // 2. Mock /balance response
         mockWebServer.enqueue(MockResponse()
             .setResponseCode(200)
             .setBody("""{"success":true,"data":{"balance": 100.0}}"""))
-        
+
         // 3. Mock /usages response
         mockWebServer.enqueue(MockResponse()
             .setResponseCode(200)

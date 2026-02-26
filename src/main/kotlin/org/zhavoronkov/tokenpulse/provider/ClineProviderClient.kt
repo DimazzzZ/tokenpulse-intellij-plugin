@@ -1,12 +1,20 @@
 package org.zhavoronkov.tokenpulse.provider
 
 import com.google.gson.Gson
-import org.zhavoronkov.tokenpulse.model.*
-import org.zhavoronkov.tokenpulse.settings.Account
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.zhavoronkov.tokenpulse.model.Balance
+import org.zhavoronkov.tokenpulse.model.BalanceSnapshot
+import org.zhavoronkov.tokenpulse.model.Credits
+import org.zhavoronkov.tokenpulse.model.ProviderId
+import org.zhavoronkov.tokenpulse.model.ProviderResult
+import org.zhavoronkov.tokenpulse.model.Tokens
+import org.zhavoronkov.tokenpulse.settings.Account
 import java.math.BigDecimal
 
+/**
+ * Client for the Cline provider.
+ */
 class ClineProviderClient(
     private val httpClient: OkHttpClient = OkHttpClient(),
     private val gson: Gson = Gson(),
@@ -41,7 +49,7 @@ class ClineProviderClient(
                     )
                 )
             )
-        } catch (e: Exception) {
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             ProviderResult.Failure.NetworkError("Failed to connect to Cline", e)
         }
     }
