@@ -11,6 +11,7 @@ import org.zhavoronkov.tokenpulse.model.ProviderResult
 import org.zhavoronkov.tokenpulse.model.Tokens
 import org.zhavoronkov.tokenpulse.settings.Account
 import java.math.BigDecimal
+import java.math.RoundingMode
 
 /**
  * Client for the Cline provider.
@@ -40,8 +41,8 @@ class ClineProviderClient(
                     providerId = ProviderId.CLINE,
                     balance = Balance(
                         credits = Credits(
-                            remaining = balanceVal,
-                            used = usages.sumOf { it.creditsUsed }
+                            remaining = creditsToUsd(balanceVal),
+                            used = creditsToUsd(usages.sumOf { it.creditsUsed })
                         ),
                         tokens = Tokens(
                             used = usages.sumOf { it.totalTokens }
@@ -95,12 +96,24 @@ class ClineProviderClient(
         }
     }
 
+    /**
+     * Cline API returns balance in credits where 1 credit = $0.000001 (micro-dollars).
+     * Divide by 1,000,000 to convert to dollars.
+     */
+    private fun creditsToUsd(credits: BigDecimal): BigDecimal =
+        credits.divide(CREDITS_PER_DOLLAR, 2, RoundingMode.HALF_UP)
+
     override fun testCredentials(account: Account, secret: String): ProviderResult {
         return if (fetchMe(secret) != null) {
             ProviderResult.Success(BalanceSnapshot("test", ProviderId.CLINE, Balance()))
         } else {
             ProviderResult.Failure.AuthError("Invalid Cline token")
         }
+    }
+
+    companion object {
+        /** Cline API balance is in micro-dollars (1 credit = $0.000001) */
+        private val CREDITS_PER_DOLLAR = BigDecimal(1_000_000)
     }
 
     private data class UserInfoWrapper(val data: UserResponse)

@@ -1,6 +1,5 @@
 package org.zhavoronkov.tokenpulse.ui
 
-import com.intellij.openapi.Disposable
 import com.intellij.openapi.options.Configurable
 import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.dsl.builder.Panel
@@ -9,40 +8,46 @@ import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 import org.zhavoronkov.tokenpulse.service.BalanceRefreshService
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.settings.CredentialsStore
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
+import org.zhavoronkov.tokenpulse.settings.generateKeyPreview
 import javax.swing.JComponent
 
-class TokenPulseConfigurable : Configurable, Disposable {
+class TokenPulseConfigurable : Configurable {
     private val settingsService = TokenPulseSettingsService.getInstance()
     private val settings = settingsService.state
     private val tableModel = AccountTableModel()
     private val table = JBTable(tableModel)
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var myModified = false
 
     companion object {
         private const val MAX_MINUTES = 1440
+
+        // Column indices (must match AccountTableModel column order)
+        private const val COL_PROVIDER = 0
+        private const val COL_KEY_PREVIEW = 1
+        private const val COL_STATUS = 2
+        private const val COL_LAST_UPDATED = 3
+        private const val COL_CREDITS = 4
+        private const val COL_ENABLED = 5
+
+        // Column preferred widths (px, before JBUI scaling)
+        private const val COL_PROVIDER_WIDTH = 100
+        private const val COL_KEY_PREVIEW_WIDTH = 160
+        private const val COL_STATUS_WIDTH = 90
+        private const val COL_LAST_UPDATED_WIDTH = 100
+        private const val COL_CREDITS_WIDTH = 100
+        private const val COL_ENABLED_WIDTH = 60
+
+        private const val TABLE_HEIGHT = 200
     }
 
     override fun createComponent(): JComponent {
         tableModel.items = settings.accounts.toMutableList()
-
-        // Subscribe to refresh results to update table
-        scope.launch {
-            BalanceRefreshService.getInstance().results.collectLatest {
-                tableModel.fireTableDataChanged()
-            }
-        }
+        configureTable()
 
         val decorator = createTableDecorator()
 
@@ -50,10 +55,27 @@ class TokenPulseConfigurable : Configurable, Disposable {
             preferencesGroup()
             group("Accounts") {
                 row {
-                    cell(decorator.createPanel()).resizableColumn()
+                    cell(decorator.createPanel())
+                        .resizableColumn()
+                        .align(com.intellij.ui.dsl.builder.Align.FILL)
                 }
             }
         }
+    }
+
+    private fun configureTable() {
+        table.fillsViewportHeight = true
+        table.preferredScrollableViewportSize = JBUI.size(700, TABLE_HEIGHT)
+        table.autoResizeMode = JBTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS
+
+        val cm = table.columnModel
+        cm.getColumn(COL_PROVIDER).preferredWidth = JBUI.scale(COL_PROVIDER_WIDTH)
+        cm.getColumn(COL_KEY_PREVIEW).preferredWidth = JBUI.scale(COL_KEY_PREVIEW_WIDTH)
+        cm.getColumn(COL_STATUS).preferredWidth = JBUI.scale(COL_STATUS_WIDTH)
+        cm.getColumn(COL_LAST_UPDATED).preferredWidth = JBUI.scale(COL_LAST_UPDATED_WIDTH)
+        cm.getColumn(COL_CREDITS).preferredWidth = JBUI.scale(COL_CREDITS_WIDTH)
+        cm.getColumn(COL_ENABLED).preferredWidth = JBUI.scale(COL_ENABLED_WIDTH)
+        cm.getColumn(COL_ENABLED).maxWidth = JBUI.scale(COL_ENABLED_WIDTH)
     }
 
     private fun Panel.preferencesGroup() {
@@ -83,28 +105,30 @@ class TokenPulseConfigurable : Configurable, Disposable {
         .setAddAction {
             val dialog = AccountEditDialog(null, null)
             if (dialog.showAndGet()) {
+                val apiKey = dialog.getApiKey()
                 val newAccount = Account(
-                    name = dialog.getAccountName(),
                     providerId = dialog.getProvider(),
-                    authType = dialog.getAuthType()
+                    authType = dialog.getAuthType(),
+                    keyPreview = generateKeyPreview(apiKey)
                 )
                 tableModel.addRow(newAccount)
-                CredentialsStore.getInstance().saveApiKey(newAccount.id, dialog.getApiKey())
+                CredentialsStore.getInstance().saveApiKey(newAccount.id, apiKey)
                 myModified = true
             }
         }
         .setEditAction {
             val account = tableModel.getItem(table.selectedRow)
-            val apiKey = CredentialsStore.getInstance().getApiKey(account.id)
-            val dialog = AccountEditDialog(account, apiKey)
+            val existingKey = CredentialsStore.getInstance().getApiKey(account.id)
+            val dialog = AccountEditDialog(account, existingKey)
             if (dialog.showAndGet()) {
+                val apiKey = dialog.getApiKey()
                 val updatedAccount = account.copy(
-                    name = dialog.getAccountName(),
                     providerId = dialog.getProvider(),
-                    authType = dialog.getAuthType()
+                    authType = dialog.getAuthType(),
+                    keyPreview = generateKeyPreview(apiKey)
                 )
                 tableModel.setItem(table.selectedRow, updatedAccount)
-                CredentialsStore.getInstance().saveApiKey(updatedAccount.id, dialog.getApiKey())
+                CredentialsStore.getInstance().saveApiKey(updatedAccount.id, apiKey)
                 myModified = true
             }
         }
@@ -123,10 +147,6 @@ class TokenPulseConfigurable : Configurable, Disposable {
         settingsService.loadState(settings)
         BalanceRefreshService.getInstance().restartAutoRefresh()
         myModified = false
-    }
-
-    override fun dispose() {
-        scope.cancel()
     }
 
     override fun getDisplayName(): String = "TokenPulse"

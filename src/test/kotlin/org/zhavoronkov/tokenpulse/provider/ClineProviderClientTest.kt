@@ -36,23 +36,25 @@ class ClineProviderClientTest {
             .setResponseCode(200)
             .setBody("""{"success":true,"data":{"id":"user-123","organizations":[]}}"""))
 
-        // 2. Mock /balance response
+        // 2. Mock /balance response — 9964261 micro-dollars = $9.96
         mockWebServer.enqueue(MockResponse()
             .setResponseCode(200)
-            .setBody("""{"success":true,"data":{"balance": 100.0}}"""))
+            .setBody("""{"success":true,"data":{"balance": 9964261.0}}"""))
 
-        // 3. Mock /usages response
+        // 3. Mock /usages response — 5500000 micro-dollars = $5.50
         mockWebServer.enqueue(MockResponse()
             .setResponseCode(200)
-            .setBody("""{"success":true,"data":{"items":[{"creditsUsed": 5.5, "totalTokens": 1000}]}}"""))
+            .setBody("""{"success":true,"data":{"items":[{"creditsUsed": 5500000.0, "totalTokens": 1000}]}}"""))
 
-        val account = Account(name = "Cline Personal", providerId = ProviderId.CLINE, authType = AuthType.CLINE_API_KEY)
+        val account = Account(providerId = ProviderId.CLINE, authType = AuthType.CLINE_API_KEY)
         val result = client.fetchBalance(account, "token")
 
         assertTrue(result is ProviderResult.Success)
         val success = result as ProviderResult.Success
-        assertEquals(0, BigDecimal("100.0").compareTo(success.snapshot.balance.credits?.remaining))
-        assertEquals(0, BigDecimal("5.5").compareTo(success.snapshot.balance.credits?.used))
+        // 9964261 credits / 1,000,000 = $9.96 (rounded half-up)
+        assertEquals(0, BigDecimal("9.96").compareTo(success.snapshot.balance.credits?.remaining))
+        // 5500000 credits / 1,000,000 = $5.50
+        assertEquals(0, BigDecimal("5.50").compareTo(success.snapshot.balance.credits?.used))
         assertEquals(1000L, success.snapshot.balance.tokens?.used)
     }
 }

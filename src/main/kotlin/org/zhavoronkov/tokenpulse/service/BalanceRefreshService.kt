@@ -77,21 +77,21 @@ class BalanceRefreshService : Disposable {
                 .balanceUpdated(accountId, newResult)
 
             // Notify on status change
-            handleNotifications(account.name, oldResult, newResult)
+            handleNotifications(account.displayLabel(), oldResult, newResult)
         }
     }
 
-    private fun handleNotifications(accountName: String, old: ProviderResult?, new: ProviderResult) {
+    private fun handleNotifications(accountLabel: String, old: ProviderResult?, new: ProviderResult) {
         if (new is ProviderResult.Failure) {
-            val shouldNotify = old == null || old is ProviderResult.Success || 
+            val shouldNotify = old == null || old is ProviderResult.Success ||
                              (old is ProviderResult.Failure && old.javaClass != new.javaClass)
-            
+
             if (shouldNotify) {
-                val message = "Failed to refresh $accountName: ${new.message}"
+                val message = "Failed to refresh $accountLabel: ${new.message}"
                 TokenPulseNotifier.notifyError(null, message)
             }
         } else if (new is ProviderResult.Success && old is ProviderResult.Failure) {
-            TokenPulseNotifier.notifyInfo(null, "Account $accountName is back online.")
+            TokenPulseNotifier.notifyInfo(null, "Account $accountLabel is back online.")
         }
     }
 

@@ -9,23 +9,21 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * Table model for the Settings → Accounts table.
+ * Table model for the Dashboard dialog.
  *
  * Columns (in order):
- *  0  Provider   – provider display name
- *  1  API Key    – masked key preview (e.g. "sk-or-…91bc")
- *  2  Status     – last fetch result
- *  3  Last Updated – time of last fetch
- *  4  Credits    – remaining credits from last successful fetch
- *  5  Enabled    – checkbox
+ *  0  Provider      – provider display name
+ *  1  API Key       – masked key preview (e.g. "sk-or-…91bc")
+ *  2  Status        – last fetch result
+ *  3  Last Updated  – time of last fetch
+ *  4  Credits       – remaining credits from last successful fetch
  */
-class AccountTableModel : ListTableModel<Account>(
+class DashboardTableModel : ListTableModel<Account>(
     PROVIDER_COLUMN,
     KEY_PREVIEW_COLUMN,
     STATUS_COLUMN,
     LAST_UPDATED_COLUMN,
-    CREDITS_COLUMN,
-    ENABLED_COLUMN
+    CREDITS_COLUMN
 ) {
     companion object {
         private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
@@ -36,8 +34,7 @@ class AccountTableModel : ListTableModel<Account>(
         }
 
         private val KEY_PREVIEW_COLUMN = object : ColumnInfo<Account, String>("API Key") {
-            override fun valueOf(item: Account): String =
-                item.keyPreview.ifEmpty { "—" }
+            override fun valueOf(item: Account): String = item.keyPreview.ifEmpty { "—" }
         }
 
         private val STATUS_COLUMN = object : ColumnInfo<Account, String>("Status") {
@@ -69,11 +66,6 @@ class AccountTableModel : ListTableModel<Account>(
                     "--"
                 }
             }
-        }
-
-        private val ENABLED_COLUMN = object : ColumnInfo<Account, Boolean>("Enabled") {
-            override fun valueOf(item: Account): Boolean = item.isEnabled
-            override fun getColumnClass(): Class<*> = Boolean::class.java
         }
     }
 }

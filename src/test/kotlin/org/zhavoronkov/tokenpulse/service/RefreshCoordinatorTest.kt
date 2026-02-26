@@ -41,7 +41,6 @@ class RefreshCoordinatorTest {
 
     private fun account() = Account(
         id = "a1",
-        name = "Test",
         providerId = ProviderId.CLINE,
         authType = AuthType.CLINE_API_KEY
     )

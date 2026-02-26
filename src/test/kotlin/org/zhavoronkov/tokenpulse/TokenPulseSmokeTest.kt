@@ -19,7 +19,6 @@ class TokenPulseSmokeTest : BasePlatformTestCase() {
         val configurable = TokenPulseConfigurable()
         val component = configurable.createComponent()
         assertNotNull(component)
-        configurable.dispose()
     }
 
     fun testDashboardCreation() {

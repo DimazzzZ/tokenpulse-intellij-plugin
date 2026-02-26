@@ -17,7 +17,8 @@ class TokenPulseSettingsService : PersistentStateComponent<TokenPulseSettings> {
     override fun getState(): TokenPulseSettings = mySettings
 
     override fun loadState(state: TokenPulseSettings) {
-        mySettings = state
+        // Migrate legacy OPENROUTER_API_KEY accounts to OPENROUTER_PROVISIONING_KEY
+        mySettings = state.copy(accounts = state.accounts.migrateAuthTypes())
     }
 
     companion object {
