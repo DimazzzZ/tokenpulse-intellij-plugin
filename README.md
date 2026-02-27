@@ -8,7 +8,7 @@
 ## Features
 
 - **📊 Live Aggregate Balance** — See your total remaining credits/tokens at a glance in the status bar.
-- **🤖 Multi-Provider Support** — Supports **OpenRouter** (Provisioning Key) and **Cline** (API Key).
+- **🤖 Multi-Provider Support** — Supports **OpenRouter** (Provisioning Key), **Cline** (API Key), and **Nebius AI Studio** (Billing Session).
 - **🔄 Smart Refresh** — Configurable auto-refresh with TTL caching and single-flight coalescing to avoid rate limits.
 - **🔐 Secure Storage** — API keys are stored securely using IntelliJ's built-in `PasswordSafe`.
 - **📈 Dashboard Overview** — Detailed table view showing per-account provider, key preview, status, last refresh time, and credits.
@@ -31,21 +31,22 @@
 
 1. Open **Settings** → **Tools** → **TokenPulse**.
 2. Click **+** to add a provider account:
-   - Select the **Provider** (Cline or OpenRouter).
-   - Click **"Get API Key →"** to open the provider's key management page in your browser.
-   - Paste the generated key into the **API Key** field.
+   - Select the **Provider** (Cline, OpenRouter, or Nebius).
+   - **For Cline / OpenRouter:** Click **"Get API Key →"** to open the provider's key management page, then paste the key into the **API Key** field.
+   - **For Nebius:** Click **"Connect Billing Session →"**, follow the 3-step guide in the dialog (open billing page → run a one-line console script → paste the output), then click **Connect**.
 3. Configure the **Refresh Interval** (default: 15 minutes).
 4. The aggregate balance appears in your status bar automatically.
 
 ### Where to get your key
 
-| Provider | Key type | Key management page |
+| Provider | Auth type | How to connect |
 |---|---|---|
 | Cline | API Key | https://app.cline.bot/dashboard/account?tab=api-keys |
 | OpenRouter | **Provisioning Key** | https://openrouter.ai/settings/provisioning-keys |
+| Nebius AI Studio | **Billing Session** | Click "Connect Billing Session →" in the account dialog |
 
 > **Tip:** If you add multiple accounts for the same provider, each entry shows a partial key preview
-> (e.g. `sk-or-…91bc`) so you can tell them apart at a glance.
+> (e.g. `sk-or-…91bc`) so you can tell them apart at a glance. Nebius accounts show "Session" instead.
 
 ## FAQ
 
@@ -57,6 +58,19 @@ generated keys do. This is a provider-side limitation, not a plugin choice.
 
 Generating a key takes about 30 seconds and the **"Get API Key →"** button in the dialog takes
 you directly to the right page.
+
+### How does Nebius authentication work?
+
+Nebius AI Studio does **not** expose a billing API accessible via API key. TokenPulse reads your
+trial balance from the same internal billing gateway used by the Token Factory web UI.
+
+The **"Connect Billing Session →"** dialog walks you through a 3-step process:
+1. Open the Nebius billing page in your browser and log in.
+2. Open the browser console (F12 → Console) and run the one-line script shown in the dialog.
+3. Copy the output (a small JSON blob) and paste it into the dialog.
+
+The session is stored securely in IntelliJ's `PasswordSafe`. Sessions are short-lived — when
+yours expires, the plugin will show an **Auth Error** and you can reconnect in under a minute.
 
 ### Why does OpenRouter require a Provisioning Key specifically?
 

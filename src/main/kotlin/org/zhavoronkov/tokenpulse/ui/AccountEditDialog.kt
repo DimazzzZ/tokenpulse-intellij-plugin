@@ -22,14 +22,17 @@ import javax.swing.JComponent
  *  - No auth-type selector — each provider has exactly one supported key type:
  *      • Cline       → API Key  (CLINE_API_KEY)
  *      • OpenRouter  → Provisioning Key  (OPENROUTER_PROVISIONING_KEY)
+ *      • Nebius      → Billing Session  (NEBIUS_BILLING_SESSION)
  *    Regular OpenRouter API keys do not expose the credits endpoint and are not supported.
- *  - "Get API Key →" button opens the exact provider page for key generation.
+ *    Nebius does not expose a billing API via API key — a browser session is required.
+ *  - For Nebius: "Connect Billing Session →" button opens [NebiusConnectDialog].
+ *  - For other providers: "Get API Key →" button opens the exact provider page.
  *  - Key preview (first 6 + last 4 chars) is always shown so users can recognise accounts
  *    when multiple keys are configured for the same provider.
  */
 class AccountEditDialog(
     private val account: Account?,
-    private val apiKey: String?
+    private val existingSecret: String?
 ) : DialogWrapper(true) {
 
     // ── Provider selector ──────────────────────────────────────────────────
@@ -40,25 +43,53 @@ class AccountEditDialog(
                 r.getListCellRendererComponent(list, (value as ProviderId).displayName, index, isSelected, cellHasFocus)
             }
         }
+        addActionListener { updateUiForProvider() }
     }
 
-    // ── Key field ──────────────────────────────────────────────────────────
+    // ── Key field (hidden for Nebius) ──────────────────────────────────────
     private val keyField = JBPasswordField().apply {
-        text = apiKey ?: ""
+        text = if (account?.providerId != ProviderId.NEBIUS) existingSecret ?: "" else ""
         columns = 36
     }
 
-    // ── "Get API Key" button ───────────────────────────────────────────────
+    // ── "Get API Key" button (non-Nebius providers) ────────────────────────
     private val getKeyButton = JButton("Get API Key →").apply {
         addActionListener { openKeyGenerationPage() }
     }
 
+    // ── Nebius connect button ──────────────────────────────────────────────
+    private val nebiusConnectButton = JButton("Connect Billing Session →").apply {
+        addActionListener { openNebiusConnectDialog() }
+    }
+
+    // ── Nebius session status label ────────────────────────────────────────
+    private val nebiusStatusLabel = JBLabel(
+        if (account?.providerId == ProviderId.NEBIUS && !existingSecret.isNullOrBlank()) {
+            "<html><font color='green'>✓ Session connected</font></html>"
+        } else {
+            "<html><i>Not connected</i></html>"
+        }
+    )
+
+    /** Holds the captured Nebius session JSON (set after successful NebiusConnectDialog). */
+    private var capturedNebiusSession: String? =
+        if (account?.providerId == ProviderId.NEBIUS) existingSecret else null
+
     init {
         title = if (account == null) "Add Provider" else "Edit Provider"
         init()
+        updateUiForProvider()
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    private fun updateUiForProvider() {
+        val isNebius = getProvider() == ProviderId.NEBIUS
+        keyField.isVisible = !isNebius
+        getKeyButton.isVisible = !isNebius
+        nebiusConnectButton.isVisible = isNebius
+        nebiusStatusLabel.isVisible = isNebius
+    }
 
     /**
      * Returns the single supported [AuthType] for the currently selected provider.
@@ -67,14 +98,40 @@ class AccountEditDialog(
     fun getAuthType(): AuthType = when (getProvider()) {
         ProviderId.OPENROUTER -> AuthType.OPENROUTER_PROVISIONING_KEY
         ProviderId.CLINE -> AuthType.CLINE_API_KEY
+        ProviderId.NEBIUS -> AuthType.NEBIUS_BILLING_SESSION
     }
+
+    /**
+     * Returns the secret to store:
+     * - For Nebius: the captured session JSON blob.
+     * - For other providers: the raw API key string.
+     */
+    fun getSecret(): String = when (getProvider()) {
+        ProviderId.NEBIUS -> capturedNebiusSession ?: ""
+        else -> String(keyField.password).trim()
+    }
+
+    /** Kept for compatibility with callers that expect getApiKey(). */
+    fun getApiKey(): String = getSecret()
 
     private fun openKeyGenerationPage() {
         val url = when (getProvider()) {
             ProviderId.CLINE -> "https://app.cline.bot/dashboard/account?tab=api-keys"
             ProviderId.OPENROUTER -> "https://openrouter.ai/settings/provisioning-keys"
+            ProviderId.NEBIUS -> "https://tokenfactory.nebius.com/"
         }
         BrowserUtil.browse(url)
+    }
+
+    private fun openNebiusConnectDialog() {
+        val dialog = NebiusConnectDialog()
+        if (dialog.showAndGet()) {
+            val json = dialog.capturedSessionJson
+            if (!json.isNullOrBlank()) {
+                capturedNebiusSession = json
+                nebiusStatusLabel.text = "<html><font color='green'><b>✓ Session connected</b></font></html>"
+            }
+        }
     }
 
     private fun keyHintFor(provider: ProviderId): String = when (provider) {
@@ -82,6 +139,8 @@ class AccountEditDialog(
             "Cline personal API key. Click \"Get API Key →\" to open the Cline dashboard."
         ProviderId.OPENROUTER ->
             "OpenRouter <b>Provisioning Key</b> required. Regular API keys do not expose credits info."
+        ProviderId.NEBIUS ->
+            "Nebius billing is accessed via a browser session. Click \"Connect Billing Session →\" to set it up."
     }
 
     // ── Panel construction ─────────────────────────────────────────────────
@@ -90,6 +149,7 @@ class AccountEditDialog(
         row("Provider:") {
             cell(providerCombo)
         }
+        // Non-Nebius: API key row
         row {
             cell(getKeyButton)
                 .comment("Opens the provider's key management page in your browser")
@@ -97,29 +157,44 @@ class AccountEditDialog(
         row("API Key:") {
             cell(keyField).align(AlignX.FILL).resizableColumn()
         }
-        if (account != null && account.keyPreview.isNotEmpty()) {
+        // Nebius: connect session row
+        row {
+            cell(nebiusConnectButton)
+            cell(nebiusStatusLabel).align(AlignX.FILL).resizableColumn()
+        }
+        if (account != null && account.keyPreview.isNotEmpty() && account.providerId != ProviderId.NEBIUS) {
             row {
                 cell(JBLabel("<html><small>Current key: <b>${account.keyPreview}</b></small></html>"))
             }
         }
         row {
             val provider = providerCombo.selectedItem as? ProviderId ?: ProviderId.CLINE
-            comment("<html>${keyHintFor(provider)}</html>")
+            comment(keyHintFor(provider))
         }
     }
 
     // ── Public accessors ───────────────────────────────────────────────────
 
     fun getProvider(): ProviderId = providerCombo.selectedItem as ProviderId
-    fun getApiKey(): String = String(keyField.password).trim()
 
     // ── Validation ─────────────────────────────────────────────────────────
 
     override fun doValidate(): ValidationInfo? {
-        if (getApiKey().isEmpty()) {
-            return ValidationInfo("API Key is required", keyField)
+        return when (getProvider()) {
+            ProviderId.NEBIUS -> {
+                if (capturedNebiusSession.isNullOrBlank()) {
+                    ValidationInfo(
+                        "Please connect your Nebius billing session first.",
+                        nebiusConnectButton
+                    )
+                } else null
+            }
+            else -> {
+                if (getSecret().isEmpty()) {
+                    ValidationInfo("API Key is required", keyField)
+                } else null
+            }
         }
-        return null
     }
 
     override fun doOKAction() {

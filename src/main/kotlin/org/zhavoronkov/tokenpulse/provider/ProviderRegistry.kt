@@ -14,11 +14,13 @@ class DefaultProviderRegistry(
 ) : ProviderRegistry {
     private val openRouterClient = OpenRouterProviderClient(httpClient, gson)
     private val clineClient = ClineProviderClient(httpClient, gson)
+    private val nebiusClient = NebiusProviderClient(httpClient, gson)
 
     override fun getClient(providerId: ProviderId): ProviderClient {
         return when (providerId) {
             ProviderId.OPENROUTER -> openRouterClient
             ProviderId.CLINE -> clineClient
+            ProviderId.NEBIUS -> nebiusClient
         }
     }
 }

@@ -8,6 +8,7 @@ import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
+import org.zhavoronkov.tokenpulse.model.ProviderId
 import org.zhavoronkov.tokenpulse.service.BalanceRefreshService
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.settings.CredentialsStore
@@ -105,30 +106,32 @@ class TokenPulseConfigurable : Configurable {
         .setAddAction {
             val dialog = AccountEditDialog(null, null)
             if (dialog.showAndGet()) {
-                val apiKey = dialog.getApiKey()
+                val secret = dialog.getSecret()
+                val provider = dialog.getProvider()
                 val newAccount = Account(
-                    providerId = dialog.getProvider(),
+                    providerId = provider,
                     authType = dialog.getAuthType(),
-                    keyPreview = generateKeyPreview(apiKey)
+                    keyPreview = secretPreview(provider, secret)
                 )
                 tableModel.addRow(newAccount)
-                CredentialsStore.getInstance().saveApiKey(newAccount.id, apiKey)
+                CredentialsStore.getInstance().saveApiKey(newAccount.id, secret)
                 myModified = true
             }
         }
         .setEditAction {
             val account = tableModel.getItem(table.selectedRow)
-            val existingKey = CredentialsStore.getInstance().getApiKey(account.id)
-            val dialog = AccountEditDialog(account, existingKey)
+            val existingSecret = CredentialsStore.getInstance().getApiKey(account.id)
+            val dialog = AccountEditDialog(account, existingSecret)
             if (dialog.showAndGet()) {
-                val apiKey = dialog.getApiKey()
+                val secret = dialog.getSecret()
+                val provider = dialog.getProvider()
                 val updatedAccount = account.copy(
-                    providerId = dialog.getProvider(),
+                    providerId = provider,
                     authType = dialog.getAuthType(),
-                    keyPreview = generateKeyPreview(apiKey)
+                    keyPreview = secretPreview(provider, secret)
                 )
                 tableModel.setItem(table.selectedRow, updatedAccount)
-                CredentialsStore.getInstance().saveApiKey(updatedAccount.id, apiKey)
+                CredentialsStore.getInstance().saveApiKey(updatedAccount.id, secret)
                 myModified = true
             }
         }
@@ -150,4 +153,12 @@ class TokenPulseConfigurable : Configurable {
     }
 
     override fun getDisplayName(): String = "TokenPulse"
+
+    /**
+     * Returns a display-safe preview string for the stored secret.
+     * For Nebius (billing session JSON), shows "Session" instead of a garbled key preview.
+     * For all other providers, delegates to [generateKeyPreview].
+     */
+    private fun secretPreview(provider: ProviderId, secret: String): String =
+        if (provider == ProviderId.NEBIUS) "Session" else generateKeyPreview(secret)
 }
