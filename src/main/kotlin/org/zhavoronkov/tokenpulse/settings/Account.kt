@@ -27,6 +27,14 @@ enum class AuthType(val displayName: String) {
     NEBIUS_BILLING_SESSION("Billing Session"),
 
     /**
+     * OpenAI personal OAuth token for accessing usage/cost data.
+     *
+     * Uses Authorization Code with PKCE flow. The stored secret is a JSON blob:
+     * {"accessToken":"...","refreshToken":"...","expiresAt":1234567890}
+     */
+    OPENAI_OAUTH("OAuth Token"),
+
+    /**
      * Legacy value kept for backward-compatibility with persisted settings.
      * Accounts with this type are automatically migrated to [OPENROUTER_PROVISIONING_KEY]
      * on settings load. Do not use for new accounts.
@@ -89,12 +97,14 @@ fun List<Account>.migrateAuthTypes(): List<Account> = map { account ->
  *  - OPENROUTER → OPENROUTER_PROVISIONING_KEY
  *  - CLINE      → CLINE_API_KEY
  *  - NEBIUS     → NEBIUS_BILLING_SESSION
+ *  - OPENAI     → OPENAI_OAUTH
  */
 fun List<Account>.normalizeProviderAuthTypes(): List<Account> = map { account ->
     val expectedAuthType = when (account.providerId) {
         ProviderId.OPENROUTER -> AuthType.OPENROUTER_PROVISIONING_KEY
         ProviderId.CLINE -> AuthType.CLINE_API_KEY
         ProviderId.NEBIUS -> AuthType.NEBIUS_BILLING_SESSION
+        ProviderId.OPENAI -> AuthType.OPENAI_OAUTH
     }
     if (account.authType != expectedAuthType) {
         account.copy(authType = expectedAuthType)
@@ -126,6 +136,7 @@ fun List<Account>.sanitizeAccounts(): List<Account> = map { account ->
         ProviderId.OPENROUTER -> AuthType.OPENROUTER_PROVISIONING_KEY
         ProviderId.CLINE -> AuthType.CLINE_API_KEY
         ProviderId.NEBIUS -> AuthType.NEBIUS_BILLING_SESSION
+        ProviderId.OPENAI -> AuthType.OPENAI_OAUTH
     }
 
     // Validate authType - use expected type if invalid/missing

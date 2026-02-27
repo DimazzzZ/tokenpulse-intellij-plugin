@@ -23,10 +23,13 @@ import javax.swing.JComponent
  *      • Cline       → API Key  (CLINE_API_KEY)
  *      • OpenRouter  → Provisioning Key  (OPENROUTER_PROVISIONING_KEY)
  *      • Nebius      → Billing Session  (NEBIUS_BILLING_SESSION)
+ *      • OpenAI      → OAuth Token  (OPENAI_OAUTH)
  *    Regular OpenRouter API keys do not expose the credits endpoint and are not supported.
  *    Nebius does not expose a billing API via API key — a browser session is required.
  *  - For Nebius: "Connect Billing Session →" button opens [NebiusConnectDialog]
  *    which guides users through a console script extraction flow.
+ *  - For OpenAI: "Connect OAuth Token →" button opens [OpenAiConnectDialog]
+ *    which guides users through OAuth authorization flow.
  *  - For other providers: "Get API Key →" button opens the exact provider page.
  *  - Key preview (first 6 + last 4 chars) is always shown so users can recognise accounts
  *    when multiple keys are configured for the same provider.
@@ -47,13 +50,13 @@ class AccountEditDialog(
         addActionListener { updateUiForProvider() }
     }
 
-    // ── Key field (hidden for Nebius) ──────────────────────────────────────
+    // ── Key field (hidden for Nebius and OpenAI) ───────────────────────────
     private val keyField = JBPasswordField().apply {
-        text = if (account?.providerId != ProviderId.NEBIUS) existingSecret ?: "" else ""
+        text = if (account?.providerId != ProviderId.NEBIUS && account?.providerId != ProviderId.OPENAI) existingSecret ?: "" else ""
         columns = 36
     }
 
-    // ── "Get API Key" button (non-Nebius providers) ────────────────────────
+    // ── "Get API Key" button (non-Nebius, non-OpenAI providers) ────────────
     private val getKeyButton = JButton("Get API Key →").apply {
         addActionListener { openKeyGenerationPage() }
     }
@@ -61,6 +64,11 @@ class AccountEditDialog(
     // ── Nebius connect button ──────────────────────────────────────────────
     private val nebiusConnectButton = JButton("Connect Billing Session →").apply {
         addActionListener { openNebiusConnectDialog() }
+    }
+
+    // ── OpenAI connect button ──────────────────────────────────────────────
+    private val openAiConnectButton = JButton("Connect OAuth Token →").apply {
+        addActionListener { openOpenAiConnectDialog() }
     }
 
     // ── Nebius session status label ────────────────────────────────────────
@@ -72,9 +80,22 @@ class AccountEditDialog(
         }
     )
 
+    // ── OpenAI OAuth status label ──────────────────────────────────────────
+    private val openAiStatusLabel = JBLabel(
+        if (account?.providerId == ProviderId.OPENAI && !existingSecret.isNullOrBlank()) {
+            "<html><font color='green'>✓ OAuth connected</font></html>"
+        } else {
+            "<html><i>Not connected</i></html>"
+        }
+    )
+
     /** Holds the captured Nebius session JSON (set after successful NebiusConnectDialog). */
     private var capturedNebiusSession: String? =
         if (account?.providerId == ProviderId.NEBIUS) existingSecret else null
+
+    /** Holds the captured OpenAI OAuth token JSON (set after successful OpenAiConnectDialog). */
+    private var capturedOpenAiToken: String? =
+        if (account?.providerId == ProviderId.OPENAI) existingSecret else null
 
     init {
         title = if (account == null) "Add Provider" else "Edit Provider"
@@ -86,10 +107,24 @@ class AccountEditDialog(
 
     private fun updateUiForProvider() {
         val isNebius = getProvider() == ProviderId.NEBIUS
-        keyField.isVisible = !isNebius
-        getKeyButton.isVisible = !isNebius
+        val isOpenAi = getProvider() == ProviderId.OPENAI
+        keyField.isVisible = !isNebius && !isOpenAi
+        getKeyButton.isVisible = !isNebius && !isOpenAi
         nebiusConnectButton.isVisible = isNebius
         nebiusStatusLabel.isVisible = isNebius
+        openAiConnectButton.isVisible = isOpenAi
+        openAiStatusLabel.isVisible = isOpenAi
+        // Update button text based on provider
+        if (isOpenAi) {
+            getKeyButton.text = "Get API Key →"
+            getKeyButton.toolTipText = "Opens the OpenAI API keys page in your browser"
+        } else if (isNebius) {
+            getKeyButton.text = "Get API Key →"
+            getKeyButton.toolTipText = "Opens the Nebius billing page in your browser"
+        } else {
+            getKeyButton.text = "Get API Key →"
+            getKeyButton.toolTipText = "Opens the provider's key management page in your browser"
+        }
     }
 
     /**
@@ -100,15 +135,18 @@ class AccountEditDialog(
         ProviderId.OPENROUTER -> AuthType.OPENROUTER_PROVISIONING_KEY
         ProviderId.CLINE -> AuthType.CLINE_API_KEY
         ProviderId.NEBIUS -> AuthType.NEBIUS_BILLING_SESSION
+        ProviderId.OPENAI -> AuthType.OPENAI_OAUTH
     }
 
     /**
      * Returns the secret to store:
      * - For Nebius: the captured session JSON blob.
+     * - For OpenAI: the captured OAuth token JSON blob.
      * - For other providers: the raw API key string.
      */
     fun getSecret(): String = when (getProvider()) {
         ProviderId.NEBIUS -> capturedNebiusSession ?: ""
+        ProviderId.OPENAI -> capturedOpenAiToken ?: ""
         else -> String(keyField.password).trim()
     }
 
@@ -120,6 +158,7 @@ class AccountEditDialog(
             ProviderId.CLINE -> "https://app.cline.bot/dashboard/account?tab=api-keys"
             ProviderId.OPENROUTER -> "https://openrouter.ai/settings/provisioning-keys"
             ProviderId.NEBIUS -> NebiusConnectDialog.NEBIUS_URL
+            ProviderId.OPENAI -> "https://platform.openai.com/account/api-keys"
         }
         BrowserUtil.browse(url)
     }
@@ -135,6 +174,17 @@ class AccountEditDialog(
         }
     }
 
+    private fun openOpenAiConnectDialog() {
+        val dialog = OpenAiConnectDialog()
+        if (dialog.showAndGet()) {
+            val apiKey = dialog.capturedApiKey
+            if (!apiKey.isNullOrBlank()) {
+                capturedOpenAiToken = apiKey
+                openAiStatusLabel.text = "<html><font color='green'><b>✓ API key connected</b></font></html>"
+            }
+        }
+    }
+
     private fun keyHintFor(provider: ProviderId): String = when (provider) {
         ProviderId.CLINE ->
             "Cline personal API key. Click \"Get API Key →\" to open the Cline dashboard."
@@ -142,6 +192,8 @@ class AccountEditDialog(
             "OpenRouter <b>Provisioning Key</b> required. Regular API keys do not expose credits info."
         ProviderId.NEBIUS ->
             "Nebius billing uses a browser session. Click \"Connect Billing Session →\" to run the extraction script."
+        ProviderId.OPENAI ->
+            "OpenAI personal API key for usage/cost data. Click \"Get API Key →\" to open the OpenAI dashboard."
     }
 
     // ── Panel construction ─────────────────────────────────────────────────
@@ -163,7 +215,12 @@ class AccountEditDialog(
             cell(nebiusConnectButton)
             cell(nebiusStatusLabel).align(AlignX.FILL).resizableColumn()
         }
-        if (account != null && account.keyPreview.isNotEmpty() && account.providerId != ProviderId.NEBIUS) {
+        // OpenAI: connect OAuth row
+        row {
+            cell(openAiConnectButton)
+            cell(openAiStatusLabel).align(AlignX.FILL).resizableColumn()
+        }
+        if (account != null && account.keyPreview.isNotEmpty() && account.providerId != ProviderId.NEBIUS && account.providerId != ProviderId.OPENAI) {
             row {
                 cell(JBLabel("<html><small>Current key: <b>${account.keyPreview}</b></small></html>"))
             }
@@ -187,6 +244,14 @@ class AccountEditDialog(
                     ValidationInfo(
                         "Please connect your Nebius billing session first.",
                         nebiusConnectButton
+                    )
+                } else null
+            }
+            ProviderId.OPENAI -> {
+                if (capturedOpenAiToken.isNullOrBlank()) {
+                    ValidationInfo(
+                        "Please connect your OpenAI OAuth token first.",
+                        openAiConnectButton
                     )
                 } else null
             }

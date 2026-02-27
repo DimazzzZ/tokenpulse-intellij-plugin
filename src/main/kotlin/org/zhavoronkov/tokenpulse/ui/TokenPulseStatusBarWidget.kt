@@ -39,12 +39,25 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
         val results = BalanceRefreshService.getInstance().results.value
         if (results.isEmpty()) return "TP: --"
 
-        val totalCredits = results.values
+        // Try to get remaining credits first (balance-based providers)
+        val totalRemaining = results.values
             .filterIsInstance<ProviderResult.Success>()
             .mapNotNull { it.snapshot.balance.credits?.remaining }
             .fold(BigDecimal.ZERO) { acc, amount -> acc.add(amount) }
 
-        return "TP: ${BalanceFormatter.format(Balance(credits = Credits(remaining = totalCredits)))}"
+        // If no remaining credits, sum up usage (usage-only providers like OpenAI)
+        val totalUsed = results.values
+            .filterIsInstance<ProviderResult.Success>()
+            .mapNotNull { it.snapshot.balance.credits?.used }
+            .fold(BigDecimal.ZERO) { acc, amount -> acc.add(amount) }
+
+        return if (totalRemaining > BigDecimal.ZERO) {
+            "TP: ${BalanceFormatter.format(Balance(credits = Credits(remaining = totalRemaining)))}"
+        } else if (totalUsed > BigDecimal.ZERO) {
+            "TP: ${BalanceFormatter.format(Balance(credits = Credits(used = totalUsed)))}"
+        } else {
+            "TP: --"
+        }
     }
 
     override fun getTooltipText(): String {

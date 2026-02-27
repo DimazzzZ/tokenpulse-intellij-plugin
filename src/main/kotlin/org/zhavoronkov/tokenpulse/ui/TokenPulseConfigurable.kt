@@ -156,9 +156,14 @@ class TokenPulseConfigurable : Configurable {
 
     /**
      * Returns a display-safe preview string for the stored secret.
-     * For Nebius (billing session JSON), shows "Session" instead of a garbled key preview.
+     * For Nebius (billing session JSON) and OpenAI (OAuth token JSON), shows a friendly
+     * label instead of a garbled key preview.
      * For all other providers, delegates to [generateKeyPreview].
      */
     private fun secretPreview(provider: ProviderId, secret: String): String =
-        if (provider == ProviderId.NEBIUS) "Session" else generateKeyPreview(secret)
+        when (provider) {
+            ProviderId.NEBIUS -> "Session"
+            ProviderId.OPENAI -> "OAuth"
+            else -> generateKeyPreview(secret)
+        }
 }
