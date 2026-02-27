@@ -70,87 +70,120 @@ class NebiusProviderClient(
                 )
             }
 
-            // Log session validation details (no secrets)
-            val sessionFlags = listOf(
-                "appSession" to !session.appSession.isNullOrBlank(),
-                "csrfCookie" to !session.csrfCookie.isNullOrBlank(),
-                "csrfToken" to !session.csrfToken.isNullOrBlank(),
-                "parentId" to !session.parentId.isNullOrBlank()
-            ).joinToString { (field, present) -> "$field=${if (present) "✓" else "✗"}" }
-            
-            TokenPulseLogger.Provider.debug("Parsed Nebius session for account ${account.id}: $sessionFlags")
-            
-            // Validate critical fields
-            if (session.appSession.isNullOrBlank() || session.csrfCookie.isNullOrBlank() || 
-                session.csrfToken.isNullOrBlank() || session.parentId.isNullOrBlank()) {
-                TokenPulseLogger.Provider.warn("Incomplete Nebius session for account ${account.id}: $sessionFlags")
+            if (!validateSession(session)) {
                 return ProviderResult.Failure.AuthError(
                     "Nebius session is incomplete. Please reconnect via Settings → Accounts → Edit."
                 )
             }
 
-            val payload = gson.toJson(mapOf("parentId" to session.parentId!!))
-            val body = payload.toRequestBody(JSON_MEDIA_TYPE)
-
-            val request = Request.Builder()
-                .url("$baseUrl$BILLING_ENDPOINT")
-                .post(body)
-                .header("accept", "application/json")
-                .header("content-type", "application/json")
-                .header("x-requested-with", "XMLHttpRequest")
-                .header("x-csrf-token", session.csrfToken!!)
-                .header(
-                    "cookie",
-                    "__Host-app_session=${session.appSession!!}; " +
-                        "__Host-psifi.x-csrf-token=${session.csrfCookie!!}"
-                )
-                .build()
-
+            val request = buildRequest(session)
             val startTime = System.currentTimeMillis()
             TokenPulseLogger.Provider.debug("Making Nebius request for account ${account.id}: POST $BILLING_ENDPOINT")
 
             httpClient.newCall(request).execute().use { response ->
-                val duration = System.currentTimeMillis() - startTime
-                TokenPulseLogger.Provider.debug("Nebius response for account ${account.id}: ${response.code} ${response.message} (${duration}ms)")
-                when {
-                    response.code == HTTP_FORBIDDEN || response.code == HTTP_UNAUTHORIZED -> {
-                        val bodyStr = response.body?.string() ?: "No response body"
-                        TokenPulseLogger.Provider.warn(
-                            "Nebius authentication failed for account ${account.id}: " +
-                            "${response.code} ${response.message}\n$bodyStr"
-                        )
-                        ProviderResult.Failure.AuthError(
-                            "Nebius billing session expired. " +
-                                "Please reconnect via Settings → Accounts → Edit."
-                        )
-                    }
-                    response.code == HTTP_TOO_MANY_REQUESTS -> {
-                        ProviderResult.Failure.RateLimited("Nebius rate limit exceeded")
-                    }
-                    !response.isSuccessful -> {
-                        val bodyStr = response.body?.string() ?: "No response body"
-                        TokenPulseLogger.Provider.error(
-                            "Nebius API error for account ${account.id}: " +
-                            "${response.code} ${response.message}\n$bodyStr"
-                        )
-                        ProviderResult.Failure.UnknownError(
-                            "Nebius billing error: ${response.code} ${response.message}"
-                        )
-                    }
-                    else -> {
-                        val bodyStr = response.body?.string()
-                            ?: return ProviderResult.Failure.ParseError("Empty response body")
-                        parseTrialResponse(account, bodyStr)
-                    }
-                }
+                handleResponse(account, response, startTime)
             }
         } catch (e: JsonSyntaxException) {
             TokenPulseLogger.Provider.error("Nebius JSON parse error for account ${account.id}", e)
             ProviderResult.Failure.ParseError("Failed to parse Nebius response", e)
-        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+        } catch (e: Exception) {
             TokenPulseLogger.Provider.error("Nebius network error for account ${account.id}", e)
             ProviderResult.Failure.NetworkError("Failed to connect to Nebius", e)
         }
+    }
+
+    private fun validateSession(session: NebiusSession): Boolean {
+        val sessionFlags = listOf(
+            "appSession" to !session.appSession.isNullOrBlank(),
+            "csrfCookie" to !session.csrfCookie.isNullOrBlank(),
+            "csrfToken" to !session.csrfToken.isNullOrBlank(),
+            "parentId" to !session.parentId.isNullOrBlank()
+        ).joinToString { (field, present) -> "$field=${if (present) "✓" else "✗"}" }
+
+        TokenPulseLogger.Provider.debug("Parsed Nebius session for account: $sessionFlags")
+
+        return isSessionValid(session).also { isValid ->
+            if (!isValid) {
+                TokenPulseLogger.Provider.warn("Incomplete Nebius session: $sessionFlags")
+            }
+        }
+    }
+
+    private fun isSessionValid(session: NebiusSession): Boolean {
+        return session.appSession.isNullOrBlank().not() &&
+            session.csrfCookie.isNullOrBlank().not() &&
+            session.csrfToken.isNullOrBlank().not() &&
+            session.parentId.isNullOrBlank().not()
+    }
+
+    private fun buildRequest(session: NebiusSession): Request {
+        val payload = gson.toJson(mapOf("parentId" to (session.parentId ?: "")))
+        val body = payload.toRequestBody(JSON_MEDIA_TYPE)
+
+        val appSession = session.appSession ?: ""
+        val csrfCookie = session.csrfCookie ?: ""
+        val csrfToken = session.csrfToken ?: ""
+
+        return Request.Builder()
+            .url("$baseUrl$BILLING_ENDPOINT")
+            .post(body)
+            .header("accept", "application/json")
+            .header("content-type", "application/json")
+            .header("x-requested-with", "XMLHttpRequest")
+            .header("x-csrf-token", csrfToken)
+            .header("cookie", "__Host-app_session=$appSession; __Host-psifi.x-csrf-token=$csrfCookie")
+            .build()
+    }
+
+    private fun handleResponse(
+        account: Account,
+        response: okhttp3.Response,
+        startTime: Long
+    ): ProviderResult {
+        val duration = System.currentTimeMillis() - startTime
+        TokenPulseLogger.Provider.debug(
+            "Nebius response for account ${account.id}: ${response.code} ${response.message} (${duration}ms)"
+        )
+
+        return when {
+            response.code == HTTP_FORBIDDEN || response.code == HTTP_UNAUTHORIZED -> {
+                handleAuthFailure(response, account)
+            }
+            response.code == HTTP_TOO_MANY_REQUESTS -> {
+                ProviderResult.Failure.RateLimited("Nebius rate limit exceeded")
+            }
+            !response.isSuccessful -> {
+                handleApiError(response, account)
+            }
+            else -> {
+                val bodyStr = response.body?.string()
+                    ?: return ProviderResult.Failure.ParseError("Empty response body")
+                parseTrialResponse(account, bodyStr)
+            }
+        }
+    }
+
+    private fun handleAuthFailure(response: okhttp3.Response, account: Account): ProviderResult {
+        val bodyStr = response.body?.string() ?: "No response body"
+        TokenPulseLogger.Provider.warn(
+            "Nebius authentication failed for account ${account.id}: " +
+                "${response.code} ${response.message}\n$bodyStr"
+        )
+        return ProviderResult.Failure.AuthError(
+            "Nebius billing session expired. " +
+                "Please reconnect via Settings → Accounts → Edit."
+        )
+    }
+
+    private fun handleApiError(response: okhttp3.Response, account: Account): ProviderResult {
+        val bodyStr = response.body?.string() ?: "No response body"
+        TokenPulseLogger.Provider.error(
+            "Nebius API error for account ${account.id}: " +
+                "${response.code} ${response.message}\n$bodyStr"
+        )
+        return ProviderResult.Failure.UnknownError(
+            "Nebius billing error: ${response.code} ${response.message}"
+        )
     }
 
     override fun testCredentials(account: Account, secret: String): ProviderResult =
@@ -163,7 +196,11 @@ class NebiusProviderClient(
                 session.csrfCookie.isNullOrBlank() ||
                 session.csrfToken.isNullOrBlank() ||
                 session.parentId.isNullOrBlank()
-            ) null else session
+            ) {
+                null
+            } else {
+                session
+            }
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             null
         }

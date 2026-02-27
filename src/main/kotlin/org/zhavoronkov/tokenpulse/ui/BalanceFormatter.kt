@@ -65,11 +65,11 @@ object BalanceFormatter {
     }
 
     private fun formatTokens(tokens: Long): String {
-        return String.format(Locale.US, "%,d", tokens)
+        return formatNumber(tokens)
     }
 
     private fun formatTokensUsage(tokens: Long): String {
-        return String.format(Locale.US, "%,d used", tokens)
+        return "${formatNumber(tokens)} used"
     }
 
     /**
@@ -106,7 +106,7 @@ object BalanceFormatter {
             when {
                 tokens.remaining != null -> parts.add(formatTokens(tokens.remaining))
                 tokens.used != null -> {
-                    val totalStr = tokens.total?.let { "/ ${formatNumber(it)}" } ?: ""
+                    val totalStr = tokens.total?.let { "/ ${numberFormat.format(it)}" } ?: ""
                     parts.add("${formatTokensUsage(tokens.used)}$totalStr")
                 }
                 tokens.total != null -> parts.add(formatTokens(tokens.total))

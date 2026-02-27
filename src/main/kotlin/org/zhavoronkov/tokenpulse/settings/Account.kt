@@ -69,7 +69,7 @@ data class Account(
 
 /** Generates a short masked preview from a raw secret key. */
 fun generateKeyPreview(secret: String): String {
-    if (secret.length < 8) return "…"
+    if (secret.length < 10) return "…"
     val prefix = secret.take(6)
     val suffix = secret.takeLast(4)
     return "$prefix…$suffix"
@@ -127,7 +127,7 @@ fun List<Account>.sanitizeAccounts(): List<Account> = map { account ->
     // Validate providerId - default to CLINE if invalid/missing
     val validProviderId = try {
         ProviderId.entries.find { it == account.providerId } ?: ProviderId.CLINE
-    } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+    } catch (e: Exception) {
         ProviderId.CLINE
     }
 
@@ -142,7 +142,7 @@ fun List<Account>.sanitizeAccounts(): List<Account> = map { account ->
     // Validate authType - use expected type if invalid/missing
     val validAuthType = try {
         AuthType.entries.find { it == account.authType } ?: expectedAuthType
-    } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+    } catch (e: Exception) {
         expectedAuthType
     }
 

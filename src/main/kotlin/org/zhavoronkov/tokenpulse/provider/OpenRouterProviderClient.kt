@@ -29,37 +29,15 @@ class OpenRouterProviderClient(
     private val baseUrl: String = "https://openrouter.ai"
 ) : ProviderClient {
 
+    companion object {
+        private const val HTTP_UNAUTHORIZED = 401
+        private const val HTTP_TOO_MANY_REQUESTS = 429
+    }
+
     override fun fetchBalance(account: Account, secret: String): ProviderResult {
         return try {
-            val creditsRequest = Request.Builder()
-                .url("$baseUrl/api/v1/credits")
-                .header("Authorization", "Bearer $secret")
-                .build()
-
-            val credits = httpClient.newCall(creditsRequest).execute().use { response ->
-                if (!response.isSuccessful) return mapError(response.code, response.message)
-                val body = response.body?.string()
-                    ?: return ProviderResult.Failure.ParseError("Empty response body")
-                val creditsData = gson.fromJson(body, CreditsResponse::class.java).data
-                Credits(
-                    total = creditsData.total_credits,
-                    remaining = creditsData.total_credits
-                )
-            }
-
-            val activityRequest = Request.Builder()
-                .url("$baseUrl/api/v1/activity")
-                .header("Authorization", "Bearer $secret")
-                .build()
-
-            val tokens = httpClient.newCall(activityRequest).execute().use { response ->
-                if (!response.isSuccessful) return@use null
-                val body = response.body?.string() ?: return@use null
-                val activityData = gson.fromJson(body, ActivityResponse::class.java).data
-                val used = activityData.sumOf { it.prompt_tokens + it.completion_tokens }
-                Tokens(used = used)
-            }
-
+            val credits = fetchCredits(secret)
+            val tokens = fetchTokens(secret)
             ProviderResult.Success(
                 BalanceSnapshot(
                     accountId = account.id,
@@ -74,6 +52,38 @@ class OpenRouterProviderClient(
         }
     }
 
+    private fun fetchCredits(secret: String): Credits? {
+        val creditsRequest = Request.Builder()
+            .url("$baseUrl/api/v1/credits")
+            .header("Authorization", "Bearer $secret")
+            .build()
+
+        return httpClient.newCall(creditsRequest).execute().use { response ->
+            if (!response.isSuccessful) return null
+            val body = response.body?.string() ?: return null
+            val creditsData = gson.fromJson(body, CreditsResponse::class.java).data
+            Credits(
+                total = creditsData.total_credits,
+                remaining = creditsData.total_credits
+            )
+        }
+    }
+
+    private fun fetchTokens(secret: String): Tokens? {
+        val activityRequest = Request.Builder()
+            .url("$baseUrl/api/v1/activity")
+            .header("Authorization", "Bearer $secret")
+            .build()
+
+        return httpClient.newCall(activityRequest).execute().use { response ->
+            if (!response.isSuccessful) return null
+            val body = response.body?.string() ?: return null
+            val activityData = gson.fromJson(body, ActivityResponse::class.java).data
+            val used = activityData.sumOf { it.prompt_tokens + it.completion_tokens }
+            Tokens(used = used)
+        }
+    }
+
     override fun testCredentials(account: Account, secret: String): ProviderResult =
         fetchBalance(account, secret)
 
@@ -83,14 +93,12 @@ class OpenRouterProviderClient(
         else -> ProviderResult.Failure.UnknownError("OpenRouter error: $code $message")
     }
 
-    companion object {
-        private const val HTTP_UNAUTHORIZED = 401
-        private const val HTTP_TOO_MANY_REQUESTS = 429
-    }
-
     private data class CreditsResponse(val data: CreditsData)
     private data class CreditsData(val total_credits: BigDecimal)
 
     private data class ActivityResponse(val data: List<ActivityEntry>)
-    private data class ActivityEntry(val prompt_tokens: Long, val completion_tokens: Long)
+    private data class ActivityEntry(
+        val prompt_tokens: Long,
+        val completion_tokens: Long
+    )
 }

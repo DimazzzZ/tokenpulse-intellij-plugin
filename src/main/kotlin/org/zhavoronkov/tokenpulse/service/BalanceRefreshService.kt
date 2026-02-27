@@ -5,7 +5,6 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import kotlinx.coroutines.CoroutineScope
-import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -18,6 +17,7 @@ import org.zhavoronkov.tokenpulse.model.ProviderResult
 import org.zhavoronkov.tokenpulse.settings.CredentialsStore
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
 import org.zhavoronkov.tokenpulse.ui.TokenPulseNotifier
+import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 
 @Service(Service.Level.APP)
 class BalanceRefreshService : Disposable {
@@ -71,35 +71,49 @@ class BalanceRefreshService : Disposable {
 
     fun refreshAccount(accountId: String, force: Boolean = false) {
         TokenPulseLogger.Service.debug("refreshAccount called: accountId=$accountId, force=$force")
-        val account = TokenPulseSettingsService.getInstance().state.accounts.find { it.id == accountId } ?: return
+        val account = TokenPulseSettingsService.getInstance().state.accounts.find { it.id == accountId }
+            ?: return
 
         val oldResult = results.value[accountId]
 
         coordinator.refreshAccount(account, force) { newResult ->
-            // Publish event via MessageBus
-            ApplicationManager.getApplication().messageBus
-                .syncPublisher(BalanceUpdatedTopic.TOPIC)
-                .balanceUpdated(accountId, newResult)
-
-            // Log result
-            TokenPulseLogger.Service.debug("refreshAccount completed: accountId=$accountId, result=${newResult::class.simpleName}")
-            
-            // Notify on status change
+            publishBalanceUpdate(accountId, newResult)
+            logRefreshResult(accountId, newResult)
             handleNotifications(account.displayLabel(), oldResult, newResult)
         }
     }
 
-    private fun handleNotifications(accountLabel: String, old: ProviderResult?, new: ProviderResult) {
-        if (new is ProviderResult.Failure) {
-            val shouldNotify = old == null || old is ProviderResult.Success ||
-                             (old is ProviderResult.Failure && old.javaClass != new.javaClass)
+    private fun publishBalanceUpdate(accountId: String, newResult: ProviderResult) {
+        ApplicationManager.getApplication().messageBus
+            .syncPublisher(BalanceUpdatedTopic.TOPIC)
+            .balanceUpdated(accountId, newResult)
+    }
 
-            if (shouldNotify) {
-                val message = "Failed to refresh $accountLabel: ${new.message}"
-                TokenPulseNotifier.notifyError(null, message)
-            }
-        } else if (new is ProviderResult.Success && old is ProviderResult.Failure) {
-            TokenPulseNotifier.notifyInfo(null, "Account $accountLabel is back online.")
+    private fun logRefreshResult(accountId: String, newResult: ProviderResult) {
+        TokenPulseLogger.Service.debug(
+            "refreshAccount completed: accountId=$accountId, result=${newResult::class.simpleName}"
+        )
+    }
+
+    private fun handleNotifications(accountLabel: String, old: ProviderResult?, new: ProviderResult) {
+        when {
+            new is ProviderResult.Failure -> handleFailureNotification(accountLabel, old, new)
+            new is ProviderResult.Success && old is ProviderResult.Failure ->
+                TokenPulseNotifier.notifyInfo(null, "Account $accountLabel is back online.")
+        }
+    }
+
+    private fun handleFailureNotification(
+        accountLabel: String,
+        old: ProviderResult?,
+        new: ProviderResult.Failure
+    ) {
+        val shouldNotify = old == null || old is ProviderResult.Success ||
+            (old is ProviderResult.Failure && old.javaClass != new.javaClass)
+
+        if (shouldNotify) {
+            val message = "Failed to refresh $accountLabel: ${new.message}"
+            TokenPulseNotifier.notifyError(null, message)
         }
     }
 

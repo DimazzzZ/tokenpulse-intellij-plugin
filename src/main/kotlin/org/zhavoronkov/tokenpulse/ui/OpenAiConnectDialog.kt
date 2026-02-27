@@ -1,21 +1,18 @@
 package org.zhavoronkov.tokenpulse.ui
 
-import com.google.gson.Gson
 import com.intellij.ide.BrowserUtil
-import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
-import org.zhavoronkov.tokenpulse.provider.OpenAiCodexUsageProviderClient
-import java.awt.Dimension
+import org.zhavoronkov.tokenpulse.utils.Constants.FONT_SIZE_SMALL
+import org.zhavoronkov.tokenpulse.utils.Constants.OPENAI_API_KEY_PREFIX
+import org.zhavoronkov.tokenpulse.utils.Constants.OPENAI_BEARER_PREFIX
+import org.zhavoronkov.tokenpulse.utils.Constants.PASSWORD_FIELD_COLUMNS
 import java.awt.Font
-import java.awt.datatransfer.StringSelection
 import javax.swing.JButton
 import javax.swing.JComponent
-import javax.swing.JScrollPane
-import javax.swing.JTextArea
 
 /**
  * Dialog for connecting ChatGPT API key.
@@ -35,29 +32,21 @@ class OpenAiConnectDialog : DialogWrapper(true) {
 
     companion object {
         const val OPENAI_URL = "https://platform.openai.com/account/api-keys"
+        private const val STATUS_WAITING = "<html><i>Waiting for API key…</i></html>"
+        private const val STATUS_SUCCESS = "<html><font color='green'><b>✓ API key validated!</b></font></html>"
+        private const val STATUS_EMPTY = "<html><font color='red'>Please paste an API key first.</font></html>"
+        private const val STATUS_INVALID_FORMAT = "<html><font color='red'>Invalid API key format. Expected key starting with \"sk-\".</font></html>"
     }
-
-    private val gson = Gson()
 
     var capturedApiKey: String? = null
         private set
 
-    private val statusLabel = JBLabel("<html><i>Waiting for API key…</i></html>")
+    private val statusLabel = JBLabel(STATUS_WAITING)
 
-    private val CONSOLE_SCRIPT = """
-        // ChatGPT API Key Setup
-        // 1. Go to https://platform.openai.com/account/api-keys
-        // 2. Create a new API key
-        // 3. Copy the key (starts with "sk-...")
-        // 4. Paste it into the text area below
-        //
-        // The key will be stored securely in IntelliJ's PasswordSafe.
-        """.trimIndent()
-
-    private val keyArea = JBPasswordField().apply {
-        columns = 50
-        font = Font(Font.MONOSPACED, Font.PLAIN, 11)
-        toolTipText = "Paste your ChatGPT API key here (starts with 'sk-...')"
+    private val keyField = JBPasswordField().apply {
+        columns = PASSWORD_FIELD_COLUMNS
+        font = Font(Font.MONOSPACED, Font.PLAIN, FONT_SIZE_SMALL)
+        toolTipText = "Paste your ChatGPT API key here (starts with '$OPENAI_API_KEY_PREFIX...')"
     }
 
     private val connectButton = JButton("Validate & Connect").apply {
@@ -66,13 +55,6 @@ class OpenAiConnectDialog : DialogWrapper(true) {
 
     private val openBrowserButton = JButton("Open OpenAI →").apply {
         addActionListener { BrowserUtil.browse(OPENAI_URL) }
-    }
-
-    private val copyScriptButton = JButton("Copy Instructions").apply {
-        addActionListener {
-            CopyPasteManager.getInstance().setContents(StringSelection(CONSOLE_SCRIPT))
-            statusLabel.text = "<html><font color='green'>✓ Instructions copied to clipboard!</font></html>"
-        }
     }
 
     init {
@@ -90,14 +72,15 @@ class OpenAiConnectDialog : DialogWrapper(true) {
         separator()
         row {
             label(
-                "<html><b>Step 2.</b> Create or copy an API key from your OpenAI dashboard.</html>"
+                "<html><b>Step 2.</b> Create or copy an API key " +
+                    "from your OpenAI dashboard.</html>"
             )
         }
         row {
             label("<html><b>Step 3.</b> Paste the API key below and click \"Validate & Connect\".</html>")
         }
         row {
-            cell(keyArea).align(AlignX.FILL).resizableColumn()
+            cell(keyField).align(AlignX.FILL).resizableColumn()
         }
         row {
             cell(connectButton)
@@ -105,29 +88,31 @@ class OpenAiConnectDialog : DialogWrapper(true) {
         }
     }
 
-    override fun getPreferredFocusedComponent() = keyArea
+    override fun getPreferredFocusedComponent() = keyField
 
     private fun attemptCapture() {
-        val raw = String(keyArea.password).trim()
+        val raw = String(keyField.password).trim()
         if (raw.isEmpty()) {
-            statusLabel.text = "<html><font color='red'>Please paste an API key first.</font></html>"
+            statusLabel.text = STATUS_EMPTY
             return
         }
 
-        // Validate API key format (should start with "sk-" or "Bearer sk-")
-        val apiKey = if (raw.startsWith("Bearer ")) {
-            raw.removePrefix("Bearer ").trim()
-        } else {
-            raw
-        }
-
-        if (!apiKey.startsWith("sk-")) {
-            statusLabel.text = "<html><font color='red'>Invalid API key format. Expected key starting with \"sk-\".</font></html>"
+        val apiKey = normalizeApiKey(raw)
+        if (!isValidApiKey(apiKey)) {
+            statusLabel.text = STATUS_INVALID_FORMAT
             return
         }
 
         capturedApiKey = apiKey
-        statusLabel.text = "<html><font color='green'><b>✓ API key validated!</b></font></html>"
+        statusLabel.text = STATUS_SUCCESS
         isOKActionEnabled = true
+    }
+
+    private fun normalizeApiKey(raw: String): String {
+        return raw.removePrefix(OPENAI_BEARER_PREFIX).trim()
+    }
+
+    private fun isValidApiKey(apiKey: String): Boolean {
+        return apiKey.startsWith(OPENAI_API_KEY_PREFIX)
     }
 }

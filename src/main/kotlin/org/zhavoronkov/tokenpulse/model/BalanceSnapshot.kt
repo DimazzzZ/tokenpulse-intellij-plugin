@@ -13,7 +13,7 @@ sealed class ProviderResult {
     val timestamp: Instant = Instant.now()
 
     data class Success(val snapshot: BalanceSnapshot) : ProviderResult()
-    
+
     sealed class Failure(val message: String, val throwable: Throwable? = null) : ProviderResult() {
         data class AuthError(val msg: String) : Failure(msg)
         data class RateLimited(val msg: String) : Failure(msg)

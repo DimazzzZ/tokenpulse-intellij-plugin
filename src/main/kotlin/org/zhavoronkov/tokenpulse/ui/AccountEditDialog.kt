@@ -10,6 +10,7 @@ import com.intellij.ui.dsl.builder.panel
 import org.zhavoronkov.tokenpulse.model.ProviderId
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.settings.AuthType
+import org.zhavoronkov.tokenpulse.utils.Constants.TEXT_AREA_COLUMNS
 import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JComponent
@@ -52,8 +53,10 @@ class AccountEditDialog(
 
     // ── Key field (hidden for Nebius and OpenAI) ───────────────────────────
     private val keyField = JBPasswordField().apply {
-        text = if (account?.providerId != ProviderId.NEBIUS && account?.providerId != ProviderId.OPENAI) existingSecret ?: "" else ""
-        columns = 36
+        val showKey = account?.providerId != ProviderId.NEBIUS &&
+            account?.providerId != ProviderId.OPENAI
+        text = if (showKey) existingSecret ?: "" else ""
+        columns = TEXT_AREA_COLUMNS
     }
 
     // ── "Get API Key" button (non-Nebius, non-OpenAI providers) ────────────
@@ -114,17 +117,18 @@ class AccountEditDialog(
         nebiusStatusLabel.isVisible = isNebius
         openAiConnectButton.isVisible = isOpenAi
         openAiStatusLabel.isVisible = isOpenAi
-        // Update button text based on provider
-        if (isOpenAi) {
-            getKeyButton.text = "Get API Key →"
-            getKeyButton.toolTipText = "Opens the OpenAI API keys page in your browser"
-        } else if (isNebius) {
-            getKeyButton.text = "Get API Key →"
-            getKeyButton.toolTipText = "Opens the Nebius billing page in your browser"
-        } else {
-            getKeyButton.text = "Get API Key →"
-            getKeyButton.toolTipText = "Opens the provider's key management page in your browser"
+        updateGetKeyButton()
+    }
+
+    private fun updateGetKeyButton() {
+        val provider = getProvider()
+        val (text, tooltip) = when (provider) {
+            ProviderId.OPENAI -> "Get API Key →" to "Opens the OpenAI API keys page in your browser"
+            ProviderId.NEBIUS -> "Get API Key →" to "Opens the Nebius billing page in your browser"
+            else -> "Get API Key →" to "Opens the provider's key management page in your browser"
         }
+        getKeyButton.text = text
+        getKeyButton.toolTipText = tooltip
     }
 
     /**
@@ -154,13 +158,15 @@ class AccountEditDialog(
     fun getApiKey(): String = getSecret()
 
     private fun openKeyGenerationPage() {
-        val url = when (getProvider()) {
-            ProviderId.CLINE -> "https://app.cline.bot/dashboard/account?tab=api-keys"
-            ProviderId.OPENROUTER -> "https://openrouter.ai/settings/provisioning-keys"
-            ProviderId.NEBIUS -> NebiusConnectDialog.NEBIUS_URL
-            ProviderId.OPENAI -> "https://platform.openai.com/account/api-keys"
-        }
+        val url = getProviderUrl()
         BrowserUtil.browse(url)
+    }
+
+    private fun getProviderUrl(): String = when (getProvider()) {
+        ProviderId.CLINE -> "https://app.cline.bot/dashboard/account?tab=api-keys"
+        ProviderId.OPENROUTER -> "https://openrouter.ai/settings/provisioning-keys"
+        ProviderId.NEBIUS -> NebiusConnectDialog.NEBIUS_URL
+        ProviderId.OPENAI -> "https://platform.openai.com/account/api-keys"
     }
 
     private fun openNebiusConnectDialog() {
@@ -202,7 +208,6 @@ class AccountEditDialog(
         row("Provider:") {
             cell(providerCombo)
         }
-        // Non-Nebius: API key row
         row {
             cell(getKeyButton)
                 .comment("Opens the provider's key management page in your browser")
@@ -210,25 +215,29 @@ class AccountEditDialog(
         row("API Key:") {
             cell(keyField).align(AlignX.FILL).resizableColumn()
         }
-        // Nebius: connect session row
         row {
             cell(nebiusConnectButton)
             cell(nebiusStatusLabel).align(AlignX.FILL).resizableColumn()
         }
-        // OpenAI: connect OAuth row
         row {
             cell(openAiConnectButton)
             cell(openAiStatusLabel).align(AlignX.FILL).resizableColumn()
         }
-        if (account != null && account.keyPreview.isNotEmpty() && account.providerId != ProviderId.NEBIUS && account.providerId != ProviderId.OPENAI) {
-            row {
-                cell(JBLabel("<html><small>Current key: <b>${account.keyPreview}</b></small></html>"))
+        row {
+            if (shouldShowKeyPreview()) {
+                cell(JBLabel("<html><small>Current key: <b>${account?.keyPreview}</b></small></html>"))
             }
         }
         row {
             val provider = providerCombo.selectedItem as? ProviderId ?: ProviderId.CLINE
             comment(keyHintFor(provider))
         }
+    }
+
+    private fun shouldShowKeyPreview(): Boolean {
+        return account?.keyPreview?.isNotEmpty() == true &&
+            account.providerId != ProviderId.NEBIUS &&
+            account.providerId != ProviderId.OPENAI
     }
 
     // ── Public accessors ───────────────────────────────────────────────────
@@ -239,28 +248,37 @@ class AccountEditDialog(
 
     override fun doValidate(): ValidationInfo? {
         return when (getProvider()) {
-            ProviderId.NEBIUS -> {
-                if (capturedNebiusSession.isNullOrBlank()) {
-                    ValidationInfo(
-                        "Please connect your Nebius billing session first.",
-                        nebiusConnectButton
-                    )
-                } else null
-            }
-            ProviderId.OPENAI -> {
-                if (capturedOpenAiToken.isNullOrBlank()) {
-                    ValidationInfo(
-                        "Please connect your OpenAI OAuth token first.",
-                        openAiConnectButton
-                    )
-                } else null
-            }
-            else -> {
-                if (getSecret().isEmpty()) {
-                    ValidationInfo("API Key is required", keyField)
-                } else null
-            }
+            ProviderId.NEBIUS -> validateNebius()
+            ProviderId.OPENAI -> validateOpenAi()
+            else -> validateOther()
         }
+    }
+
+    private fun validateNebius(): ValidationInfo? {
+        if (capturedNebiusSession.isNullOrBlank()) {
+            return ValidationInfo(
+                "Please connect your Nebius billing session first.",
+                nebiusConnectButton
+            )
+        }
+        return null
+    }
+
+    private fun validateOpenAi(): ValidationInfo? {
+        if (capturedOpenAiToken.isNullOrBlank()) {
+            return ValidationInfo(
+                "Please connect your OpenAI OAuth token first.",
+                openAiConnectButton
+            )
+        }
+        return null
+    }
+
+    private fun validateOther(): ValidationInfo? {
+        if (getSecret().isEmpty()) {
+            return ValidationInfo("API Key is required", keyField)
+        }
+        return null
     }
 
     override fun doOKAction() {

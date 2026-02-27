@@ -116,11 +116,14 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
     override fun install(statusBar: StatusBar) {
         myStatusBar = statusBar
         ApplicationManager.getApplication().messageBus.connect(this)
-            .subscribe(BalanceUpdatedTopic.TOPIC, object : BalanceUpdatedListener {
-                override fun balanceUpdated(accountId: String, result: ProviderResult) {
-                    statusBar.updateWidget(ID())
+            .subscribe(
+                BalanceUpdatedTopic.TOPIC,
+                object : BalanceUpdatedListener {
+                    override fun balanceUpdated(accountId: String, result: ProviderResult) {
+                        statusBar.updateWidget(ID())
+                    }
                 }
-            })
+            )
     }
 
     override fun dispose() {

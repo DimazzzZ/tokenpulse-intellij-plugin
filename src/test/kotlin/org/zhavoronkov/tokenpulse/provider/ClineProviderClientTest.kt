@@ -32,19 +32,25 @@ class ClineProviderClientTest {
     @Test
     fun `test fetchBalance personal success`() {
         // 1. Mock /me response
-        mockWebServer.enqueue(MockResponse()
-            .setResponseCode(200)
-            .setBody("""{"success":true,"data":{"id":"user-123","organizations":[]}}"""))
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"id":"user-123","organizations":[]}}""")
+        )
 
         // 2. Mock /balance response — 9964261 micro-dollars = $9.96
-        mockWebServer.enqueue(MockResponse()
-            .setResponseCode(200)
-            .setBody("""{"success":true,"data":{"balance": 9964261.0}}"""))
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"balance": 9964261.0}}""")
+        )
 
         // 3. Mock /usages response — 5500000 micro-dollars = $5.50
-        mockWebServer.enqueue(MockResponse()
-            .setResponseCode(200)
-            .setBody("""{"success":true,"data":{"items":[{"creditsUsed": 5500000.0, "totalTokens": 1000}]}}"""))
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"items":[{"creditsUsed": 5500000.0, "totalTokens": 1000}]}}""")
+        )
 
         val account = Account(providerId = ProviderId.CLINE, authType = AuthType.CLINE_API_KEY)
         val result = client.fetchBalance(account, "token")

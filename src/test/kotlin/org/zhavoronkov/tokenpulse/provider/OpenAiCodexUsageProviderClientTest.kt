@@ -181,8 +181,10 @@ class OpenAiCodexUsageProviderClientTest {
         val result = client.fetchBalance(testAccount, "")
 
         assertInstanceOf(ProviderResult.Failure.AuthError::class.java, result)
-        assertTrue((result as ProviderResult.Failure.AuthError).message.contains("missing") ||
-            result.message.contains("invalid"))
+        assertTrue(
+            (result as ProviderResult.Failure.AuthError).message.contains("missing") ||
+                result.message.contains("invalid")
+        )
     }
 
     @Test

@@ -33,17 +33,23 @@ class RefreshCoordinator(
     fun refreshAccount(account: Account, force: Boolean, onResult: (ProviderResult) -> Unit = {}) {
         if (!account.isEnabled) return
 
-        // Single-flight check
         val currentJob = activeJobs[account.id]
         if (isJobRunning(currentJob) && !force) {
             return
         }
 
-        // TTL Cache check
         if (!force && shouldSkipRefresh(account.id)) {
             return
         }
 
+        executeRefresh(currentJob, account, onResult)
+    }
+
+    private fun executeRefresh(
+        currentJob: Job?,
+        account: Account,
+        onResult: (ProviderResult) -> Unit
+    ) {
         currentJob?.cancel()
         activeJobs[account.id] = scope.launch {
             val result = fetcher(account)

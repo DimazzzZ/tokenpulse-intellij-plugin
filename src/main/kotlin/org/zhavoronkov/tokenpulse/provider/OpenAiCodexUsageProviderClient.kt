@@ -110,8 +110,11 @@ class OpenAiCodexUsageProviderClient(
     private fun parseTokenData(secret: String): TokenData? {
         return try {
             val data = gson.fromJson(secret, TokenData::class.java)
-            if (data.accessToken.isNullOrBlank() || data.refreshToken.isNullOrBlank()) null
-            else data
+            if (data.accessToken.isNullOrBlank() || data.refreshToken.isNullOrBlank()) {
+                null
+            } else {
+                data
+            }
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             null
         }
@@ -129,13 +132,16 @@ class OpenAiCodexUsageProviderClient(
             .build()
 
         return httpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
+            if (!response.isSuccessful) {
+                return null
+            }
             val responseBody = response.body?.string() ?: return null
             val json = gson.fromJson(responseBody, RefreshResponse::class.java)
+            val newExpiresAt = (System.currentTimeMillis() / 1000) + json.expiresIn
             TokenData(
                 accessToken = json.accessToken,
                 refreshToken = json.refreshToken ?: refreshToken,
-                expiresAt = (System.currentTimeMillis() / 1000) + json.expiresIn
+                expiresAt = newExpiresAt
             )
         }
     }
@@ -144,8 +150,8 @@ class OpenAiCodexUsageProviderClient(
         val url = baseUrl + "/v1/organization/usage/completions"
         val params = buildMap {
             put("bucket_width", "1d")
-            put("start_time", (System.currentTimeMillis() / 1000 - DEFAULT_DAYS_BACK * 86400).toString())
-            put("end_time", (System.currentTimeMillis() / 1000).toString())
+            put("start_time", calculateStartTime())
+            put("end_time", calculateEndTime())
         }
 
         return fetchPaginatedData(url, params, accessToken, ::parseUsageEntry)
@@ -155,11 +161,24 @@ class OpenAiCodexUsageProviderClient(
         val url = baseUrl + "/v1/organization/costs"
         val params = buildMap {
             put("bucket_width", "1d")
-            put("start_time", (System.currentTimeMillis() / 1000 - DEFAULT_DAYS_BACK * 86400).toString())
-            put("end_time", (System.currentTimeMillis() / 1000).toString())
+            put("start_time", calculateStartTime())
+            put("end_time", calculateEndTime())
         }
 
         return fetchPaginatedData(url, params, accessToken, ::parseCostEntry)
+    }
+
+    private fun calculateStartTime(): String {
+        val secondsSinceEpoch = System.currentTimeMillis() / 1000
+        return (secondsSinceEpoch - DEFAULT_DAYS_BACK * SECONDS_PER_DAY).toString()
+    }
+
+    private fun calculateEndTime(): String {
+        return (System.currentTimeMillis() / 1000).toString()
+    }
+
+    companion object {
+        private const val SECONDS_PER_DAY = 86400
     }
 
     private inline fun <T> fetchPaginatedData(
@@ -177,56 +196,20 @@ class OpenAiCodexUsageProviderClient(
                 requestParams["page"] = pageCursor
             }
 
-            val requestUrl = buildString {
-                append(url)
-                append("?")
-                var i = 0
-                for ((key, value) in requestParams) {
-                    if (i > 0) append("&")
-                    append(key)
-                    append("=")
-                    append(value.encodeUrl())
-                    i++
-                }
-            }
-
-            val request = Request.Builder()
-                .url(requestUrl)
-                .get()
-                .header("Authorization", "Bearer $accessToken")
-                .header("OpenAI-Beta", "usage=v1")
-                .build()
+            val requestUrl = buildRequestUrl(url, requestParams)
+            val request = buildRequest(requestUrl, accessToken)
 
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    when (response.code) {
-                        HTTP_UNAUTHORIZED, HTTP_FORBIDDEN -> throw AuthException("HTTP ${response.code}")
-                        HTTP_TOO_MANY_REQUESTS -> throw RateLimitException()
-                        else -> throw ServerException("HTTP ${response.code}")
-                    }
+                    handleErrorResponse(response)
                 }
 
                 val responseBody = response.body?.string() ?: return@use
                 val json = gson.fromJson(responseBody, JsonObject::class.java)
 
-                // Parse data array directly
-                val dataArray = json.getAsJsonArray("data")
-                if (dataArray != null) {
-                    for (element in dataArray) {
-                        val item = parseItem(element)
-                        if (item != null) {
-                            allItems.add(item)
-                        }
-                    }
-                }
+                parseDataArray(json, parseItem, allItems)
 
-                // Get next_page explicitly - handle null/missing safely
-                val nextPageElement = json.get("next_page")
-                pageCursor = if (nextPageElement != null && !nextPageElement.isJsonNull) {
-                    nextPageElement.asString
-                } else {
-                    null
-                }
+                pageCursor = getNextPageCursor(json)
                 if (pageCursor == null) return@use
             }
         }
@@ -234,18 +217,79 @@ class OpenAiCodexUsageProviderClient(
         return allItems.ifEmpty { null }
     }
 
+    private fun buildRequestUrl(url: String, params: Map<String, String>): String {
+        return buildString {
+            append(url)
+            append("?")
+            var i = 0
+            for ((key, value) in params) {
+                if (i > 0) append("&")
+                append(key)
+                append("=")
+                append(value.encodeUrl())
+                i++
+            }
+        }
+    }
+
+    private fun buildRequest(requestUrl: String, accessToken: String): Request {
+        return Request.Builder()
+            .url(requestUrl)
+            .get()
+            .header("Authorization", "Bearer $accessToken")
+            .header("OpenAI-Beta", "usage=v1")
+            .build()
+    }
+
+    private fun handleErrorResponse(response: okhttp3.Response) {
+        when (response.code) {
+            HTTP_UNAUTHORIZED, HTTP_FORBIDDEN -> throw AuthException("HTTP ${response.code}")
+            HTTP_TOO_MANY_REQUESTS -> throw RateLimitException()
+            else -> throw ServerException("HTTP ${response.code}")
+        }
+    }
+
+    private fun <T> parseDataArray(
+        json: JsonObject,
+        parseItem: (JsonElement) -> T?,
+        allItems: MutableList<T>
+    ) {
+        val dataArray = json.getAsJsonArray("data")
+        if (dataArray != null) {
+            for (element in dataArray) {
+                val item = parseItem(element)
+                if (item != null) {
+                    allItems.add(item)
+                }
+            }
+        }
+    }
+
+    private fun getNextPageCursor(json: JsonObject): String? {
+        val nextPageElement = json.get("next_page")
+        return if (nextPageElement != null && !nextPageElement.isJsonNull) {
+            nextPageElement.asString
+        } else {
+            null
+        }
+    }
+
     private fun parseUsageEntry(element: JsonElement): UsageEntry? {
         return try {
             val obj = element.asJsonObject
             UsageEntry(
-                inputTokens = obj.get("inputTokens")?.asLong,
-                outputTokens = obj.get("outputTokens")?.asLong,
-                cachedInputTokens = obj.get("cachedInputTokens")?.asLong,
-                reasoningTokens = obj.get("reasoningTokens")?.asLong
+                inputTokens = obj.getAsLong("inputTokens"),
+                outputTokens = obj.getAsLong("outputTokens"),
+                cachedInputTokens = obj.getAsLong("cachedInputTokens"),
+                reasoningTokens = obj.getAsLong("reasoningTokens")
             )
         } catch (e: Exception) {
             null
         }
+    }
+
+    private fun JsonObject.getAsLong(key: String): Long? {
+        return get(key)?.let { if (it.isJsonPrimitive) it.asLong else null }
     }
 
     private fun parseCostEntry(element: JsonElement): CostEntry? {
@@ -254,11 +298,7 @@ class OpenAiCodexUsageProviderClient(
             val amountElement = obj.get("amount")
             if (amountElement != null) {
                 CostEntry(
-                    amount = if (amountElement.isJsonPrimitive && amountElement.asJsonPrimitive.isNumber) {
-                        amountElement.asBigDecimal
-                    } else {
-                        BigDecimal.ZERO
-                    }
+                    amount = parseAmount(amountElement)
                 )
             } else {
                 null
@@ -268,7 +308,18 @@ class OpenAiCodexUsageProviderClient(
         }
     }
 
-    private fun String.encodeUrl(): String = java.net.URLEncoder.encode(this, java.nio.charset.StandardCharsets.UTF_8.toString())
+    private fun parseAmount(amountElement: JsonElement): BigDecimal {
+        return if (amountElement.isJsonPrimitive && amountElement.asJsonPrimitive.isNumber) {
+            amountElement.asBigDecimal
+        } else {
+            BigDecimal.ZERO
+        }
+    }
+
+    private fun String.encodeUrl(): String = java.net.URLEncoder.encode(
+        this,
+        java.nio.charset.StandardCharsets.UTF_8.toString()
+    )
 
     // ── JSON models ────────────────────────────────────────────────────────
 

@@ -9,6 +9,11 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.panel
 import org.zhavoronkov.tokenpulse.provider.NebiusProviderClient
+import org.zhavoronkov.tokenpulse.utils.Constants.FONT_SIZE_SMALL
+import org.zhavoronkov.tokenpulse.utils.Constants.SCRIPT_PANEL_HEIGHT
+import org.zhavoronkov.tokenpulse.utils.Constants.SCRIPT_PANEL_WIDTH
+import org.zhavoronkov.tokenpulse.utils.Constants.TEXT_AREA_COLUMNS
+import org.zhavoronkov.tokenpulse.utils.Constants.TEXT_AREA_ROWS
 import java.awt.Dimension
 import java.awt.Font
 import java.awt.datatransfer.StringSelection
@@ -40,16 +45,23 @@ class NebiusConnectDialog : DialogWrapper(true) {
 
     companion object {
         const val NEBIUS_URL = "https://tokenfactory.nebius.com/"
+        private const val STATUS_WAITING = "<html><i>Waiting for session…</i></html>"
+        private const val STATUS_SUCCESS = "<html><font color='green'><b>✓ Session captured!</b></font></html>"
+        private const val STATUS_EMPTY = "<html><font color='red'>Please paste cURL or JSON first.</font></html>"
+        private const val STATUS_PARSE_ERROR = "<html><font color='red'>Could not parse the pasted text. " +
+            "Make sure you used \"Copy as cURL\" on the getCurrentTrial request, " +
+            "or paste a valid JSON blob.</font></html>"
+        private const val STATUS_MISSING_FIELDS = "<html><font color='red'>Incomplete — missing: %s. " +
+            "Make sure you are logged in and copied the right request.</font></html>"
+        private val gson = Gson()
     }
-
-    private val gson = Gson()
 
     var capturedSessionJson: String? = null
         private set
 
-    private val statusLabel = JBLabel("<html><i>Waiting for session…</i></html>")
+    private val statusLabel = JBLabel(STATUS_WAITING)
 
-    private val CONSOLE_SCRIPT = """
+    private val consoleScript = """
         // Nebius Billing Session Extractor
         // Run this in the Console tab of DevTools (F12) on tokenfactory.nebius.com
         // Note: This may fail if __Host-app_session is HttpOnly (common). Use cURL method instead.
@@ -148,12 +160,12 @@ class NebiusConnectDialog : DialogWrapper(true) {
 
             return json;
         })();
-        """.trimIndent()
+    """.trimIndent()
 
-    private val pasteArea = JTextArea(12, 50).apply {
+    private val pasteArea = JTextArea(TEXT_AREA_ROWS, TEXT_AREA_COLUMNS).apply {
         lineWrap = true
         wrapStyleWord = true
-        font = Font(Font.MONOSPACED, Font.PLAIN, 11)
+        font = Font(Font.MONOSPACED, Font.PLAIN, FONT_SIZE_SMALL)
         toolTipText = "Paste JSON from console script OR cURL command here"
     }
 
@@ -167,10 +179,12 @@ class NebiusConnectDialog : DialogWrapper(true) {
 
     private val copyScriptButton = JButton("Copy Script").apply {
         addActionListener {
-            CopyPasteManager.getInstance().setContents(StringSelection(CONSOLE_SCRIPT))
-            statusLabel.text = "<html><font color='green'>✓ Script copied to clipboard!</font></html>"
+            CopyPasteManager.getInstance().setContents(StringSelection(consoleScript))
+            statusLabel.text = STATUS_SUCCESS
         }
     }
+
+    private val scriptPanel = createScriptPanel()
 
     init {
         title = "Connect Nebius Billing Session"
@@ -195,25 +209,14 @@ class NebiusConnectDialog : DialogWrapper(true) {
             cell(copyScriptButton)
         }
         row {
-            cell(JBLabel("<html><b>Script:</b></html>").apply {
-                font = Font(Font.SANS_SERIF, Font.BOLD, 11)
-            })
+            cell(
+                JBLabel("<html><b>Script:</b></html>").apply {
+                    font = Font(Font.SANS_SERIF, Font.BOLD, FONT_SIZE_SMALL)
+                }
+            )
         }
         row {
-            val scriptArea = JTextArea(CONSOLE_SCRIPT).apply {
-                isEditable = false
-                font = Font(Font.MONOSPACED, Font.PLAIN, 11)
-                lineWrap = true
-                wrapStyleWord = true
-                preferredSize = Dimension(560, 180)
-                background = java.awt.Color(0x1E, 0x1E, 0x1E)
-                foreground = java.awt.Color(0xD4, 0xD4, 0xD4)
-                border = javax.swing.BorderFactory.createCompoundBorder(
-                    javax.swing.BorderFactory.createLineBorder(java.awt.Color(0x3C, 0x3C, 0x3C)),
-                    javax.swing.BorderFactory.createEmptyBorder(8, 8, 8, 8)
-                )
-            }
-            cell(JScrollPane(scriptArea))
+            cell(scriptPanel)
                 .align(AlignX.FILL)
                 .align(AlignY.FILL)
                 .resizableColumn()
@@ -245,88 +248,127 @@ class NebiusConnectDialog : DialogWrapper(true) {
         }
     }
 
+    private fun createScriptPanel(): JComponent {
+        val scriptArea = JTextArea(consoleScript).apply {
+            isEditable = false
+            font = Font(Font.MONOSPACED, Font.PLAIN, FONT_SIZE_SMALL)
+            lineWrap = true
+            wrapStyleWord = true
+            preferredSize = Dimension(SCRIPT_PANEL_WIDTH, SCRIPT_PANEL_HEIGHT)
+            background = java.awt.Color(0x1E, 0x1E, 0x1E)
+            foreground = java.awt.Color(0xD4, 0xD4, 0xD4)
+            border = javax.swing.BorderFactory.createCompoundBorder(
+                javax.swing.BorderFactory.createLineBorder(java.awt.Color(0x3C, 0x3C, 0x3C)),
+                javax.swing.BorderFactory.createEmptyBorder(8, 8, 8, 8)
+            )
+        }
+        return JScrollPane(scriptArea)
+    }
+
     override fun getPreferredFocusedComponent() = pasteArea
 
     private fun attemptCapture() {
         val raw = pasteArea.text.trim()
         if (raw.isEmpty()) {
-            statusLabel.text = "<html><font color='red'>Please paste cURL or JSON first.</font></html>"
+            statusLabel.text = STATUS_EMPTY
             return
         }
 
-        val session = if (raw.startsWith("curl ") || raw.startsWith("-H ") || raw.startsWith("-b ") || raw.startsWith("--")) {
-            parseCurl(raw)
-        } else {
-            parseJson(raw)
-        }
-
+        val session = parseInput(raw)
         if (session == null) {
-            statusLabel.text = "<html><font color='red'>Could not parse the pasted text. " +
-                "Make sure you used \"Copy as cURL\" on the getCurrentTrial request, " +
-                "or paste a valid JSON blob.</font></html>"
+            statusLabel.text = STATUS_PARSE_ERROR
             return
         }
 
-        val missing = buildList {
+        val missing = collectMissingFields(session)
+        if (missing.isNotEmpty()) {
+            statusLabel.text = STATUS_MISSING_FIELDS.format(missing.joinToString())
+            return
+        }
+
+        capturedSessionJson = gson.toJson(session)
+        statusLabel.text = STATUS_SUCCESS
+        isOKActionEnabled = true
+    }
+
+    private fun parseInput(input: String): NebiusProviderClient.NebiusSession? {
+        return if (isCurlInput(input)) {
+            parseCurl(input)
+        } else {
+            parseJson(input)
+        }
+    }
+
+    private fun isCurlInput(input: String): Boolean {
+        return input.startsWith("curl ") || input.startsWith("-H ") ||
+            input.startsWith("-b ") || input.startsWith("--")
+    }
+
+    private fun String.format(vararg args: Any?): String = format(java.util.Locale.US, *args)
+
+    private fun collectMissingFields(session: NebiusProviderClient.NebiusSession): List<String> {
+        return buildList {
             if (session.appSession.isNullOrBlank()) add("appSession")
             if (session.csrfCookie.isNullOrBlank()) add("csrfCookie")
             if (session.csrfToken.isNullOrBlank()) add("csrfToken")
             if (session.parentId.isNullOrBlank()) add("parentId")
         }
-
-        if (missing.isNotEmpty()) {
-            statusLabel.text = "<html><font color='red'>Incomplete — missing: ${missing.joinToString()}. " +
-                "Make sure you are logged in and copied the right request.</font></html>"
-            return
-        }
-
-        capturedSessionJson = gson.toJson(session)
-        statusLabel.text = "<html><font color='green'><b>✓ Session captured!</b></font></html>"
-        isOKActionEnabled = true
     }
 
     /** Parse a "Copy as cURL" string into a [NebiusProviderClient.NebiusSession]. */
     private fun parseCurl(curl: String): NebiusProviderClient.NebiusSession? {
         return try {
-            // Normalize: remove line continuations and join into single line
-            val normalized = curl.replace("\\\n".toRegex(), " ").replace("\\\r\n".toRegex(), " ")
-
-            // Extract cookies from -b or --cookie (single or double quoted)
-            val cookieStr = extractQuotedArg(normalized, "-b\\s+".toRegex())
-                ?: extractQuotedArg(normalized, "--cookie\\s+".toRegex())
-                ?: extractQuotedArg(normalized, "-H\\s+['\"]?[Cc]ookie:\\s*".toRegex())
-                ?: extractQuotedArg(normalized, "-H\\s+['\"]?[Cc]ookie\\s*:\\s*".toRegex())
-                ?: ""
-
-            val appSession = Regex("""__Host-app_session=([^;]+)""").find(cookieStr)?.groupValues?.get(1)?.trim()
-            val csrfCookie = Regex("""__Host-psifi\.x-csrf-token=([^;]+)""").find(cookieStr)?.groupValues?.get(1)?.trim()
-
-            // Extract x-csrf-token header (single or double quoted)
-            val csrfToken = extractQuotedArg(normalized, "-H\\s+['\"][Xx]-[Cc]srf-[Tt]oken:\\s*".toRegex())
-                ?: extractQuotedArg(normalized, "-H\\s+['\"][Xx]-[Cc]srf-[Tt]oken\\s*:\\s*".toRegex())
-                ?: extractQuotedArg(normalized, "-H\\s+\"[Xx]-[Cc]srf-[Tt]oken:\\s*".toRegex())
-                ?: extractQuotedArg(normalized, "-H\\s+\"[Xx]-[Cc]srf-[Tt]oken\\s*:\\s*".toRegex())
-                ?: extractQuotedArg(normalized, "--header\\s+['\"][Xx]-[Cc]srf-[Tt]oken:\\s*".toRegex())
-                ?: extractQuotedArg(normalized, "--header\\s+['\"][Xx]-[Cc]srf-[Tt]oken\\s*:\\s*".toRegex())
-                ?: ""
-
-            // Fallback: if csrfToken is missing, use csrfCookie value (common pattern)
-            val finalCsrfToken = csrfToken.ifBlank { csrfCookie }
-
-            // Extract parentId from the entire normalized cURL (not just dataRaw)
-            // This handles cases where parentId appears in --data-raw, -d, or other places
-            val parentId = Regex("""\s*"parentId"\s*:\s*"([^"]+)"\s*""")
-                .find(normalized)?.groupValues?.get(1)
+            val normalized = normalizeCurl(curl)
+            val cookieStr = extractCookies(normalized)
+            val (appSession, csrfCookie) = extractSessionCookies(cookieStr)
+            val csrfToken = extractCsrfToken(normalized, csrfCookie)
+            val parentId = extractParentId(normalized)
 
             NebiusProviderClient.NebiusSession(
                 appSession = appSession,
                 csrfCookie = csrfCookie,
-                csrfToken = finalCsrfToken,
+                csrfToken = csrfToken,
                 parentId = parentId
             )
-        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+        } catch (e: Exception) {
             null
         }
+    }
+
+    private fun normalizeCurl(curl: String): String {
+        return curl.replace("\\\n".toRegex(), " ").replace("\\\r\n".toRegex(), " ")
+    }
+
+    private fun extractCookies(normalized: String): String {
+        return extractQuotedArg(normalized, "-b\\s+".toRegex())
+            ?: extractQuotedArg(normalized, "--cookie\\s+".toRegex())
+            ?: extractQuotedArg(normalized, "-H\\s+['\"]?[Cc]ookie:\\s*".toRegex())
+            ?: extractQuotedArg(normalized, "-H\\s+['\"]?[Cc]ookie\\s*:\\s*".toRegex())
+            ?: ""
+    }
+
+    private fun extractSessionCookies(cookieStr: String): Pair<String?, String?> {
+        val appSession = Regex("""__Host-app_session=([^;]+)""")
+            .find(cookieStr)?.groupValues?.get(1)
+        val csrfCookie = Regex("""__Host-psifi\.x-csrf-token=([^;]+)""")
+            .find(cookieStr)?.groupValues?.get(1)
+        return Pair(appSession?.trim(), csrfCookie?.trim())
+    }
+
+    private fun extractCsrfToken(normalized: String, csrfCookie: String?): String {
+        val csrfToken = extractQuotedArg(normalized, "-H\\s+['\"][Xx]-[Cc]srf-[Tt]oken:\\s*".toRegex())
+            ?: extractQuotedArg(normalized, "-H\\s+['\"][Xx]-[Cc]srf-[Tt]oken\\s*:\\s*".toRegex())
+            ?: extractQuotedArg(normalized, "-H\\s+\"[Xx]-[Cc]srf-[Tt]oken:\\s*".toRegex())
+            ?: extractQuotedArg(normalized, "-H\\s+\"[Xx]-[Cc]srf-[Tt]oken\\s*:\\s*".toRegex())
+            ?: extractQuotedArg(normalized, "--header\\s+['\"][Xx]-[Cc]srf-[Tt]oken:\\s*".toRegex())
+            ?: extractQuotedArg(normalized, "--header\\s+['\"][Xx]-[Cc]srf-[Tt]oken\\s*:\\s*".toRegex())
+            ?: ""
+        return csrfToken.ifBlank { csrfCookie ?: "" }
+    }
+
+    private fun extractParentId(normalized: String): String? {
+        return Regex("""\s*"parentId"\s*:\s*"([^"]+)"\s*""")
+            .find(normalized)?.groupValues?.get(1)
     }
 
     /**
@@ -334,17 +376,17 @@ class NebiusConnectDialog : DialogWrapper(true) {
      * Handles both single-quoted ('...') and double-quoted ("...") strings.
      */
     private fun extractQuotedArg(text: String, prefix: Regex): String? {
-        // Try single quotes first
-        val singlePattern = prefix.pattern + "'([^']+)'"
-        val singleMatch = Regex(singlePattern).find(text)?.groupValues?.get(1)
-        if (singleMatch != null) return singleMatch
+        return extractSingleQuoted(text, prefix) ?: extractDoubleQuoted(text, prefix)
+    }
 
-        // Try double quotes
-        val doublePattern = prefix.pattern + "\"([^\"]+)\""
-        val doubleMatch = Regex(doublePattern).find(text)?.groupValues?.get(1)
-        if (doubleMatch != null) return doubleMatch
+    private fun extractSingleQuoted(text: String, prefix: Regex): String? {
+        val pattern = prefix.pattern + "'([^']+)'"
+        return Regex(pattern).find(text)?.groupValues?.get(1)
+    }
 
-        return null
+    private fun extractDoubleQuoted(text: String, prefix: Regex): String? {
+        val pattern = prefix.pattern + "\"([^\"]+)\""
+        return Regex(pattern).find(text)?.groupValues?.get(1)
     }
 
     /** Parse a raw JSON blob. */
@@ -354,7 +396,7 @@ class NebiusConnectDialog : DialogWrapper(true) {
         if (start < 0 || end <= start) return null
         return try {
             gson.fromJson(text.substring(start, end + 1), NebiusProviderClient.NebiusSession::class.java)
-        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+        } catch (e: Exception) {
             null
         }
     }
