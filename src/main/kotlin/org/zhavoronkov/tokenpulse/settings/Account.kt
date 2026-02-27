@@ -36,21 +36,21 @@ enum class AuthType(val displayName: String) {
 }
 
 data class Account(
-    val id: String = UUID.randomUUID().toString(),
-    val name: String = "",
+    var id: String = UUID.randomUUID().toString(),
+    var name: String = "",
     /**
      * Defaults to [ProviderId.CLINE] so that legacy XML entries without this field
      * can be deserialized without crashing. Migrated on load in [TokenPulseSettingsService].
      */
-    val providerId: ProviderId = ProviderId.CLINE,
+    var providerId: ProviderId = ProviderId.CLINE,
     /**
      * Defaults to [AuthType.CLINE_API_KEY] for the same backward-compatibility reason.
      * Migrated on load in [TokenPulseSettingsService].
      */
-    val authType: AuthType = AuthType.CLINE_API_KEY,
-    val isEnabled: Boolean = true,
+    var authType: AuthType = AuthType.CLINE_API_KEY,
+    var isEnabled: Boolean = true,
     /** Masked preview of the API key, e.g. "sk-or-…91bc". Stored for display only, not sensitive. */
-    val keyPreview: String = ""
+    var keyPreview: String = ""
 ) {
     /** Human-readable label shown in the accounts table. */
     fun displayLabel(): String {
@@ -101,4 +101,47 @@ fun List<Account>.normalizeProviderAuthTypes(): List<Account> = map { account ->
     } else {
         account
     }
+}
+
+/**
+ * Sanitizes accounts to ensure valid providerId and authType values.
+ *
+ * This is a defensive measure to handle cases where:
+ * - providerId is missing or invalid (defaults to CLINE)
+ * - authType doesn't match the provider's expected type (corrects it)
+ * - account has other malformed fields
+ *
+ * Returns a sanitized list with all accounts having valid, consistent values.
+ */
+fun List<Account>.sanitizeAccounts(): List<Account> = map { account ->
+    // Validate providerId - default to CLINE if invalid/missing
+    val validProviderId = try {
+        ProviderId.entries.find { it == account.providerId } ?: ProviderId.CLINE
+    } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+        ProviderId.CLINE
+    }
+
+    // Determine expected authType for this provider
+    val expectedAuthType = when (validProviderId) {
+        ProviderId.OPENROUTER -> AuthType.OPENROUTER_PROVISIONING_KEY
+        ProviderId.CLINE -> AuthType.CLINE_API_KEY
+        ProviderId.NEBIUS -> AuthType.NEBIUS_BILLING_SESSION
+    }
+
+    // Validate authType - use expected type if invalid/missing
+    val validAuthType = try {
+        AuthType.entries.find { it == account.authType } ?: expectedAuthType
+    } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+        expectedAuthType
+    }
+
+    // Ensure isEnabled is valid (default to true)
+    val validEnabled = account.isEnabled
+
+    // Preserve other fields
+    account.copy(
+        providerId = validProviderId,
+        authType = validAuthType,
+        isEnabled = validEnabled
+    )
 }

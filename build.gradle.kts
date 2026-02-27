@@ -90,6 +90,7 @@ tasks {
 
     test {
         useJUnitPlatform()
+        systemProperty("tokenpulse.testMode", "true")
     }
 
     withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {

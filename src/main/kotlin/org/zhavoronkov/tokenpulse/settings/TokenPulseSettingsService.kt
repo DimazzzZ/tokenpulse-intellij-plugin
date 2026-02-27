@@ -5,6 +5,7 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.openapi.components.service
+import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 
 @Service(Service.Level.APP)
 @State(
@@ -17,8 +18,17 @@ class TokenPulseSettingsService : PersistentStateComponent<TokenPulseSettings> {
     override fun getState(): TokenPulseSettings = mySettings
 
     override fun loadState(state: TokenPulseSettings) {
-        // Migrate legacy OPENROUTER_API_KEY accounts to OPENROUTER_PROVISIONING_KEY
-        mySettings = state.copy(accounts = state.accounts.migrateAuthTypes())
+        // Defensive wrapper to prevent init-time crashes from malformed legacy state
+        mySettings = runCatching {
+            state.copy(
+                accounts = state.accounts
+                    .migrateAuthTypes()
+                    .normalizeProviderAuthTypes()
+                    .sanitizeAccounts()
+            )
+        }.onFailure { e ->
+            TokenPulseLogger.Settings.error("Failed to load settings, using defaults", e)
+        }.getOrDefault(TokenPulseSettings())
     }
 
     companion object {

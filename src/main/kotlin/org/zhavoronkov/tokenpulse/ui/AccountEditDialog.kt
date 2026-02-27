@@ -25,7 +25,8 @@ import javax.swing.JComponent
  *      • Nebius      → Billing Session  (NEBIUS_BILLING_SESSION)
  *    Regular OpenRouter API keys do not expose the credits endpoint and are not supported.
  *    Nebius does not expose a billing API via API key — a browser session is required.
- *  - For Nebius: "Connect Billing Session →" button opens [NebiusConnectDialog].
+ *  - For Nebius: "Connect Billing Session →" button opens [NebiusConnectDialog]
+ *    which guides users through a console script extraction flow.
  *  - For other providers: "Get API Key →" button opens the exact provider page.
  *  - Key preview (first 6 + last 4 chars) is always shown so users can recognise accounts
  *    when multiple keys are configured for the same provider.
@@ -118,7 +119,7 @@ class AccountEditDialog(
         val url = when (getProvider()) {
             ProviderId.CLINE -> "https://app.cline.bot/dashboard/account?tab=api-keys"
             ProviderId.OPENROUTER -> "https://openrouter.ai/settings/provisioning-keys"
-            ProviderId.NEBIUS -> "https://tokenfactory.nebius.com/"
+            ProviderId.NEBIUS -> NebiusConnectDialog.NEBIUS_URL
         }
         BrowserUtil.browse(url)
     }
@@ -140,7 +141,7 @@ class AccountEditDialog(
         ProviderId.OPENROUTER ->
             "OpenRouter <b>Provisioning Key</b> required. Regular API keys do not expose credits info."
         ProviderId.NEBIUS ->
-            "Nebius billing is accessed via a browser session. Click \"Connect Billing Session →\" to set it up."
+            "Nebius billing uses a browser session. Click \"Connect Billing Session →\" to run the extraction script."
     }
 
     // ── Panel construction ─────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import org.zhavoronkov.tokenpulse.model.Credits
 import org.zhavoronkov.tokenpulse.model.ProviderId
 import org.zhavoronkov.tokenpulse.model.ProviderResult
 import org.zhavoronkov.tokenpulse.settings.Account
+import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.math.BigDecimal
 
 /**
@@ -57,12 +58,36 @@ class NebiusProviderClient(
     }
 
     override fun fetchBalance(account: Account, secret: String): ProviderResult {
+        TokenPulseLogger.Provider.debug("Starting balance fetch for account ${account.id} (${account.providerId})")
+
         return try {
             val session = parseSession(secret)
-                ?: return ProviderResult.Failure.AuthError(
+            if (session == null) {
+                TokenPulseLogger.Provider.warn("Invalid Nebius session for account ${account.id} - parse failed")
+                return ProviderResult.Failure.AuthError(
                     "Nebius billing session is missing or invalid. " +
                         "Please reconnect via Settings → Accounts → Edit."
                 )
+            }
+
+            // Log session validation details (no secrets)
+            val sessionFlags = listOf(
+                "appSession" to !session.appSession.isNullOrBlank(),
+                "csrfCookie" to !session.csrfCookie.isNullOrBlank(),
+                "csrfToken" to !session.csrfToken.isNullOrBlank(),
+                "parentId" to !session.parentId.isNullOrBlank()
+            ).joinToString { (field, present) -> "$field=${if (present) "✓" else "✗"}" }
+            
+            TokenPulseLogger.Provider.debug("Parsed Nebius session for account ${account.id}: $sessionFlags")
+            
+            // Validate critical fields
+            if (session.appSession.isNullOrBlank() || session.csrfCookie.isNullOrBlank() || 
+                session.csrfToken.isNullOrBlank() || session.parentId.isNullOrBlank()) {
+                TokenPulseLogger.Provider.warn("Incomplete Nebius session for account ${account.id}: $sessionFlags")
+                return ProviderResult.Failure.AuthError(
+                    "Nebius session is incomplete. Please reconnect via Settings → Accounts → Edit."
+                )
+            }
 
             val payload = gson.toJson(mapOf("parentId" to session.parentId!!))
             val body = payload.toRequestBody(JSON_MEDIA_TYPE)
@@ -81,9 +106,19 @@ class NebiusProviderClient(
                 )
                 .build()
 
+            val startTime = System.currentTimeMillis()
+            TokenPulseLogger.Provider.debug("Making Nebius request for account ${account.id}: POST $BILLING_ENDPOINT")
+
             httpClient.newCall(request).execute().use { response ->
+                val duration = System.currentTimeMillis() - startTime
+                TokenPulseLogger.Provider.debug("Nebius response for account ${account.id}: ${response.code} ${response.message} (${duration}ms)")
                 when {
                     response.code == HTTP_FORBIDDEN || response.code == HTTP_UNAUTHORIZED -> {
+                        val bodyStr = response.body?.string() ?: "No response body"
+                        TokenPulseLogger.Provider.warn(
+                            "Nebius authentication failed for account ${account.id}: " +
+                            "${response.code} ${response.message}\n$bodyStr"
+                        )
                         ProviderResult.Failure.AuthError(
                             "Nebius billing session expired. " +
                                 "Please reconnect via Settings → Accounts → Edit."
@@ -93,6 +128,11 @@ class NebiusProviderClient(
                         ProviderResult.Failure.RateLimited("Nebius rate limit exceeded")
                     }
                     !response.isSuccessful -> {
+                        val bodyStr = response.body?.string() ?: "No response body"
+                        TokenPulseLogger.Provider.error(
+                            "Nebius API error for account ${account.id}: " +
+                            "${response.code} ${response.message}\n$bodyStr"
+                        )
                         ProviderResult.Failure.UnknownError(
                             "Nebius billing error: ${response.code} ${response.message}"
                         )
@@ -105,8 +145,10 @@ class NebiusProviderClient(
                 }
             }
         } catch (e: JsonSyntaxException) {
+            TokenPulseLogger.Provider.error("Nebius JSON parse error for account ${account.id}", e)
             ProviderResult.Failure.ParseError("Failed to parse Nebius response", e)
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            TokenPulseLogger.Provider.error("Nebius network error for account ${account.id}", e)
             ProviderResult.Failure.NetworkError("Failed to connect to Nebius", e)
         }
     }
@@ -129,6 +171,7 @@ class NebiusProviderClient(
 
     private fun parseTrialResponse(account: Account, body: String): ProviderResult {
         val resp = gson.fromJson(body, TrialResponse::class.java)
+        if (resp == null) return ProviderResult.Failure.ParseError("Empty or invalid response body")
         val spec = resp.spec ?: return ProviderResult.Failure.ParseError("Missing spec in Nebius response")
         val status = resp.status ?: return ProviderResult.Failure.ParseError("Missing status in Nebius response")
 

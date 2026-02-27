@@ -5,6 +5,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import kotlinx.coroutines.CoroutineScope
+import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -59,13 +60,17 @@ class BalanceRefreshService : Disposable {
     }
 
     fun refreshAll(force: Boolean = false) {
+        TokenPulseLogger.Service.debug("Starting refreshAll (force=$force)")
         val accounts = TokenPulseSettingsService.getInstance().state.accounts
+        val enabledCount = accounts.count { it.isEnabled }
+        TokenPulseLogger.Service.debug("Found $enabledCount enabled accounts to refresh")
         accounts.filter { it.isEnabled }.forEach { account ->
             refreshAccount(account.id, force)
         }
     }
 
     fun refreshAccount(accountId: String, force: Boolean = false) {
+        TokenPulseLogger.Service.debug("refreshAccount called: accountId=$accountId, force=$force")
         val account = TokenPulseSettingsService.getInstance().state.accounts.find { it.id == accountId } ?: return
 
         val oldResult = results.value[accountId]
@@ -76,6 +81,9 @@ class BalanceRefreshService : Disposable {
                 .syncPublisher(BalanceUpdatedTopic.TOPIC)
                 .balanceUpdated(accountId, newResult)
 
+            // Log result
+            TokenPulseLogger.Service.debug("refreshAccount completed: accountId=$accountId, result=${newResult::class.simpleName}")
+            
             // Notify on status change
             handleNotifications(account.displayLabel(), oldResult, newResult)
         }
