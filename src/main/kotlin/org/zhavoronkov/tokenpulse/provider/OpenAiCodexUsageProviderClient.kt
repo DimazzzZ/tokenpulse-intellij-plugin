@@ -50,6 +50,7 @@ class OpenAiCodexUsageProviderClient(
         private const val HTTP_FORBIDDEN = 403
         private const val HTTP_TOO_MANY_REQUESTS = 429
         private const val DEFAULT_DAYS_BACK = 30
+        private const val SECONDS_PER_DAY = 86_400
     }
 
     override fun fetchBalance(account: Account, secret: String): ProviderResult {
@@ -177,11 +178,7 @@ class OpenAiCodexUsageProviderClient(
         return (System.currentTimeMillis() / 1000).toString()
     }
 
-    companion object {
-        private const val SECONDS_PER_DAY = 86400
-    }
-
-    private inline fun <T> fetchPaginatedData(
+    private fun <T> fetchPaginatedData(
         url: String,
         params: Map<String, String>,
         accessToken: String,

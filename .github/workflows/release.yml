@@ -34,7 +34,7 @@ jobs:
           cache-read-only: false
 
       - name: Build Plugin
-        run: ./gradlew clean build test verifyPluginStructure --build-cache
+        run: ./gradlew clean build test verifyPlugin --build-cache
 
       - name: Extract version
         id: extract_version

@@ -30,7 +30,7 @@ jobs:
           cache-read-only: false
 
       - name: Build, Test and Analyze
-        run: ./gradlew clean build test detekt detektSarif verifyPluginStructure --build-cache
+        run: ./gradlew clean build test detekt detektSarif verifyPlugin --build-cache
         
       - name: Upload test results
         uses: actions/upload-artifact@v4
