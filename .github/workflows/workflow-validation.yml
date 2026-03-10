@@ -1,0 +1,111 @@
+name: Workflow Validation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+
+jobs:
+  validate-workflows:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Validate workflow syntax
+      run: |
+        echo "🔍 Validating GitHub Actions workflow files..."
+        
+        for workflow in .github/workflows/*.yml; do
+          echo "Checking $workflow..."
+          python3 -c "
+        import yaml
+        import sys
+        
+        try:
+            with open('$workflow', 'r') as f:
+                yaml.safe_load(f)
+            print('✅ $workflow is valid')
+        except yaml.YAMLError as e:
+            print('❌ $workflow has YAML syntax errors:')
+            print(e)
+            sys.exit(1)
+        except Exception as e:
+            print('❌ Error reading $workflow:')
+            print(e)
+            sys.exit(1)
+        "
+        done
+    
+    - name: Check required secrets documentation
+      run: |
+        echo "📋 Required GitHub Secrets for this project:"
+        echo ""
+        echo "For Release Workflow:"
+        echo "  - CERTIFICATE_CHAIN: Plugin signing certificate chain"
+        echo "  - PRIVATE_KEY: Plugin signing private key"
+        echo "  - PRIVATE_KEY_PASSWORD: Password for the private key"
+        echo "  - PUBLISH_TOKEN: JetBrains Marketplace publish token"
+        echo ""
+        echo "ℹ️  Add these secrets in GitHub repository settings under:"
+        echo "   Settings → Secrets and variables → Actions"
+    
+    - name: Validate Dependabot configuration
+      run: |
+        echo "🔍 Validating Dependabot configuration..."
+        
+        python3 -c "
+        import yaml
+        import sys
+        
+        try:
+            with open('.github/dependabot.yml', 'r') as f:
+                config = yaml.safe_load(f)
+            
+            if 'version' not in config or config['version'] != 2:
+                print('❌ Dependabot config missing version 2')
+                sys.exit(1)
+            
+            if 'updates' not in config:
+                print('❌ Dependabot config missing updates section')
+                sys.exit(1)
+            
+            ecosystems = [update.get('package-ecosystem') for update in config['updates']]
+            if 'gradle' not in ecosystems:
+                print('❌ Gradle ecosystem not configured in Dependabot')
+                sys.exit(1)
+            
+            if 'github-actions' not in ecosystems:
+                print('❌ GitHub Actions ecosystem not configured in Dependabot')
+                sys.exit(1)
+            
+            print('✅ Dependabot configuration is valid')
+            
+        except Exception as e:
+            print('❌ Error validating Dependabot config:')
+            print(e)
+            sys.exit(1)
+        "
+    
+    - name: Summary
+      run: |
+        echo ""
+        echo "🎉 Workflow Validation Complete!"
+        echo ""
+        echo "✅ Validated workflows:"
+        for workflow in .github/workflows/*.yml; do
+          echo "   - $workflow"
+        done
+        echo ""
+        echo "✅ Dependabot configuration valid"
+        echo ""
+        echo "📚 Required secrets for publishing:"
+        echo "   - CERTIFICATE_CHAIN"
+        echo "   - PRIVATE_KEY"
+        echo "   - PRIVATE_KEY_PASSWORD"
+        echo "   - PUBLISH_TOKEN"

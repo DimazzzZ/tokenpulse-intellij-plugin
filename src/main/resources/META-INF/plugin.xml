@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <id>org.zhavoronkov.tokenpulse</id>
+    <name>TokenPulse</name>
+    <vendor email="tokenpulse-plugin@zhavoronkov.org" url="https://github.com/DimazzzZ/tokenpulse-intellij-plugin">Dmitry Zhavoronkov</vendor>
+
+    <description><![CDATA[
+    TokenPulse aggregates token balances and credit usage across multiple AI providers
+    directly in your IDE status bar. Track your AI spending in real-time.<br><br>
+
+    <b>Beta Release:</b> This is an early release. Features may change and some functionality
+    may be incomplete. Please report issues on GitHub.<br><br>
+
+    <b>Supported Providers:</b>
+    <ul>
+        <li><b>OpenRouter</b> — Provisioning Key with credits tracking</li>
+        <li><b>Cline</b> — API Key for personal and organization accounts</li>
+        <li><b>OpenAI Platform</b> — Admin API Key with usage/costs via Organization APIs</li>
+        <li><b>ChatGPT Subscription</b> — OAuth flow for Pro/Plus subscription tracking</li>
+        <li><b>Nebius AI Studio</b> — Cookie-based auth with trial/paid balance</li>
+        <li><b>Claude Code</b> — CLI-based usage extraction</li>
+    </ul>
+
+    <b>Features:</b>
+    <ul>
+        <li>Live credit &amp; token balance in the status bar</li>
+        <li>Dashboard with per-account status, credits, and timestamps</li>
+        <li>Configurable auto-refresh with smart TTL caching</li>
+        <li>Secure credential storage via IntelliJ PasswordSafe</li>
+    </ul>
+    ]]></description>
+
+    <change-notes><![CDATA[
+    <b>0.1.0</b> — Initial beta release (2026-03-10)<br>
+    <ul>
+        <li><b>Multi-provider support:</b> OpenRouter, Cline, OpenAI Platform, ChatGPT Subscription, Nebius AI Studio, Claude Code</li>
+        <li><b>Status bar widget:</b> Live aggregate balance in your IDE</li>
+        <li><b>Dashboard:</b> Per-account details with status, credits, tokens, and timestamps</li>
+        <li><b>Settings page:</b> Full CRUD account management under Tools → TokenPulse</li>
+        <li><b>Smart caching:</b> TTL-based auto-refresh with single-flight coalescing</li>
+        <li><b>Secure storage:</b> All credentials stored via IntelliJ PasswordSafe</li>
+        <li><b>Onboarding:</b> Welcome and "What's New" notifications</li>
+    </ul>
+    ]]></change-notes>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Application services -->
+        <!-- Note: Other services are registered automatically via @Service (Light Services) -->
+        <applicationService serviceImplementation="org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService"/>
+
+        <!-- Notifications -->
+        <notificationGroup id="TokenPulse" displayType="BALLOON" isLogByDefault="true"/>
+        <notificationGroup id="TokenPulse Updates" displayType="BALLOON" isLogByDefault="true"/>
+        <notificationGroup id="TokenPulse Notifications" displayType="BALLOON" isLogByDefault="true"/>
+
+        <!-- Startup activities -->
+        <postStartupActivity implementation="org.zhavoronkov.tokenpulse.startup.WelcomeNotificationActivity"/>
+        <postStartupActivity implementation="org.zhavoronkov.tokenpulse.startup.WhatsNewNotificationActivity"/>
+
+        <!-- Settings page under Tools -->
+        <applicationConfigurable
+                parentId="tools"
+                instance="org.zhavoronkov.tokenpulse.ui.TokenPulseConfigurable"
+                id="org.zhavoronkov.tokenpulse.ui.TokenPulseConfigurable"
+                displayName="TokenPulse"/>
+
+        <!-- Status bar widget -->
+        <statusBarWidgetFactory
+                implementation="org.zhavoronkov.tokenpulse.ui.TokenPulseStatusBarWidgetFactory"
+                id="TokenPulse"/>
+    </extensions>
+
+    <actions>
+        <action id="TokenPulse.ShowDashboard"
+                class="org.zhavoronkov.tokenpulse.actions.ShowDashboardAction"
+                text="Show TokenPulse Dashboard"
+                description="Shows a table with all configured token balances">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+        <action id="TokenPulse.RefreshAll"
+                class="org.zhavoronkov.tokenpulse.actions.RefreshAllAction"
+                text="Refresh All Token Balances"
+                description="Force a refresh of all configured account balances"/>
+        <action id="TokenPulse.OpenSettings"
+                class="org.zhavoronkov.tokenpulse.actions.OpenSettingsAction"
+                text="TokenPulse Settings..."
+                description="Configure AI provider accounts and refresh interval"/>
+    </actions>
+</idea-plugin>

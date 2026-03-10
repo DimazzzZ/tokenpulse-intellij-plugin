@@ -1,0 +1,216 @@
+build:
+  maxIssues: 0
+  excludeCorrectable: true
+
+config:
+  validation: true
+  warningsAsErrors: false
+
+style:
+  MagicNumber:
+    active: true
+    # Common magic numbers that are acceptable:
+    # -1, 0, 1, 2: iteration, bounds, boolean-like
+    # 3, 4, 5, 6, 7, 8, 10, 15, 20, 24, 30, 50, 60: small limits, intervals, list sizes
+    # 70, 90, 100, 200: percentages, thresholds, HTTP codes
+    # 300, 400, 401, 403, 404, 429, 500, 502, 503: HTTP status codes
+    # 1000, 5000, 30000, 60000, 180000: milliseconds (seconds, minutes)
+    ignoreNumbers:
+      - '-1'
+      - '0'
+      - '1'
+      - '2'
+      - '3'
+      - '4'
+      - '5'
+      - '6'
+      - '7'
+      - '8'
+      - '10'
+      - '15'
+      - '20'
+      - '24'
+      - '30'
+      - '50'
+      - '60'
+      - '70'
+      - '90'
+      - '100'
+      - '200'
+      - '300'
+      - '400'
+      - '401'
+      - '403'
+      - '404'
+      - '429'
+      - '500'
+      - '502'
+      - '503'
+      - '1000'
+      - '5000'
+      - '30000'
+      - '60000'
+      - '180000'
+      - '750'
+      - '12'
+      - '16'
+      - '32'
+      - '1000000'
+      # UI colors and dimensions
+      - '40'
+      - '45'
+      - '55'
+      - '65'
+      - '75'
+      - '80'
+      - '85'
+      - '95'
+      - '110'
+      - '120'
+      - '130'
+      - '140'
+      - '150'
+      - '160'
+      - '168'
+      - '170'
+      - '180'
+      - '190'
+      - '203'
+      - '217'
+      - '218'
+      - '220'
+      - '225'
+      - '230'
+      - '240'
+      - '255'
+      - '265'
+      - '280'
+      - '297'
+      - '301'
+      - '310'
+      - '314'
+      - '316'
+      - '323'
+      - '328'
+      - '350'
+      - '360'
+      - '365'
+      - '380'
+      - '600'
+      - '700'
+      - '800'
+      - '3600'
+      # Chart dimensions
+      - '77'
+      - '118'
+      - '141'
+      - '142'
+      - '151'
+      - '152'
+    ignoreHashCodeFunction: true
+    ignorePropertyDeclaration: true
+    ignoreConstantDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+    ignoreAnnotation: true
+    ignoreEnums: true
+  UnusedPrivateMember:
+    active: true
+  ReturnCount:
+    active: true
+    max: 8
+    excludeLabeled: true
+    excludeReturnFromLambda: true
+    excludeGuardClauses: true
+  NewLineAtEndOfFile:
+    active: true
+    autoCorrect: true
+  MaxLineLength:
+    active: true
+    maxLineLength: 120
+    excludes: ['**/test/**']
+    excludeCommentStatements: true
+    excludeRawStrings: true
+    excludePackageStatements: true
+    excludeImportStatements: true
+
+complexity:
+  TooManyFunctions:
+    active: true
+    # IntelliJ plugin UI classes and provider clients often need many functions
+    # Set to 25 to allow complex classes that legitimately need many methods
+    thresholdInFiles: 25
+    thresholdInClasses: 25
+    thresholdInInterfaces: 25
+    thresholdInObjects: 25
+    thresholdInEnums: 25
+    ignoreDeprecated: true
+    ignorePrivate: false
+    ignoreOverridden: true
+  LongMethod:
+    active: true
+    # Allow up to 120 lines for complex UI setup methods
+    threshold: 120
+  LongParameterList:
+    active: true
+    # Constructors with many params for testing/DI are common
+    functionThreshold: 7
+    constructorThreshold: 10
+    ignoreDefaultParameters: true
+    ignoreDataClasses: true
+    ignoreAnnotatedParameter: ['Inject']
+  CyclomaticComplexMethod:
+    active: true
+    # Increased to 30 for complex provider/UI methods
+    threshold: 30
+  NestedBlockDepth:
+    active: true
+    # Increased to 6 for complex async/callback patterns
+    threshold: 6
+  ComplexCondition:
+    active: true
+    # Increased to 5 for complex validation conditions
+    threshold: 5
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
+    exceptionNames:
+      - 'ArrayIndexOutOfBoundsException'
+      - 'Error'
+      - 'IllegalMonitorStateException'
+      - 'IndexOutOfBoundsException'
+      - 'NullPointerException'
+    allowedExceptionNameRegex: '_|(ignore|expected).*'
+  TooGenericExceptionThrown:
+    # Disabled - acceptable for error handling in provider clients
+    active: false
+  SwallowedException:
+    # Disabled - intentional fallback returns in providers
+    active: false
+  RethrowCaughtException:
+    active: true
+
+formatting:
+  active: true
+  android: false
+  autoCorrect: true
+  NoWildcardImports:
+    active: true
+    autoCorrect: true
+  ImportOrdering:
+    active: true
+    autoCorrect: true
+  MaximumLineLength:
+    active: true
+    maxLineLength: 120
+    excludes: ['**/test/**']
+  ArgumentListWrapping:
+    active: true
+    autoCorrect: true
+  Wrapping:
+    active: true
+    autoCorrect: true
+  Indentation:
+    active: true
+    autoCorrect: true
