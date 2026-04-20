@@ -444,7 +444,7 @@ class AccountEditDialog(
             "Claude Code uses the Claude CLI for authentication. Click \"Detect Claude CLI →\" to verify installation."
         ConnectionType.CLINE_API ->
             "Cline personal API key. <b>Note:</b> API key management is only available for Personal accounts, " +
-            "not Organization accounts."
+                "not Organization accounts."
         ConnectionType.OPENROUTER_PROVISIONING ->
             "OpenRouter <b>Provisioning Key</b> required. Click \"Get API Key →\" to open the OpenRouter settings."
         ConnectionType.OPENROUTER_PLUGIN ->

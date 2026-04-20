@@ -16,4 +16,5 @@ import org.zhavoronkov.tokenpulse.settings.Account
  *
  * Uses shared column definitions from [AccountTableColumns].
  */
+@Suppress("SpreadOperator")
 class AccountTableModel : ListTableModel<Account>(*AccountTableColumns.allColumns())

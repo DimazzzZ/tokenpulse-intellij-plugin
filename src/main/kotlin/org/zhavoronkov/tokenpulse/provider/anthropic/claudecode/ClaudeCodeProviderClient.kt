@@ -44,7 +44,9 @@ class ClaudeCodeProviderClient : ProviderClient {
         }
 
         // First attempt with default timeout
-        TokenPulseLogger.Provider.debug("[ClaudeCodeProviderClient] First extraction attempt (${INITIAL_TIMEOUT_SECONDS}s timeout)")
+        TokenPulseLogger.Provider.debug(
+            "[ClaudeCodeProviderClient] First extraction attempt (${INITIAL_TIMEOUT_SECONDS}s timeout)"
+        )
         val firstResult = usageExtractor.extractUsage(timeoutSeconds = INITIAL_TIMEOUT_SECONDS)
 
         if (firstResult is ClaudeCliUsageExtractor.ExtractionResult.Success) {
@@ -70,7 +72,9 @@ class ClaudeCodeProviderClient : ProviderClient {
                     buildSuccessResult(account, retryResult.usageData)
                 }
                 is ClaudeCliUsageExtractor.ExtractionResult.Error -> {
-                    TokenPulseLogger.Provider.warn("[ClaudeCodeProviderClient] Retry also failed: ${retryResult.message}")
+                    TokenPulseLogger.Provider.warn(
+                        "[ClaudeCodeProviderClient] Retry also failed: ${retryResult.message}"
+                    )
                     mapExtractionError(retryResult)
                 }
             }

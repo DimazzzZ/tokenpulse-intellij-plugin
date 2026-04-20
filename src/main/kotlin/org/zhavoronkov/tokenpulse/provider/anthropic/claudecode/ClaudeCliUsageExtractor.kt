@@ -253,13 +253,13 @@ class ClaudeCliUsageExtractor {
             "/usr/local/bin/expect",
             "/opt/homebrew/bin/expect"
         )
-        
+
         for (location in locations) {
             if (File(location).exists() && File(location).canExecute()) {
                 return location
             }
         }
-        
+
         // Try which command as fallback
         return try {
             val process = ProcessBuilder("which", "expect")
@@ -300,9 +300,11 @@ class ClaudeCliUsageExtractor {
             val workingDir = ClaudeCliExecutor.getWorkingDirectory()
             val process = ProcessBuilder(
                 "powershell.exe",
-                "-ExecutionPolicy", "Bypass",
+                "-ExecutionPolicy",
+                "Bypass",
                 "-NoProfile",
-                "-File", psScriptFile.absolutePath
+                "-File",
+                psScriptFile.absolutePath
             )
                 .directory(workingDir)
                 .redirectErrorStream(true)
@@ -346,7 +348,7 @@ class ClaudeCliUsageExtractor {
     private fun buildPowerShellScript(outputFile: File, claudePath: String): String {
         val outputPath = outputFile.absolutePath.replace("\\", "\\\\")
         val claudePathEscaped = claudePath.replace("\\", "\\\\")
-        
+
         // Build the script with explicit string concatenation to avoid Kotlin interpolation issues
         return buildString {
             appendLine("# Claude CLI Usage Extraction Script for Windows")

@@ -114,7 +114,11 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
             val credits = firstResult.snapshot.balance.credits
             if (credits != null) {
                 val provider = firstAccount.connectionType.provider
-                return "TP: ${BalanceFormatter.formatCreditsForStatusBar(credits, settings.statusBarDollarFormat, provider)}"
+                return "TP: ${BalanceFormatter.formatCreditsForStatusBar(
+                    credits,
+                    settings.statusBarDollarFormat,
+                    provider
+                )}"
             }
         }
 

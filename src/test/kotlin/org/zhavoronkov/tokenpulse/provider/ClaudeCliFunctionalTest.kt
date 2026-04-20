@@ -14,7 +14,7 @@ import kotlin.system.measureTimeMillis
  * Functional/Integration test for Claude CLI usage extraction.
  *
  * **Run on-demand only** - excluded from default test suite.
- * 
+ *
  * Run with:
  * - `./gradlew test -Pfunctional` - run all tests including functional
  * - `./gradlew test --tests "*FunctionalTest*"` - run only functional tests
@@ -88,12 +88,7 @@ class ClaudeCliFunctionalTest {
 
                     // Skip test for environment-related failures that can't be resolved in CI
                     // These are expected when running without a proper terminal
-                    if (r.message.contains("not authenticated", ignoreCase = true) ||
-                        r.message.contains("log in", ignoreCase = true) ||
-                        r.message.contains("Could not capture", ignoreCase = true) ||
-                        r.message.contains("timed out", ignoreCase = true) ||
-                        r.details?.contains("output length: 0") == true
-                    ) {
+                    if (isEnvironmentUnsupported(r)) {
                         println("  -> Skipping: Environment does not support PTY interaction")
                         assumeTrue(false, "PTY interaction not supported in this environment")
                     }
@@ -103,6 +98,23 @@ class ClaudeCliFunctionalTest {
                 }
             }
         }
+    }
+
+    /**
+     * Checks if the extraction error is due to environment limitations
+     * (e.g., not running in a proper terminal/PTY).
+     */
+    @Suppress("ComplexCondition")
+    private fun isEnvironmentUnsupported(
+        result: ClaudeCliUsageExtractor.ExtractionResult.Error
+    ): Boolean {
+        val message = result.message.lowercase()
+        val details = result.details?.lowercase()
+        return message.contains("not authenticated") ||
+            message.contains("log in") ||
+            message.contains("could not capture") ||
+            message.contains("timed out") ||
+            details?.contains("output length: 0") == true
     }
 
     @Test

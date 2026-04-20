@@ -234,7 +234,7 @@ class OpenAiPlatformProviderClient(
         return allItems.ifEmpty { null }
     }
 
-    @Suppress("ThrowsCount")
+    @Suppress("ThrowsCount", "LoopWithTooManyJumpStatements")
     private fun fetchWithRetryAndPagination(request: Request): Triple<JsonObject?, String?, Boolean?> {
         var lastResponse: okhttp3.Response? = null
         var lastError: String? = null

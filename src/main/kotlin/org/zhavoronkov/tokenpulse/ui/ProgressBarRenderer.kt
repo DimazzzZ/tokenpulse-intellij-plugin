@@ -149,5 +149,4 @@ object ProgressBarRenderer {
             else -> COLOR_NORMAL // Plenty left
         }
     }
-
 }

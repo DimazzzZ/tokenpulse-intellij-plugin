@@ -200,6 +200,7 @@ class ChatGptSubscriptionProviderClient(
         )
     }
 
+    @Suppress("LoopWithTooManyJumpStatements")
     private fun fetchSubscriptionInfoWithRetry(
         initialToken: String,
         oauthManager: ChatGptOAuthManager
