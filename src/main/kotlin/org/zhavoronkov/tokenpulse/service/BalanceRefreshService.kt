@@ -1,6 +1,7 @@
 package org.zhavoronkov.tokenpulse.service
 
 import com.intellij.openapi.Disposable
+import java.util.concurrent.ConcurrentHashMap
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
@@ -40,6 +41,16 @@ class BalanceRefreshService : Disposable {
     val results: StateFlow<Map<String, ProviderResult>> = coordinator.results
 
     private var autoRefreshJob: Job? = null
+
+    /**
+     * Tracks the last notification time per account+error fingerprint to avoid spamming
+     * identical error notifications repeatedly.
+     * Key: "accountId:errorType", Value: last notification timestamp.
+     */
+    private val notificationTracker = ConcurrentHashMap<String, Long>()
+
+    /** Minimum time between identical notifications for the same account (30 minutes). */
+    private val NOTIFICATION_THROTTLE_MS = 30 * 60 * 1000L
 
     init {
         startAutoRefresh()
@@ -93,10 +104,31 @@ class BalanceRefreshService : Disposable {
             .syncPublisher(BalanceUpdatedTopic.TOPIC)
             .balanceUpdated(accountId, newResult)
 
-        // Record successful results to history for charting
-        if (newResult is ProviderResult.Success) {
-            recordToHistory(newResult)
+        // Handle credential failure cooldowns
+        when (newResult) {
+            is ProviderResult.Success -> {
+                coordinator.clearCredentialCooldown(accountId)
+                recordToHistory(newResult)
+            }
+            is ProviderResult.Failure -> {
+                if (isCredentialRelatedFailure(newResult)) {
+                    coordinator.recordCredentialFailure(accountId)
+                }
+            }
         }
+    }
+
+    /**
+     * Identifies failures that are credential-related and won't self-resolve.
+     * These trigger cooldown behavior to reduce notification spam.
+     */
+    private fun isCredentialRelatedFailure(result: ProviderResult.Failure): Boolean {
+        // AuthError typically indicates missing/invalid API key
+        return result is ProviderResult.Failure.AuthError ||
+            result.message.contains("API key", ignoreCase = true) ||
+            result.message.contains("Missing", ignoreCase = true) ||
+            result.message.contains("credential", ignoreCase = true) ||
+            result.message.contains("auth", ignoreCase = true)
     }
 
     private fun recordToHistory(result: ProviderResult.Success) {
@@ -131,13 +163,53 @@ class BalanceRefreshService : Disposable {
         old: ProviderResult?,
         new: ProviderResult.Failure
     ) {
+        val fingerprint = "${accountLabel}:${new.javaClass.simpleName}:${normalizeErrorMessage(new.message)}"
+        val now = System.currentTimeMillis()
+
+        // Check throttle for repeated identical notifications
+        val lastNotified = notificationTracker[fingerprint] ?: return
+
+        val elapsedMs = now - lastNotified
+        val shouldThrottle = elapsedMs < NOTIFICATION_THROTTLE_MS
+        if (shouldThrottle) {
+            org.zhavoronkov.tokenpulse.utils.TokenPulseLogger.Service.debug(
+                "Suppressing duplicate notification for $accountLabel: ${new.message}"
+            )
+            return
+        }
+
         val shouldNotify = old == null || old is ProviderResult.Success ||
             (old is ProviderResult.Failure && old.javaClass != new.javaClass)
 
         if (shouldNotify) {
-            val message = "Failed to refresh $accountLabel: ${new.message}"
+            val message = buildErrorMessage(accountLabel, new)
             TokenPulseNotifier.notifyError(null, message)
+            notificationTracker[fingerprint] = now
         }
+    }
+
+    /**
+     * Normalizes error message for fingerprinting by removing variable parts like timestamps.
+     */
+    private fun normalizeErrorMessage(message: String): String {
+        return message
+            .lowercase()
+            .replace(Regex("\\d+"), "N") // Replace numbers with placeholder
+            .trim()
+    }
+
+    /**
+     * Builds a more actionable error message for credential-related failures.
+     */
+    private fun buildErrorMessage(accountLabel: String, failure: ProviderResult.Failure): String {
+        val baseMessage = "Failed to refresh $accountLabel: ${failure.message}"
+
+        // Add actionable hint for credential issues
+        if (isCredentialRelatedFailure(failure)) {
+            return "$baseMessage Please re-enter your API key in TokenPulse Settings."
+        }
+
+        return baseMessage
     }
 
     override fun dispose() {
