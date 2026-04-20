@@ -35,14 +35,20 @@ import java.math.BigDecimal
  * }
  * ```
  *
- * ## Endpoints
- * - `POST /api-mfe/billing/gateway/root/billingActs/getCurrentTrial` → Trial billing state
- * - `POST /api-mfe/billing/gateway/root/customers/getBalance` → Paid balance
- * - `POST /connect/nebius.iam.v1.AiTenantService/List` → Tenant info
+ * ## Endpoints (in priority order)
+ * - `POST /api-mfe/billing/gateway/root/customers/getBalance` → Paid balance (primary)
+ * - `POST /api-mfe/billing/gateway/root/billingActs/getCurrentTrial` → Trial billing state (fallback)
+ * - `POST /connect/nebius.iam.v1.AiTenantService/List` → Tenant info (optional enrichment)
  *
  * ## Balance mapping
  * - `credits.total` = `spec.netConsumptionLimit`
  * - `credits.remaining` = `spec.netConsumptionLimit - status.netConsumptionSpent`
+ *
+ * ## Fallback behavior
+ * - Paid endpoint is always attempted first
+ * - If paid succeeds, trial is optional (ignored if missing/fails)
+ * - If paid fails, trial is used as fallback
+ * - If both fail, a generic error is returned (trial endpoint may not exist after trial ends)
  */
 class NebiusProviderClient(
     private val httpClient: OkHttpClient = OkHttpClient(),
@@ -103,7 +109,7 @@ class NebiusProviderClient(
         val trialResult = fetchTrialBalance(session, account, traceId)
         val trialSuccess = trialResult as? ProviderResult.Success
 
-        return combineResults(account, paidSuccess, trialSuccess, tenantName, trialResult, traceId)
+        return combineResults(account, paidSuccess, trialSuccess, tenantName, traceId)
     }
 
     override fun testCredentials(account: Account, secret: String): ProviderResult =
@@ -114,7 +120,6 @@ class NebiusProviderClient(
         paidSuccess: ProviderResult.Success?,
         trialSuccess: ProviderResult.Success?,
         tenantName: String?,
-        trialResult: ProviderResult,
         traceId: String
     ): ProviderResult {
         return when {
@@ -148,7 +153,16 @@ class NebiusProviderClient(
                 )
             }
             paidSuccess != null -> {
+                // Paid succeeded: return paid balance, ignore trial failure (trial may be expired/missing)
                 val paidRemaining = paidSuccess.snapshot.balance.credits?.remaining ?: BigDecimal.ZERO
+                TokenPulseLogger.trace(
+                    "NEBIUS",
+                    account.id,
+                    traceId,
+                    "paid_only",
+                    "Paid succeeded, trial ignored (may be expired)",
+                    mapOf("paid" to paidRemaining)
+                )
                 ProviderResult.Success(
                     paidSuccess.snapshot.copy(
                         nebiusBreakdown = NebiusBalanceBreakdown(
@@ -160,7 +174,16 @@ class NebiusProviderClient(
                 )
             }
             trialSuccess != null -> {
+                // Paid failed but trial succeeded: return trial only (user has active trial, no paid balance)
                 val trialRemaining = trialSuccess.snapshot.balance.credits?.remaining ?: BigDecimal.ZERO
+                TokenPulseLogger.trace(
+                    "NEBIUS",
+                    account.id,
+                    traceId,
+                    "trial_only",
+                    "Trial succeeded, paid failed (trial-only account)",
+                    mapOf("trial" to trialRemaining)
+                )
                 ProviderResult.Success(
                     trialSuccess.snapshot.copy(
                         nebiusBreakdown = NebiusBalanceBreakdown(
@@ -172,8 +195,11 @@ class NebiusProviderClient(
                 )
             }
             else -> {
+                // Both failed: return a generic failure (trial endpoint may not exist after trial ends)
                 TokenPulseLogger.trace("NEBIUS", account.id, traceId, "both_failed", "Both endpoints failed")
-                trialResult
+                ProviderResult.Failure.NetworkError(
+                    "Failed to fetch Nebius balance. Please verify your session is still valid in Settings."
+                )
             }
         }
     }
