@@ -1,6 +1,6 @@
 plugins {
     id("java")
-    kotlin("jvm") version "2.0.21"
+    kotlin("jvm") version "2.1.20"
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
     id("org.jetbrains.kotlinx.kover") version "0.9.1"
     id("org.jetbrains.intellij.platform") version "2.3.0"
@@ -50,8 +50,8 @@ java {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "242"  // 2024.2
-            untilBuild = "263.*"  // Up to 2026.3.x
+            sinceBuild = project.findProperty("pluginSinceBuild") as String? ?: "242"
+            untilBuild = provider { null }  // No upper bound - compatible with all future versions
         }
     }
 
