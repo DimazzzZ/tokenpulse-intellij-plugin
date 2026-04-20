@@ -370,4 +370,67 @@ class ClineProviderClientTest {
         val success = result as ProviderResult.Success
         assertEquals(0, BigDecimal("7.50").compareTo(success.snapshot.balance.credits?.remaining))
     }
+
+    @Test
+    fun `test fetchMe returns AuthError on 401`() {
+        mockWebServer.enqueue(MockResponse().setResponseCode(401))
+
+        val account = Account(connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+        val result = client.fetchBalance(account, "bad-token")
+
+        assertTrue(result is ProviderResult.Failure.AuthError)
+    }
+
+    @Test
+    fun `test fetchMe returns AuthError on 403`() {
+        mockWebServer.enqueue(MockResponse().setResponseCode(403))
+
+        val account = Account(connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+        val result = client.fetchBalance(account, "forbidden-token")
+
+        assertTrue(result is ProviderResult.Failure.AuthError)
+    }
+
+    @Test
+    fun `test fetchMe returns RateLimited on 429`() {
+        mockWebServer.enqueue(MockResponse().setResponseCode(429))
+
+        val account = Account(connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+        val result = client.fetchBalance(account, "rate-limited-token")
+
+        assertTrue(result is ProviderResult.Failure.RateLimited)
+    }
+
+    @Test
+    fun `test fetchMe returns NetworkError on 500`() {
+        mockWebServer.enqueue(MockResponse().setResponseCode(500))
+
+        val account = Account(connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+        val result = client.fetchBalance(account, "token")
+
+        // Should NOT be AuthError - 500 is a server error, not an auth issue
+        assertTrue(result is ProviderResult.Failure.NetworkError)
+        assertTrue(result !is ProviderResult.Failure.AuthError, "500 should not be classified as AuthError")
+    }
+
+    @Test
+    fun `test testCredentials returns AuthError on 401`() {
+        mockWebServer.enqueue(MockResponse().setResponseCode(401))
+
+        val account = Account(connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+        val result = client.testCredentials(account, "bad-token")
+
+        assertTrue(result is ProviderResult.Failure.AuthError)
+    }
+
+    @Test
+    fun `test testCredentials returns NetworkError on 500`() {
+        mockWebServer.enqueue(MockResponse().setResponseCode(500))
+
+        val account = Account(connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+        val result = client.testCredentials(account, "token")
+
+        assertTrue(result is ProviderResult.Failure.NetworkError)
+        assertTrue(result !is ProviderResult.Failure.AuthError, "500 should not be classified as AuthError")
+    }
 }

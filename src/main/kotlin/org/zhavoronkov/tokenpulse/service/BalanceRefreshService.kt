@@ -121,14 +121,12 @@ class BalanceRefreshService : Disposable {
     /**
      * Identifies failures that are credential-related and won't self-resolve.
      * These trigger cooldown behavior to reduce notification spam.
+     *
+     * Only [ProviderResult.Failure.AuthError] is considered credential-related.
+     * Other failure types (NetworkError, RateLimited, etc.) are transient and may self-resolve.
      */
     private fun isCredentialRelatedFailure(result: ProviderResult.Failure): Boolean {
-        // AuthError typically indicates missing/invalid API key
-        return result is ProviderResult.Failure.AuthError ||
-            result.message.contains("API key", ignoreCase = true) ||
-            result.message.contains("Missing", ignoreCase = true) ||
-            result.message.contains("credential", ignoreCase = true) ||
-            result.message.contains("auth", ignoreCase = true)
+        return result is ProviderResult.Failure.AuthError
     }
 
     private fun recordToHistory(result: ProviderResult.Success) {
