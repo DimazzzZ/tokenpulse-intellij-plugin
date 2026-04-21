@@ -13,7 +13,6 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.tokenpulse.model.ConnectionType
-import org.zhavoronkov.tokenpulse.provider.openai.chatgpt.ChatGptOAuthManager
 import org.zhavoronkov.tokenpulse.service.BalanceRefreshService
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.settings.CredentialsStore
@@ -336,18 +335,21 @@ class TokenPulseConfigurable : Configurable {
                 val secret = dialog.getSecret()
                 val connectionType = dialog.getConnectionType()
 
-                // Special handling for ChatGPT: only one account allowed
-                if (connectionType == ConnectionType.CHATGPT_SUBSCRIPTION) {
+                // Special handling for Codex CLI: only one account allowed
+                if (connectionType == ConnectionType.CODEX_CLI) {
                     val existingIdx = tableModel.items.indexOfFirst {
-                        it.connectionType == ConnectionType.CHATGPT_SUBSCRIPTION
+                        it.connectionType == ConnectionType.CODEX_CLI
                     }
                     if (existingIdx != -1) {
                         val existing = tableModel.getItem(existingIdx)
                         val updated = existing.copy(
-                            chatGptUseCodex = dialog.getChatGptUseCodex(),
                             isEnabled = dialog.getIsEnabled()
                         )
                         tableModel.setItem(existingIdx, updated)
+                        Messages.showInfoMessage(
+                            "Codex CLI is already configured. The existing account has been updated.",
+                            "Account Updated"
+                        )
                         myModified = true
                         return@setAddAction
                     }
@@ -377,12 +379,7 @@ class TokenPulseConfigurable : Configurable {
                     connectionType = connectionType,
                     authType = dialog.getAuthType(),
                     keyPreview = secretPreview(connectionType, secret),
-                    isEnabled = dialog.getIsEnabled(),
-                    chatGptUseCodex = if (connectionType == ConnectionType.CHATGPT_SUBSCRIPTION) {
-                        dialog.getChatGptUseCodex()
-                    } else {
-                        null
-                    }
+                    isEnabled = dialog.getIsEnabled()
                 )
                 tableModel.addRow(newAccount)
                 CredentialsStore.getInstance().saveApiKey(newAccount.id, secret)
@@ -404,12 +401,7 @@ class TokenPulseConfigurable : Configurable {
                     connectionType = connectionType,
                     authType = dialog.getAuthType(),
                     isEnabled = dialog.getIsEnabled(),
-                    keyPreview = secretPreview(connectionType, secret),
-                    chatGptUseCodex = if (connectionType == ConnectionType.CHATGPT_SUBSCRIPTION) {
-                        dialog.getChatGptUseCodex()
-                    } else {
-                        account.chatGptUseCodex
-                    }
+                    keyPreview = secretPreview(connectionType, secret)
                 )
                 tableModel.setItem(modelIdx, updatedAccount)
                 CredentialsStore.getInstance().saveApiKey(updatedAccount.id, secret)
@@ -423,12 +415,6 @@ class TokenPulseConfigurable : Configurable {
             val account = tableModel.getItem(modelIdx)
             tableModel.removeRow(modelIdx)
             CredentialsStore.getInstance().removeApiKey(account.id)
-
-            // If removing ChatGPT, also clear the global OAuth session
-            if (account.connectionType == ConnectionType.CHATGPT_SUBSCRIPTION) {
-                ChatGptOAuthManager.getInstance().clearCredentials()
-            }
-
             myModified = true
         }
         .disableUpDownActions()
@@ -460,6 +446,7 @@ class TokenPulseConfigurable : Configurable {
     /**
      * Returns a display-safe preview string for the stored secret.
      * For Nebius (billing session JSON), shows "Session".
+     * For Codex CLI and Claude Code, shows "CLI".
      * For OpenAI:
      *   - If secret looks like OAuth JSON, shows "OAuth".
      *   - Otherwise, shows a masked API key preview.
@@ -467,7 +454,8 @@ class TokenPulseConfigurable : Configurable {
      */
     private fun secretPreview(connectionType: ConnectionType, secret: String): String =
         when (connectionType) {
-            ConnectionType.CLAUDE_CODE -> "Local File"
+            ConnectionType.CLAUDE_CODE -> "CLI"
+            ConnectionType.CODEX_CLI -> "CLI"
             ConnectionType.NEBIUS_BILLING -> "Session"
             ConnectionType.OPENAI_PLATFORM -> {
                 // Detect if secret is OAuth JSON (has accessToken and refreshToken fields)

@@ -13,6 +13,7 @@ import java.util.UUID
  */
 enum class AuthType(val displayName: String) {
     CLAUDE_CODE_LOCAL("Local Config"),
+    CODEX_CLI_LOCAL("Codex CLI"),
     OPENROUTER_PROVISIONING_KEY("Provisioning Key"),
     OPENROUTER_PLUGIN_BRIDGE("Plugin Integration"),
     CLINE_API_KEY("API Key"),
@@ -42,18 +43,7 @@ enum class AuthType(val displayName: String) {
      * The stored secret is a raw API key string (e.g., "sk-...").
      * This is the recommended method for new accounts.
      */
-    OPENAI_API_KEY("API Key"),
-
-    /**
-     * ChatGPT subscription billing session.
-     *
-     * ChatGPT Plus/Pro/Team subscriptions don't expose usage via API.
-     * Instead, the plugin captures a browser session (similar to Nebius)
-     * from an embedded browser login flow and stores it securely in PasswordSafe.
-     *
-     * The stored secret is a JSON blob: {"accessToken":"...","sessionToken":"...","userId":"..."}
-     */
-    CHATGPT_BILLING_SESSION("Billing Session")
+    OPENAI_API_KEY("API Key")
 }
 
 /**
@@ -65,7 +55,6 @@ enum class AuthType(val displayName: String) {
  * @property authType The specific authentication type (usually derived from connectionType).
  * @property isEnabled Whether this account is active for balance tracking.
  * @property keyPreview Masked preview of the API key for display purposes.
- * @property chatGptUseCodex For ChatGPT accounts: whether to use local Codex CLI for detailed rate limits.
  */
 data class Account(
     var id: String = UUID.randomUUID().toString(),
@@ -74,17 +63,7 @@ data class Account(
     var authType: AuthType = AuthType.CLINE_API_KEY,
     var isEnabled: Boolean = true,
     /** Masked preview of the API key, e.g. "sk-or-…91bc". Stored for display only, not sensitive. */
-    var keyPreview: String = "",
-    /**
-     * For ChatGPT accounts: whether to use local Codex CLI for detailed rate limit data.
-     * - null = not set yet (user hasn't made a choice)
-     * - true = user explicitly enabled Codex integration
-     * - false = user explicitly disabled Codex integration
-     *
-     * When null and a ChatGPT account exists, the system will attempt to detect if Codex
-     * is already available. If so, defaults to true; otherwise defaults to false.
-     */
-    var chatGptUseCodex: Boolean? = null
+    var keyPreview: String = ""
 ) {
     /** Human-readable label shown in the accounts table. */
     fun displayLabel(): String {

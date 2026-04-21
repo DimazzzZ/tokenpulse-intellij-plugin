@@ -6,7 +6,7 @@ import org.zhavoronkov.tokenpulse.model.ConnectionType
 import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCodeProviderClient
 import org.zhavoronkov.tokenpulse.provider.cline.ClineProviderClient
 import org.zhavoronkov.tokenpulse.provider.nebius.NebiusProviderClient
-import org.zhavoronkov.tokenpulse.provider.openai.chatgpt.ChatGptSubscriptionProviderClient
+import org.zhavoronkov.tokenpulse.provider.openai.chatgpt.CodexProviderClient
 import org.zhavoronkov.tokenpulse.provider.openai.platform.OpenAiPlatformProviderClient
 import org.zhavoronkov.tokenpulse.provider.openrouter.OpenRouterPluginBridgeClient
 import org.zhavoronkov.tokenpulse.provider.openrouter.OpenRouterProviderClient
@@ -38,7 +38,7 @@ class DefaultProviderRegistry(
     private val clineClient by lazy { ClineProviderClient(httpClient, gson) }
     private val nebiusClient by lazy { NebiusProviderClient(httpClient, gson) }
     private val openAiPlatformClient by lazy { OpenAiPlatformProviderClient(httpClient, gson) }
-    private val chatGptClient by lazy { ChatGptSubscriptionProviderClient(httpClient, gson) }
+    private val codexClient by lazy { CodexProviderClient() }
     private val claudeCodeClient by lazy { ClaudeCodeProviderClient() }
 
     override fun getClient(connectionType: ConnectionType): ProviderClient {
@@ -48,7 +48,7 @@ class DefaultProviderRegistry(
             ConnectionType.CLINE_API -> clineClient
             ConnectionType.NEBIUS_BILLING -> nebiusClient
             ConnectionType.OPENAI_PLATFORM -> openAiPlatformClient
-            ConnectionType.CHATGPT_SUBSCRIPTION -> chatGptClient
+            ConnectionType.CODEX_CLI -> codexClient
             ConnectionType.CLAUDE_CODE -> claudeCodeClient
         }
     }

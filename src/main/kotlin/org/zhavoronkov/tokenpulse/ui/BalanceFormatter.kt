@@ -19,7 +19,7 @@ object BalanceFormatter {
     /** Connection types that report usage as percentage (not dollars). */
     private val usagePercentageTypes = setOf(
         ConnectionType.CLAUDE_CODE,
-        ConnectionType.CHATGPT_SUBSCRIPTION
+        ConnectionType.CODEX_CLI
     )
 
     /**
@@ -60,7 +60,7 @@ object BalanceFormatter {
                 // Don't assume session is 0 - the CLI may not have reported it
                 UsageData(fiveHour, weekly, "5h", "wk")
             }
-            ConnectionType.CHATGPT_SUBSCRIPTION -> {
+            ConnectionType.CODEX_CLI -> {
                 val fiveHour = metadata["fiveHourUsed"]?.toFloatOrNull()?.toInt()
                 val weekly = metadata["weeklyUsed"]?.toFloatOrNull()?.toInt()
                 UsageData(fiveHour, weekly, "5h", "wk")

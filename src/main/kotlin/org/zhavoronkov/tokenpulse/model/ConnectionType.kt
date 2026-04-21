@@ -6,8 +6,8 @@ import org.zhavoronkov.tokenpulse.settings.StatusBarDollarFormat
 /**
  * Represents a specific connection/authentication method for an AI provider.
  *
- * Each [Provider] may support multiple connection types. For example, OpenAI supports
- * both ChatGPT subscription (OAuth) and Platform API Key authentication.
+ * Each [Provider] may support multiple connection methods. For example, OpenAI supports
+ * both Codex CLI and Platform API Key authentication.
  *
  * @property provider The parent provider (company) this connection belongs to.
  * @property displayName Human-readable name for UI display.
@@ -32,14 +32,14 @@ enum class ConnectionType(
     ),
 
     /**
-     * ChatGPT Subscription - OAuth-based access for ChatGPT Plus/Pro/Team users.
-     * Provides rate limit tracking for subscription plans.
+     * Codex CLI - CLI-based access for ChatGPT Plus/Pro/Team users.
+     * Provides rate limit tracking for subscription plans via local Codex CLI.
      */
-    CHATGPT_SUBSCRIPTION(
+    CODEX_CLI(
         provider = Provider.OPENAI,
-        displayName = "ChatGPT Subscription",
-        description = "For ChatGPT Plus, Pro, or Team subscribers. Uses secure OAuth.",
-        defaultAuthType = AuthType.CHATGPT_BILLING_SESSION
+        displayName = "Codex CLI",
+        description = "For ChatGPT Plus, Pro, or Team subscribers. Uses local Codex CLI installation.",
+        defaultAuthType = AuthType.CODEX_CLI_LOCAL
     ),
 
     /**
@@ -127,15 +127,15 @@ enum class ConnectionType(
             OPENAI_PLATFORM -> setOf(StatusBarDollarFormat.REMAINING_ONLY) // Will show "used" as fallback
             // Claude Code uses percentage from metadata (not Credits)
             CLAUDE_CODE -> emptySet() // Uses metadata percentage, not dollar formats
-            // ChatGPT uses percentage from metadata (not Credits)
-            CHATGPT_SUBSCRIPTION -> emptySet() // Uses metadata percentage, not dollar formats
+            // Codex CLI uses percentage from metadata (not Credits)
+            CODEX_CLI -> emptySet() // Uses metadata percentage, not dollar formats
         }
 
     /**
      * Returns true if this connection type uses percentage-based display (not dollar formats).
      */
     val usesPercentageDisplay: Boolean
-        get() = this == CLAUDE_CODE || this == CHATGPT_SUBSCRIPTION
+        get() = this == CLAUDE_CODE || this == CODEX_CLI
 
     /**
      * Whether this connection type is currently available for use.

@@ -9,7 +9,7 @@ import org.zhavoronkov.tokenpulse.model.ConnectionType
 import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCodeProviderClient
 import org.zhavoronkov.tokenpulse.provider.cline.ClineProviderClient
 import org.zhavoronkov.tokenpulse.provider.nebius.NebiusProviderClient
-import org.zhavoronkov.tokenpulse.provider.openai.chatgpt.ChatGptSubscriptionProviderClient
+import org.zhavoronkov.tokenpulse.provider.openai.chatgpt.CodexProviderClient
 import org.zhavoronkov.tokenpulse.provider.openai.platform.OpenAiPlatformProviderClient
 import org.zhavoronkov.tokenpulse.provider.openrouter.OpenRouterProviderClient
 
@@ -47,9 +47,9 @@ class ProviderRegistryTest {
     }
 
     @Test
-    fun `getClient returns ChatGptSubscriptionProviderClient for CHATGPT_SUBSCRIPTION`() {
-        val client = registry.getClient(ConnectionType.CHATGPT_SUBSCRIPTION)
-        assertTrue(client is ChatGptSubscriptionProviderClient)
+    fun `getClient returns CodexProviderClient for CODEX_CLI`() {
+        val client = registry.getClient(ConnectionType.CODEX_CLI)
+        assertTrue(client is CodexProviderClient)
     }
 
     @Test
