@@ -311,20 +311,30 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
             return
         }
 
-        // Show plan type
+        appendCodexAccountInfo(metadata)
+        appendCodexRateLimitBars(metadata)
+        appendCodexNoRateLimitMessage(metadata)
+    }
+
+    /**
+     * Append Codex account info (plan type, email).
+     */
+    private fun StringBuilder.appendCodexAccountInfo(metadata: Map<String, String>) {
         val planType = metadata["planType"]
         if (planType != null && planType != "unknown") {
             append("<tr><td>Plan:</td><td align='right'>$planType</td></tr>")
         }
 
-        // Show account email (truncated)
         val email = metadata["email"]
         if (email != null && email != "unknown") {
             append("<tr><td>Account:</td><td align='right'>${truncate(email)}</td></tr>")
         }
+    }
 
-        // Show rate limit usage with progress bars if available (from Codex)
-        // Codex reports usedPercent, so we invert to show "X% left" to match /status output
+    /**
+     * Append Codex rate limit progress bars (5-hour, weekly, code review).
+     */
+    private fun StringBuilder.appendCodexRateLimitBars(metadata: Map<String, String>) {
         val fiveHourUsed = metadata["fiveHourUsed"]
         val weeklyUsed = metadata["weeklyUsed"]
         val codeReviewUsed = metadata["codeReviewUsed"]
@@ -333,56 +343,69 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
             (weeklyUsed != null && weeklyUsed != "N/A") ||
             (codeReviewUsed != null && codeReviewUsed != "N/A")
 
-        if (hasRateLimits) {
-            if (fiveHourUsed != null && fiveHourUsed != "N/A") {
-                val usedPct = fiveHourUsed.toFloatOrNull()?.toInt() ?: 0
-                val remainingPct = (100 - usedPct).coerceIn(0, 100)
-                append(ProgressBarRenderer.buildBalanceSection("5-hour", remainingPct, null))
-            }
+        if (!hasRateLimits) return
 
-            if (weeklyUsed != null && weeklyUsed != "N/A") {
-                val usedPct = weeklyUsed.toFloatOrNull()?.toInt() ?: 0
-                val remainingPct = (100 - usedPct).coerceIn(0, 100)
-                append(ProgressBarRenderer.buildBalanceSection("Weekly", remainingPct, null))
-            }
-
-            if (codeReviewUsed != null && codeReviewUsed != "N/A") {
-                val usedPct = codeReviewUsed.toFloatOrNull()?.toInt() ?: 0
-                val remainingPct = (100 - usedPct).coerceIn(0, 100)
-                append(ProgressBarRenderer.buildBalanceSection("Code Review", remainingPct, null))
-            }
-        } else {
-            // No rate limits available - check why and show appropriate message
-            val codexEnabled = metadata["codexEnabled"]
-            val codexAvailable = metadata["codexAvailable"]
-            val codexError = metadata["codexError"]
-            val codexErrorDetail = metadata["codexErrorDetail"]
-
-            if (codexEnabled == "true") {
-                // Codex was enabled but something went wrong - always show a message
-                val errorMsg = when (codexError) {
-                    "not_installed" -> "Codex CLI not installed"
-                    "not_authenticated" -> "Codex not logged in"
-                    "app_server_start_failed" -> "Codex app-server failed"
-                    "rate_limits_unavailable" -> "Rate limits unavailable"
-                    "token_expired" -> "Codex session expired"
-                    else -> "Usage data unavailable"
-                }
-                append("<tr><td colspan='2'>")
-                append("<font size='-2' color='gray'>$errorMsg")
-                // Show error detail if available (truncated for readability)
-                codexErrorDetail?.takeIf { it.isNotBlank() }?.let { detail ->
-                    append(": ${truncate(detail, 60)}")
-                }
-                append("</font></td></tr>")
-            } else {
-                // Codex not enabled - suggest enabling it for usage tracking
-                if (planType?.lowercase() != "free") {
-                    append("<tr><td colspan='2'><font size='-2' color='gray'>")
-                    append("Enable Codex for usage tracking</font></td></tr>")
-                }
-            }
+        fiveHourUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let { usedPct ->
+            val remainingPct = (100 - usedPct).coerceIn(0, 100)
+            append(ProgressBarRenderer.buildBalanceSection("5-hour", remainingPct, null))
         }
+
+        weeklyUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let { usedPct ->
+            val remainingPct = (100 - usedPct).coerceIn(0, 100)
+            append(ProgressBarRenderer.buildBalanceSection("Weekly", remainingPct, null))
+        }
+
+        codeReviewUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let { usedPct ->
+            val remainingPct = (100 - usedPct).coerceIn(0, 100)
+            append(ProgressBarRenderer.buildBalanceSection("Code Review", remainingPct, null))
+        }
+    }
+
+    /**
+     * Append message when no rate limits are available.
+     */
+    private fun StringBuilder.appendCodexNoRateLimitMessage(metadata: Map<String, String>) {
+        val fiveHourUsed = metadata["fiveHourUsed"]
+        val weeklyUsed = metadata["weeklyUsed"]
+        val codeReviewUsed = metadata["codeReviewUsed"]
+
+        val hasRateLimits = (fiveHourUsed != null && fiveHourUsed != "N/A") ||
+            (weeklyUsed != null && weeklyUsed != "N/A") ||
+            (codeReviewUsed != null && codeReviewUsed != "N/A")
+
+        if (hasRateLimits) return
+
+        val codexEnabled = metadata["codexEnabled"]
+        val codexError = metadata["codexError"]
+        val codexErrorDetail = metadata["codexErrorDetail"]
+        val planType = metadata["planType"]
+
+        if (codexEnabled == "true") {
+            appendCodexErrorMessage(codexError, codexErrorDetail)
+        } else if (planType?.lowercase() != "free") {
+            append("<tr><td colspan='2'><font size='-2' color='gray'>")
+            append("Enable Codex for usage tracking</font></td></tr>")
+        }
+    }
+
+    /**
+     * Append Codex error message based on error code.
+     */
+    private fun StringBuilder.appendCodexErrorMessage(codexError: String?, codexErrorDetail: String?) {
+        val errorMsg = when (codexError) {
+            "not_installed" -> "Codex CLI not installed"
+            "not_authenticated" -> "Codex not logged in"
+            "app_server_start_failed" -> "Codex app-server failed"
+            "rate_limits_unavailable" -> "Rate limits unavailable"
+            "token_expired" -> "Codex session expired"
+            else -> "Usage data unavailable"
+        }
+        append("<tr><td colspan='2'>")
+        append("<font size='-2' color='gray'>$errorMsg")
+        codexErrorDetail?.takeIf { it.isNotBlank() }?.let { detail ->
+            append(": ${truncate(detail, 60)}")
+        }
+        append("</font></td></tr>")
     }
 
     private fun StringBuilder.appendClaudeCodeRows(metadata: Map<String, String>?) {

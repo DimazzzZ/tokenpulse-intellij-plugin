@@ -3,7 +3,6 @@ package org.zhavoronkov.tokenpulse.ui
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.components.JBLabel
@@ -15,8 +14,6 @@ import org.zhavoronkov.tokenpulse.model.ConnectionType
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.settings.AuthType
 import org.zhavoronkov.tokenpulse.utils.Constants.TEXT_AREA_COLUMNS
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
 import javax.swing.JButton
 import javax.swing.JComponent
 
@@ -211,9 +208,6 @@ class AccountEditDialog(
         ConnectionType.OPENAI_PLATFORM -> capturedOpenAiSecret ?: ""
         else -> String(keyField.password).trim()
     }
-
-    /** Kept for compatibility with callers that expect getApiKey(). */
-    fun getApiKey(): String = getSecret()
 
     /**
      * Returns whether the account should be enabled.

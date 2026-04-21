@@ -60,7 +60,8 @@ class ClaudeCodeProviderClient : ProviderClient {
 
         if (isTimeout) {
             TokenPulseLogger.Provider.info(
-                "[ClaudeCodeProviderClient] First attempt timed out, retrying with extended timeout (${RETRY_TIMEOUT_SECONDS}s). " +
+                "[ClaudeCodeProviderClient] First attempt timed out, " +
+                    "retrying with extended timeout (${RETRY_TIMEOUT_SECONDS}s). " +
                     "This is normal for cold start after IDE restart."
             )
 
@@ -81,11 +82,16 @@ class ClaudeCodeProviderClient : ProviderClient {
         }
 
         // Non-timeout error - return immediately
-        TokenPulseLogger.Provider.warn("[ClaudeCodeProviderClient] Extraction failed: ${firstError.message}")
+        TokenPulseLogger.Provider.warn(
+            "[ClaudeCodeProviderClient] Extraction failed: ${firstError.message}"
+        )
         return mapExtractionError(firstError)
     }
 
-    private fun buildSuccessResult(account: Account, usageData: ClaudeCliUsageExtractor.UsageData): ProviderResult.Success {
+    private fun buildSuccessResult(
+        account: Account,
+        usageData: ClaudeCliUsageExtractor.UsageData
+    ): ProviderResult.Success {
         TokenPulseLogger.Provider.debug(
             "[ClaudeCodeProviderClient] Extraction successful: " +
                 "session=${usageData.sessionUsedPercent}%, week=${usageData.weekUsedPercent}%"

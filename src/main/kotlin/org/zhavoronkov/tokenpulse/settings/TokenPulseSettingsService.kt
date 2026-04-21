@@ -5,7 +5,6 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.openapi.components.service
-import org.zhavoronkov.tokenpulse.model.ConnectionType
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 
 @Service(Service.Level.APP)
@@ -29,7 +28,6 @@ class TokenPulseSettingsService : PersistentStateComponent<TokenPulseSettings> {
         }.onFailure { e ->
             TokenPulseLogger.Settings.error("Failed to load settings, using defaults", e)
         }.getOrDefault(TokenPulseSettings())
-
     }
 
     companion object {

@@ -147,21 +147,6 @@ enum class ConnectionType(
             else -> true
         }
 
-    /**
-     * Message shown when connection type is unavailable.
-     */
-    val unavailableReason: String?
-        get() = when (this) {
-            OPENROUTER_PLUGIN -> "Coming soon"
-            else -> null
-        }
-
-    /**
-     * Display name with availability status suffix.
-     */
-    val displayNameWithStatus: String
-        get() = if (isAvailable) displayName else "$displayName (${unavailableReason ?: "Unavailable"})"
-
     companion object {
         /**
          * Returns all connection types for a given provider.
@@ -171,13 +156,6 @@ enum class ConnectionType(
          */
         fun forProvider(provider: Provider): List<ConnectionType> =
             entries.filter { it.provider == provider }
-
-        /**
-         * Returns all available connection types for a given provider.
-         * Excludes connection types that are not yet available (e.g., "Coming soon").
-         */
-        fun availableForProvider(provider: Provider): List<ConnectionType> =
-            entries.filter { it.provider == provider && it.isAvailable }
 
         /**
          * Returns all available connection types.

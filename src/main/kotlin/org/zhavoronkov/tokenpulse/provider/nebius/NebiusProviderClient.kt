@@ -51,7 +51,7 @@ import java.math.BigDecimal
  * - If both fail, a generic error is returned (trial endpoint may not exist after trial ends)
  */
 class NebiusProviderClient(
-    private val httpClient: OkHttpClient = OkHttpClient(),
+    httpClient: OkHttpClient = OkHttpClient(),
     private val gson: Gson = Gson(),
     private val baseUrl: String = NEBIUS_BASE_URL
 ) : ProviderClient {
@@ -247,30 +247,40 @@ class NebiusProviderClient(
 
         // Strategy sequence: NativeCurl → Parity → Constructed → Direct
         if (hasParityData) {
-            tryStrategy("NativeCurl", account, traceId) {
+            val nativeResult = tryStrategy("NativeCurl", account, traceId) {
                 executeWithNativeCurl(session, endpoint, contractId, parser, account)
-            }?.let { return it }?.also { errors.add("NativeCurl: failed") }
+            }
+            if (nativeResult != null) return nativeResult
+            errors.add("NativeCurl: failed")
 
-            tryStrategy("Parity+Standard", account, traceId) {
+            val parityStandardResult = tryStrategy("Parity+Standard", account, traceId) {
                 val request = buildRequest(session, endpoint, contractId, useParity = true)
                 executeWithClient(baseClient, request, account, parser)
-            }?.let { return it }?.also { errors.add("Parity+Standard: failed") }
+            }
+            if (parityStandardResult != null) return parityStandardResult
+            errors.add("Parity+Standard: failed")
 
-            tryStrategy("Parity+HTTP/1.1", account, traceId) {
+            val parityHttp1Result = tryStrategy("Parity+HTTP/1.1", account, traceId) {
                 val request = buildRequest(session, endpoint, contractId, useParity = true)
                 executeWithClient(http1Client, request, account, parser)
-            }?.let { return it }?.also { errors.add("Parity+HTTP/1.1: failed") }
+            }
+            if (parityHttp1Result != null) return parityHttp1Result
+            errors.add("Parity+HTTP/1.1: failed")
         }
 
-        tryStrategy("Constructed+Standard", account, traceId) {
+        val constructedResult = tryStrategy("Constructed+Standard", account, traceId) {
             val request = buildRequest(session, endpoint, contractId, useParity = false)
             executeWithClient(baseClient, request, account, parser)
-        }?.let { return it }?.also { errors.add("Constructed+Standard: failed") }
+        }
+        if (constructedResult != null) return constructedResult
+        errors.add("Constructed+Standard: failed")
 
-        tryStrategy("Direct", account, traceId) {
+        val directResult = tryStrategy("Direct", account, traceId) {
             val request = buildRequest(session, endpoint, contractId, useParity = hasParityData)
             executeWithClient(directClient, request, account, parser)
-        }?.let { return it }?.also { errors.add("Direct: failed") }
+        }
+        if (directResult != null) return directResult
+        errors.add("Direct: failed")
 
         return ProviderResult.Failure.NetworkError("Failed to connect to Nebius: ${errors.joinToString(", ")}")
     }
@@ -283,7 +293,7 @@ class NebiusProviderClient(
     ): ProviderResult? {
         return try {
             val result = block()
-            if (result is ProviderResult.Success) result else null
+            result as? ProviderResult.Success
         } catch (e: Exception) {
             TokenPulseLogger.trace(
                 "NEBIUS",
@@ -423,7 +433,7 @@ class NebiusProviderClient(
                     null
                 }
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             TokenPulseLogger.trace("NEBIUS", account.id, traceId, "tenant_error", "Failed to fetch tenant", mapOf())
             null
         }
@@ -439,7 +449,7 @@ class NebiusProviderClient(
         return try {
             val session = gson.fromJson(secret, NebiusSession::class.java)
             if (validateSession(session)) session else null
-        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+        } catch (@Suppress("TooGenericExceptionCaught") _: Exception) {
             null
         }
     }
@@ -520,7 +530,7 @@ class NebiusProviderClient(
             val items = json.getAsJsonArray("items") ?: return null
             if (items.size() == 0) return null
             items[0].asJsonObject.getAsJsonObject("metadata")?.get("name")?.asString
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }

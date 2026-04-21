@@ -199,7 +199,10 @@ object CodexCliOutputParser {
             output.contains("token is expired", ignoreCase = true) ||
             output.contains("authentication token is expired", ignoreCase = true)
         ) {
-            return ParseResult.Error("token_expired", "Codex session expired. Please run 'codex login' to re-authenticate.")
+            return ParseResult.Error(
+                "token_expired",
+                "Codex session expired. Please run 'codex login' to re-authenticate."
+            )
         }
 
         // refresh_token_reused
@@ -207,7 +210,10 @@ object CodexCliOutputParser {
             output.contains("refresh token has already been used", ignoreCase = true) ||
             output.contains("refresh token was already used", ignoreCase = true)
         ) {
-            return ParseResult.Error("refresh_token_reused", "Codex refresh token already used. Please run 'codex login' to re-authenticate.")
+            return ParseResult.Error(
+                "refresh_token_reused",
+                "Codex refresh token already used. Please run 'codex login' to re-authenticate."
+            )
         }
 
         // Rate limit / transient errors
@@ -231,13 +237,19 @@ object CodexCliOutputParser {
             output.contains("please sign in", ignoreCase = true) ||
             output.contains("log out and sign in again", ignoreCase = true)
         ) {
-            return ParseResult.Error("not_authenticated", "Codex not authenticated. Please run 'codex login' in terminal.")
+            return ParseResult.Error(
+                "not_authenticated",
+                "Codex not authenticated. Please run 'codex login' in terminal."
+            )
         }
 
         if (output.contains("401", ignoreCase = true) &&
             output.contains("unauthorized", ignoreCase = true)
         ) {
-            return ParseResult.Error("unauthorized", "Codex authentication failed (401). Please run 'codex login' to re-authenticate.")
+            return ParseResult.Error(
+                "unauthorized",
+                "Codex authentication failed (401). Please run 'codex login' to re-authenticate."
+            )
         }
 
         return null

@@ -50,7 +50,7 @@ data class CodexStartupResult(
  * Carries both the error message and classified error code.
  */
 class CodexRpcException(
-    val detailMessage: String,
+    detailMessage: String,
     val code: String = "unknown"
 ) : Exception("JSON-RPC error: $detailMessage (code: $code)")
 
@@ -98,7 +98,7 @@ class CodexAppServerClient(
      */
     fun start(): CodexStartupResult {
         startupErrorBuffer.clear()
-        
+
         // First check if codex is available and get version
         val codexVersion = getCodexVersion()
         if (codexVersion == null) {
@@ -135,7 +135,7 @@ class CodexAppServerClient(
                     .take(5)
                     .joinToString("\n")
                     .takeIf { it.isNotBlank() }
-                
+
                 val result = CodexStartupResult(
                     success = false,
                     errorMessage = "Codex app-server exited immediately with code $exitCode",
@@ -219,22 +219,6 @@ class CodexAppServerClient(
     }
 
     /**
-     * Check if the Codex CLI is available in PATH.
-     * This is a lightweight check that doesn't start the app-server.
-     */
-    fun isCodexAvailable(): Boolean {
-        return try {
-            val processBuilder = ProcessBuilder(CODEX_COMMAND, "--version")
-            processBuilder.redirectErrorStream(true)
-            val process = processBuilder.start()
-            process.waitFor() == 0
-        } catch (e: Exception) {
-            TokenPulseLogger.Provider.debug("Codex CLI not available: ${e.message}")
-            false
-        }
-    }
-
-    /**
      * Check if the app-server is running and initialized.
      */
     fun isRunning(): Boolean = isInitialized && process?.isAlive == true
@@ -263,7 +247,7 @@ class CodexAppServerClient(
         // Check if retry is warranted (limits_refresh_pending)
         if (lastRateLimitsErrorCode == "limits_refresh_pending") {
             TokenPulseLogger.Provider.info("Codex rate limits refreshing, retrying shortly...")
-            Thread.sleep(1500) // Wait for limits to become available
+            Thread.sleep(RATE_LIMITS_RETRY_DELAY_MS) // Wait for limits to become available
             val retryResult = tryReadRateLimits()
             if (retryResult != null) {
                 TokenPulseLogger.Provider.info("Codex rate limits read successfully on retry")
@@ -274,14 +258,14 @@ class CodexAppServerClient(
         // Final failure - log appropriately
         val errorCode = lastRateLimitsErrorCode
         val errorMessage = lastRateLimitsErrorMessage ?: "unknown error"
-        
+
         // Normalize JsonNull and other unhelpful error messages
         val normalizedMessage = when {
             errorMessage == "JsonNull" -> "Rate limit fields were null in app-server response"
             errorMessage.isBlank() -> "unknown error"
             else -> errorMessage
         }
-        
+
         when (errorCode) {
             "token_expired", "refresh_token_reused", "unauthorized" ->
                 TokenPulseLogger.Provider.info("Codex rate limits unavailable: token expired")
@@ -305,7 +289,7 @@ class CodexAppServerClient(
             val response = sendRequest("account/rateLimits/read")
                 .get(METHOD_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             response?.let { parseRateLimitsResponse(it) }
-        } catch (e: CodexRpcException) {
+        } catch (_: CodexRpcException) {
             // Error from JSON-RPC - code and message already stored in handleResponse
             null
         } catch (e: java.util.concurrent.ExecutionException) {
@@ -320,12 +304,12 @@ class CodexAppServerClient(
                 lastRateLimitsErrorMessage = cause?.message ?: e.message ?: "Unknown error"
                 null
             }
-        } catch (e: java.util.concurrent.CancellationException) {
+        } catch (_: java.util.concurrent.CancellationException) {
             // Request was cancelled
             lastRateLimitsErrorCode = "unknown"
             lastRateLimitsErrorMessage = "Request cancelled"
             null
-        } catch (e: java.util.concurrent.TimeoutException) {
+        } catch (_: java.util.concurrent.TimeoutException) {
             // Request timed out
             lastRateLimitsErrorCode = "unknown"
             lastRateLimitsErrorMessage = "Request timed out"
@@ -360,29 +344,6 @@ class CodexAppServerClient(
     }
 
     /**
-     * Start the login flow (managed mode).
-     *
-     * @return The auth URL to open in browser, or null on error.
-     */
-    fun startLogin(): String? {
-        if (!isRunning()) {
-            val result = start()
-            if (!result.success) {
-                return null
-            }
-        }
-
-        return try {
-            val response = sendRequest("account/login/start", createMapOf("type" to "chatgpt"))
-                .get(METHOD_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            response?.get("authUrl")?.asString
-        } catch (e: Exception) {
-            TokenPulseLogger.Provider.error("Failed to start login", e)
-            null
-        }
-    }
-
-    /**
      * Stop the app-server process.
      */
     fun stop() {
@@ -406,10 +367,13 @@ class CodexAppServerClient(
      * Create the initialize params with nested clientInfo as required by Codex app-server protocol.
      */
     private fun createInitializeParams(): JsonObject = JsonObject().apply {
-        add("clientInfo", JsonObject().apply {
-            addProperty("name", "tokenpulse")
-            addProperty("version", "1.0.0")
-        })
+        add(
+            "clientInfo",
+            JsonObject().apply {
+                addProperty("name", "tokenpulse")
+                addProperty("version", "1.0.0")
+            }
+        )
     }
 
     private fun createMapOf(vararg pairs: Pair<String, Any>): JsonObject = JsonObject().apply {
@@ -498,30 +462,30 @@ class CodexAppServerClient(
      */
     private fun classifyErrorCode(message: String): String {
         val lowerMessage = message.lowercase()
-        
+
         // Check for nested JSON error code pattern: "code": "token_expired"
         val tokenExpiredPattern = Regex("""["']code["']\s*:\s*["']token_expired["']""")
         val refreshTokenReusedPattern = Regex("""["']code["']\s*:\s*["']refresh_token_reused["']""")
-        
+
         return when {
             // Direct message patterns
             lowerMessage.contains("token_expired") || lowerMessage.contains("token is expired") ||
                 lowerMessage.contains("authentication token is expired") -> "token_expired"
             lowerMessage.contains("refresh_token_reused") -> "refresh_token_reused"
-            
+
             // Nested JSON patterns in full response body
             tokenExpiredPattern.containsMatchIn(message) -> "token_expired"
             refreshTokenReusedPattern.containsMatchIn(message) -> "refresh_token_reused"
-            
+
             // Unauthorized patterns
-            lowerMessage.contains("unauthorized") || 
+            lowerMessage.contains("unauthorized") ||
                 (lowerMessage.contains("401") && !lowerMessage.contains("rate")) -> "unauthorized"
-            
+
             // Transient/refresh patterns
-            lowerMessage.contains("refresh requested") || 
+            lowerMessage.contains("refresh requested") ||
                 lowerMessage.contains("try again shortly") ||
                 lowerMessage.contains("rate limits unavailable") -> "limits_refresh_pending"
-            
+
             else -> "unknown"
         }
     }
@@ -539,23 +503,23 @@ class CodexAppServerClient(
                 if (response.has("error")) {
                     val error = response.getAsJsonObject("error")
                     val message = error?.get("message")?.asString ?: "Unknown error"
-                    
+
                     // Always use classifier to get semantic code from message/body
                     // Never use JSON-RPC error.code (-32603) for UX classification
                     val code = classifyErrorCode(message)
-                    
+
                     // Store error info for rateLimits method calls
-                    future?.let { f ->
+                    future?.let {
                         lastRateLimitsErrorCode = code
                         lastRateLimitsErrorMessage = message
                     }
-                    
+
                     future?.completeExceptionally(CodexRpcException(message, code))
                 } else {
                     // Success - clear last error state
                     lastRateLimitsErrorCode = null
                     lastRateLimitsErrorMessage = null
-                    
+
                     val result = response.get("result")
                     future?.complete(if (result is JsonObject) result else JsonObject())
                 }
@@ -614,23 +578,23 @@ class CodexAppServerClient(
             ?.takeIf { !it.isJsonNull }
             ?.asDouble
             ?.toFloat()
-        
+
         val windowDurationMins = json.get("windowDurationMins")
             ?.takeIf { !it.isJsonNull }
             ?.asInt
-        
+
         val resetsAt = json.get("resetsAt")
             ?.takeIf { !it.isJsonNull }
             ?.asLong
-        
+
         val limitId = json.get("limitId")
             ?.takeIf { !it.isJsonNull }
             ?.asString
-        
+
         val limitName = json.get("limitName")
             ?.takeIf { !it.isJsonNull }
             ?.asString
-        
+
         return RateLimitBucket(
             usedPercent = usedPercent,
             windowDurationMins = windowDurationMins,
@@ -672,10 +636,7 @@ class CodexAppServerClient(
         val usedPercent: Float? = null,
         val windowDurationMins: Int? = null,
         val resetsAt: Long? = null
-    ) {
-        val remainingPercent: Float?
-            get() = usedPercent?.let { (100f - it).coerceIn(0f, 100f) }
-    }
+    )
 
     /**
      * Contains all rate limit information from the Codex app-server.
@@ -701,7 +662,7 @@ class CodexAppServerClient(
                 // First: check primary/secondary directly (Codex canonical windows)
                 primary?.takeIf { it.windowDurationMins == WINDOW_5_HOURS }?.let { return it }
                 secondary?.takeIf { it.windowDurationMins == WINDOW_5_HOURS }?.let { return it }
-                
+
                 // Second: scan bucketsById for 300-min window, excluding code-review buckets
                 return bucketsById.values.firstOrNull { bucket ->
                     bucket.windowDurationMins == WINDOW_5_HOURS && !isCodeReviewBucket(bucket)
@@ -717,7 +678,7 @@ class CodexAppServerClient(
                 // First: check primary/secondary directly (Codex canonical windows)
                 primary?.takeIf { it.windowDurationMins == WINDOW_WEEK }?.let { return it }
                 secondary?.takeIf { it.windowDurationMins == WINDOW_WEEK }?.let { return it }
-                
+
                 // Second: scan bucketsById for 10080-min window, excluding code-review bucket
                 return bucketsById.values.firstOrNull { bucket ->
                     bucket.windowDurationMins == WINDOW_WEEK && !isCodeReviewBucket(bucket)
@@ -730,18 +691,6 @@ class CodexAppServerClient(
         private fun isCodeReviewBucket(bucket: RateLimitBucket): Boolean {
             return bucket.limitName?.contains("review", ignoreCase = true) == true ||
                 bucket.limitId?.contains("review", ignoreCase = true) == true
-        }
-        
-        /**
-         * Scan all known buckets for matching window (fallback helper).
-         */
-        private fun findBucketByWindow(windowMins: Int): RateLimitBucket? {
-            val allBuckets = buildList {
-                primary?.let { add(it) }
-                secondary?.let { add(it) }
-                addAll(bucketsById.values)
-            }
-            return allBuckets.firstOrNull { it.windowDurationMins == windowMins }
         }
     }
 
@@ -779,6 +728,9 @@ class CodexAppServerClient(
         private const val LISTEN_ARG = "stdio://"
         private const val INITIALIZE_TIMEOUT_SECONDS = 30L
         private const val METHOD_TIMEOUT_SECONDS = 10L
+
+        /** Retry delay for limits_refresh_pending scenario (1.5 seconds). */
+        private const val RATE_LIMITS_RETRY_DELAY_MS = 1500L
 
         /** 5-hour window duration in minutes. */
         private const val WINDOW_5_HOURS = 300

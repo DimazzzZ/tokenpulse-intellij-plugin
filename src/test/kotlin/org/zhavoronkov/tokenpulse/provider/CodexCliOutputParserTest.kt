@@ -1,10 +1,11 @@
-package org.zhavoronkov.tokenpulse.provider.openai.chatgpt
+package org.zhavoronkov.tokenpulse.provider
 
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.zhavoronkov.tokenpulse.provider.openai.chatgpt.CodexCliOutputParser
 
 /**
  * Unit tests for [CodexCliOutputParser].

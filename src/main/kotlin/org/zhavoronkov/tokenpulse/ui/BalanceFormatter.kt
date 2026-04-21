@@ -396,7 +396,7 @@ object BalanceFormatter {
     /**
      * Formats credits as remaining balance or usage.
      */
-    private fun formatCreditsOrUsage(credits: org.zhavoronkov.tokenpulse.model.Credits): String {
+    private fun formatCreditsOrUsage(credits: Credits): String {
         return when {
             credits.remaining != null -> formatCredits(credits.remaining)
             credits.used != null -> formatUsageCredits(credits.used)

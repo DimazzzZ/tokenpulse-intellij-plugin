@@ -65,17 +65,15 @@ class CodexProviderClient(
                     val errorCode = client.lastRateLimitsErrorCode
                     val errorMessage = client.lastRateLimitsErrorMessage ?: "Unknown error"
 
-                    val (uiErrorCode, uiErrorDetail) = when (errorCode) {
+                    val uiErrorDetail = when (errorCode) {
                         "token_expired", "refresh_token_reused", "unauthorized" ->
-                            "token_expired" to "Codex session expired. Run 'codex login' in terminal to re-authenticate."
+                            "Codex session expired. Run 'codex login' in terminal to re-authenticate."
                         "limits_refresh_pending" ->
-                            "rate_limits_unavailable" to "Codex rate limits are refreshing. Please wait a moment and try again."
-                        else ->
-                            "rate_limits_unavailable" to (errorMessage.takeIf { it.isNotBlank() }
-                                ?: "Rate limits unavailable")
+                            "Codex rate limits are refreshing. Please wait a moment and try again."
+                        else -> errorMessage.takeIf { it.isNotBlank() } ?: "Rate limits unavailable"
                     }
 
-                    TokenPulseLogger.Provider.info("Codex app-server error: $uiErrorCode - $uiErrorDetail")
+                    TokenPulseLogger.Provider.info("Codex app-server error: $uiErrorDetail")
                     return ProviderResult.Failure.AuthError(uiErrorDetail)
                 }
 
@@ -142,7 +140,7 @@ class CodexProviderClient(
             val formatter = java.time.format.DateTimeFormatter.ofPattern("MMM d 'at' h:mm a")
                 .withZone(java.time.ZoneId.systemDefault())
             formatter.format(instant)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             "N/A"
         }
     }

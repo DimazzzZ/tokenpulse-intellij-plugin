@@ -1,7 +1,6 @@
 package org.zhavoronkov.tokenpulse.service
 
 import com.intellij.openapi.Disposable
-import java.util.concurrent.ConcurrentHashMap
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
@@ -11,6 +10,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -19,6 +19,7 @@ import org.zhavoronkov.tokenpulse.settings.CredentialsStore
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
 import org.zhavoronkov.tokenpulse.ui.TokenPulseNotifier
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
+import java.util.concurrent.ConcurrentHashMap
 
 @Service(Service.Level.APP)
 class BalanceRefreshService : Disposable {
@@ -50,7 +51,7 @@ class BalanceRefreshService : Disposable {
     private val notificationTracker = ConcurrentHashMap<String, Long>()
 
     /** Minimum time between identical notifications for the same account (30 minutes). */
-    private val NOTIFICATION_THROTTLE_MS = 30 * 60 * 1000L
+    private val notificationThrottleMs = 30 * 60 * 1000L
 
     init {
         startAutoRefresh()
@@ -69,7 +70,7 @@ class BalanceRefreshService : Disposable {
         autoRefreshJob = scope.launch {
             while (isActive) {
                 val interval = TokenPulseSettingsService.getInstance().state.refreshIntervalMinutes
-                delay(interval.toLong() * SECONDS_PER_MINUTE * MILLIS_PER_SECOND)
+                delay((interval * 60).seconds)
                 refreshAll()
             }
         }
@@ -161,16 +162,16 @@ class BalanceRefreshService : Disposable {
         old: ProviderResult?,
         new: ProviderResult.Failure
     ) {
-        val fingerprint = "${accountLabel}:${new.javaClass.simpleName}:${normalizeErrorMessage(new.message)}"
+        val fingerprint = "$accountLabel:${new.javaClass.simpleName}:${normalizeErrorMessage(new.message)}"
         val now = System.currentTimeMillis()
 
         // Check throttle for repeated identical notifications
         val lastNotified = notificationTracker[fingerprint] ?: return
 
         val elapsedMs = now - lastNotified
-        val shouldThrottle = elapsedMs < NOTIFICATION_THROTTLE_MS
+        val shouldThrottle = elapsedMs < notificationThrottleMs
         if (shouldThrottle) {
-            org.zhavoronkov.tokenpulse.utils.TokenPulseLogger.Service.debug(
+            TokenPulseLogger.Service.debug(
                 "Suppressing duplicate notification for $accountLabel: ${new.message}"
             )
             return
@@ -219,9 +220,6 @@ class BalanceRefreshService : Disposable {
     }
 
     companion object {
-        private const val SECONDS_PER_MINUTE = 60L
-        private const val MILLIS_PER_SECOND = 1000L
-
         fun getInstance(): BalanceRefreshService = service()
     }
 }
