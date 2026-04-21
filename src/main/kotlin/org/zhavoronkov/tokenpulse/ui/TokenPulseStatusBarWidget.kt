@@ -114,7 +114,11 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
             val credits = firstResult.snapshot.balance.credits
             if (credits != null) {
                 val provider = firstAccount.connectionType.provider
-                return "TP: ${BalanceFormatter.formatCreditsForStatusBar(credits, settings.statusBarDollarFormat, provider)}"
+                return "TP: ${BalanceFormatter.formatCreditsForStatusBar(
+                    credits,
+                    settings.statusBarDollarFormat,
+                    provider
+                )}"
             }
         }
 
@@ -238,9 +242,9 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
                         if (snapshot.connectionType == ConnectionType.NEBIUS_BILLING && breakdown != null) {
                             appendNebiusBreakdownRows(breakdown)
                         } else if (snapshot.connectionType ==
-                            ConnectionType.CHATGPT_SUBSCRIPTION
+                            ConnectionType.CODEX_CLI
                         ) {
-                            appendChatGptRows(snapshot.metadata)
+                            appendCodexRows(snapshot.metadata)
                         } else if (snapshot.connectionType ==
                             ConnectionType.CLAUDE_CODE
                         ) {
@@ -249,8 +253,11 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
                             appendCreditsRows(snapshot.balance.credits, snapshot.connectionType)
                         }
                     }
-                    is ProviderResult.Failure.AuthError ->
-                        append("<tr><td colspan='2'><font color='#CC4444'>Session expired</font></td></tr>")
+                    is ProviderResult.Failure.AuthError -> {
+                        // Show the actual error message instead of generic "Session expired"
+                        val errorMessage = getAuthErrorMessage(result, account.connectionType)
+                        append("<tr><td colspan='2'><font color='#CC4444'>$errorMessage</font></td></tr>")
+                    }
                     is ProviderResult.Failure.RateLimited ->
                         append("<tr><td colspan='2'><font color='#CC8800'>Rate limited (retry later)</font></td></tr>")
                     is ProviderResult.Failure.NetworkError ->
@@ -295,28 +302,39 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
     }
 
     /**
-     * Render ChatGPT rate limit usage from metadata.
-     * Shows 5h/weekly/code review usage percentages with progress bars when available.
+     * Render Codex CLI rate limit usage from metadata.
+     * Shows 5h/weekly usage percentages with progress bars when available.
      */
-    private fun StringBuilder.appendChatGptRows(metadata: Map<String, String>?) {
+    private fun StringBuilder.appendCodexRows(metadata: Map<String, String>?) {
         if (metadata == null) {
             append("<tr><td colspan='2'><i>No usage data</i></td></tr>")
             return
         }
 
-        // Show plan type
+        appendCodexAccountInfo(metadata)
+        appendCodexRateLimitBars(metadata)
+        appendCodexNoRateLimitMessage(metadata)
+    }
+
+    /**
+     * Append Codex account info (plan type, email).
+     */
+    private fun StringBuilder.appendCodexAccountInfo(metadata: Map<String, String>) {
         val planType = metadata["planType"]
         if (planType != null && planType != "unknown") {
             append("<tr><td>Plan:</td><td align='right'>$planType</td></tr>")
         }
 
-        // Show account email (truncated)
         val email = metadata["email"]
         if (email != null && email != "unknown") {
             append("<tr><td>Account:</td><td align='right'>${truncate(email)}</td></tr>")
         }
+    }
 
-        // Show rate limit usage with progress bars if available (from Codex)
+    /**
+     * Append Codex rate limit progress bars (5-hour, weekly, code review).
+     */
+    private fun StringBuilder.appendCodexRateLimitBars(metadata: Map<String, String>) {
         val fiveHourUsed = metadata["fiveHourUsed"]
         val weeklyUsed = metadata["weeklyUsed"]
         val codeReviewUsed = metadata["codeReviewUsed"]
@@ -325,46 +343,69 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
             (weeklyUsed != null && weeklyUsed != "N/A") ||
             (codeReviewUsed != null && codeReviewUsed != "N/A")
 
-        if (hasRateLimits) {
-            if (fiveHourUsed != null && fiveHourUsed != "N/A") {
-                val pct = fiveHourUsed.toFloatOrNull()?.toInt() ?: 0
-                append(ProgressBarRenderer.buildUsageSection("5-hour", pct, null))
-            }
+        if (!hasRateLimits) return
 
-            if (weeklyUsed != null && weeklyUsed != "N/A") {
-                val pct = weeklyUsed.toFloatOrNull()?.toInt() ?: 0
-                append(ProgressBarRenderer.buildUsageSection("Weekly", pct, null))
-            }
-
-            if (codeReviewUsed != null && codeReviewUsed != "N/A") {
-                val pct = codeReviewUsed.toFloatOrNull()?.toInt() ?: 0
-                append(ProgressBarRenderer.buildUsageSection("Code Review", pct, null))
-            }
-        } else {
-            // No rate limits available - check why
-            val codexEnabled = metadata["codexEnabled"]
-            val codexAvailable = metadata["codexAvailable"]
-
-            if (codexEnabled == "true") {
-                if (codexAvailable != "true") {
-                    val codexError = metadata["codexError"]
-                    val errorMsg = when (codexError) {
-                        "not_installed" -> "Install Codex CLI for usage"
-                        "not_authenticated" -> "Login to Codex for usage"
-                        "rate_limits_unavailable" -> "Rate limits unavailable"
-                        else -> "Codex unavailable"
-                    }
-                    append("<tr><td colspan='2'>")
-                    append("<font size='-2' color='gray'>$errorMsg</font></td></tr>")
-                }
-            } else {
-                // Codex not enabled - suggest enabling it for usage tracking
-                if (planType?.lowercase() != "free") {
-                    append("<tr><td colspan='2'><font size='-2' color='gray'>")
-                    append("Enable Codex for usage tracking</font></td></tr>")
-                }
-            }
+        fiveHourUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let { usedPct ->
+            val remainingPct = (100 - usedPct).coerceIn(0, 100)
+            append(ProgressBarRenderer.buildBalanceSection("5-hour", remainingPct, null))
         }
+
+        weeklyUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let { usedPct ->
+            val remainingPct = (100 - usedPct).coerceIn(0, 100)
+            append(ProgressBarRenderer.buildBalanceSection("Weekly", remainingPct, null))
+        }
+
+        codeReviewUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let { usedPct ->
+            val remainingPct = (100 - usedPct).coerceIn(0, 100)
+            append(ProgressBarRenderer.buildBalanceSection("Code Review", remainingPct, null))
+        }
+    }
+
+    /**
+     * Append message when no rate limits are available.
+     */
+    private fun StringBuilder.appendCodexNoRateLimitMessage(metadata: Map<String, String>) {
+        val fiveHourUsed = metadata["fiveHourUsed"]
+        val weeklyUsed = metadata["weeklyUsed"]
+        val codeReviewUsed = metadata["codeReviewUsed"]
+
+        val hasRateLimits = (fiveHourUsed != null && fiveHourUsed != "N/A") ||
+            (weeklyUsed != null && weeklyUsed != "N/A") ||
+            (codeReviewUsed != null && codeReviewUsed != "N/A")
+
+        if (hasRateLimits) return
+
+        val codexEnabled = metadata["codexEnabled"]
+        val codexError = metadata["codexError"]
+        val codexErrorDetail = metadata["codexErrorDetail"]
+        val planType = metadata["planType"]
+
+        if (codexEnabled == "true") {
+            appendCodexErrorMessage(codexError, codexErrorDetail)
+        } else if (planType?.lowercase() != "free") {
+            append("<tr><td colspan='2'><font size='-2' color='gray'>")
+            append("Enable Codex for usage tracking</font></td></tr>")
+        }
+    }
+
+    /**
+     * Append Codex error message based on error code.
+     */
+    private fun StringBuilder.appendCodexErrorMessage(codexError: String?, codexErrorDetail: String?) {
+        val errorMsg = when (codexError) {
+            "not_installed" -> "Codex CLI not installed"
+            "not_authenticated" -> "Codex not logged in"
+            "app_server_start_failed" -> "Codex app-server failed"
+            "rate_limits_unavailable" -> "Rate limits unavailable"
+            "token_expired" -> "Codex session expired"
+            else -> "Usage data unavailable"
+        }
+        append("<tr><td colspan='2'>")
+        append("<font size='-2' color='gray'>$errorMsg")
+        codexErrorDetail?.takeIf { it.isNotBlank() }?.let { detail ->
+            append(": ${truncate(detail, 60)}")
+        }
+        append("</font></td></tr>")
     }
 
     private fun StringBuilder.appendClaudeCodeRows(metadata: Map<String, String>?) {
@@ -475,6 +516,29 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
             </table>
             </html>
         """.trimIndent()
+    }
+
+    /**
+     * Get a user-friendly error message for AuthError failures.
+     * For Codex, shows the actual error message instead of generic "Session expired".
+     */
+    private fun getAuthErrorMessage(
+        authError: ProviderResult.Failure.AuthError,
+        connectionType: ConnectionType
+    ): String {
+        // For Codex, show the actual message since it has specific auth states
+        if (connectionType == ConnectionType.CODEX_CLI) {
+            return authError.message
+        }
+        // For other providers, use the message but with some cleanup
+        val message = authError.message
+        return when {
+            message.contains("expired", ignoreCase = true) -> "Session expired"
+            message.contains("not authenticated", ignoreCase = true) -> "Not authenticated"
+            message.contains("missing", ignoreCase = true) -> "Credentials missing"
+            message.contains("invalid", ignoreCase = true) -> "Invalid credentials"
+            else -> message
+        }
     }
 
     private fun formatAmount(amount: BigDecimal): String {

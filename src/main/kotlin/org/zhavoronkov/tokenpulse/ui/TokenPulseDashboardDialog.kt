@@ -1,3 +1,5 @@
+@file:Suppress("MagicNumber")
+
 package org.zhavoronkov.tokenpulse.ui
 
 import com.intellij.openapi.application.ApplicationManager
@@ -68,6 +70,14 @@ class TokenPulseDashboardDialog(project: Project) : DialogWrapper(project) {
         private const val CHART_HEIGHT = 260
         private const val TABLE_HEIGHT = 180
 
+        // Combo box dimensions
+        private const val CHART_TYPE_COMBO_WIDTH = 110
+        private const val TIME_RANGE_COMBO_WIDTH = 120
+        private const val COMBO_HEIGHT = 25
+
+        // Split pane
+        private const val SPLIT_PANE_RESIZE_WEIGHT = 0.6
+
         // Column indices (must match DashboardTableModel order)
         private const val COL_PROVIDER = 0
         private const val COL_KEY_PREVIEW = 1
@@ -135,12 +145,18 @@ class TokenPulseDashboardDialog(project: Project) : DialogWrapper(project) {
 
         // Chart type selector
         controlsPanel.add(JLabel("Chart:"))
-        chartTypeCombo.preferredSize = Dimension(JBUI.scale(110), JBUI.scale(25))
+        chartTypeCombo.preferredSize = Dimension(
+            JBUI.scale(CHART_TYPE_COMBO_WIDTH),
+            JBUI.scale(COMBO_HEIGHT)
+        )
         controlsPanel.add(chartTypeCombo)
 
         // Time range selector
         controlsPanel.add(JLabel("Range:"))
-        timeRangeCombo.preferredSize = Dimension(JBUI.scale(120), JBUI.scale(25))
+        timeRangeCombo.preferredSize = Dimension(
+            JBUI.scale(TIME_RANGE_COMBO_WIDTH),
+            JBUI.scale(COMBO_HEIGHT)
+        )
         controlsPanel.add(timeRangeCombo)
 
         // Refresh button
@@ -168,7 +184,7 @@ class TokenPulseDashboardDialog(project: Project) : DialogWrapper(project) {
 
         // Split pane
         val splitPane = JSplitPane(JSplitPane.VERTICAL_SPLIT, chartContainer, tablePanel)
-        splitPane.resizeWeight = 0.6
+        splitPane.resizeWeight = SPLIT_PANE_RESIZE_WEIGHT
         splitPane.dividerSize = JBUI.scale(5)
         splitPane.border = null
 

@@ -19,8 +19,8 @@ class StatusBarFormatterTest {
     }
 
     @Test
-    fun `isUsagePercentageType returns true for ChatGPT Subscription`() {
-        assertEquals(true, BalanceFormatter.isUsagePercentageType(ConnectionType.CHATGPT_SUBSCRIPTION))
+    fun `isUsagePercentageType returns true for Codex CLI`() {
+        assertEquals(true, BalanceFormatter.isUsagePercentageType(ConnectionType.CODEX_CLI))
     }
 
     @Test
@@ -155,10 +155,10 @@ class StatusBarFormatterTest {
     }
 
     @Test
-    fun `formatUsagePercentageForStatusBar ChatGPT compact`() {
+    fun `formatUsagePercentageForStatusBar Codex CLI compact`() {
         val snapshot = BalanceSnapshot(
             accountId = "test",
-            connectionType = ConnectionType.CHATGPT_SUBSCRIPTION,
+            connectionType = ConnectionType.CODEX_CLI,
             balance = Balance(),
             metadata = mapOf(
                 "fiveHourUsed" to "25.5",

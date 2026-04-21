@@ -1,3 +1,5 @@
+@file:Suppress("MagicNumber", "MaximumLineLength", "MaxLineLength")
+
 package org.zhavoronkov.tokenpulse.ui.chart
 
 import com.intellij.ui.JBColor
@@ -64,12 +66,12 @@ class BalanceChartPanel : JPanel() {
 
     /** Provider colors for consistent visual identity */
     private val providerColors = listOf(
-        JBColor(Color(66, 133, 244), Color(100, 160, 255)),   // Blue (OpenRouter)
-        JBColor(Color(52, 168, 83), Color(80, 200, 110)),    // Green (Cline)
-        JBColor(Color(251, 188, 4), Color(255, 210, 60)),    // Yellow (OpenAI)
-        JBColor(Color(234, 67, 53), Color(255, 100, 90)),    // Red (Nebius)
-        JBColor(Color(154, 87, 220), Color(180, 120, 255)),  // Purple (Claude)
-        JBColor(Color(255, 109, 0), Color(255, 140, 60))     // Orange (ChatGPT)
+        JBColor(Color(66, 133, 244), Color(100, 160, 255)), // Blue (OpenRouter)
+        JBColor(Color(52, 168, 83), Color(80, 200, 110)), // Green (Cline)
+        JBColor(Color(251, 188, 4), Color(255, 210, 60)), // Yellow (OpenAI)
+        JBColor(Color(234, 67, 53), Color(255, 100, 90)), // Red (Nebius)
+        JBColor(Color(154, 87, 220), Color(180, 120, 255)), // Purple (Claude)
+        JBColor(Color(255, 109, 0), Color(255, 140, 60)) // Orange (ChatGPT)
     )
 
     init {
@@ -214,9 +216,9 @@ class BalanceChartPanel : JPanel() {
 
         // Choose date format based on time range
         val formatter = when {
-            timeRange > 86400 * 7 -> DateTimeFormatter.ofPattern("MMM d")   // More than a week: show date
-            timeRange > 86400 -> DateTimeFormatter.ofPattern("EEE HH:mm")   // 1-7 days: show day + time
-            else -> DateTimeFormatter.ofPattern("HH:mm")                     // Less than a day: show time only
+            timeRange > 86400 * 7 -> DateTimeFormatter.ofPattern("MMM d") // More than a week: show date
+            timeRange > 86400 -> DateTimeFormatter.ofPattern("EEE HH:mm") // 1-7 days: show day + time
+            else -> DateTimeFormatter.ofPattern("HH:mm") // Less than a day: show time only
         }.withZone(ZoneId.systemDefault())
 
         g2.font = Font(Font.SANS_SERIF, Font.PLAIN, JBUI.scale(10))
@@ -246,7 +248,9 @@ class BalanceChartPanel : JPanel() {
 
             val color = providerColors[index % providerColors.size]
             val points = entries.map { entry ->
-                val x = bounds.left + ((entry.timestamp.epochSecond - minTime).toDouble() / timeRange * bounds.width).toInt()
+                val xOffset =
+                    (entry.timestamp.epochSecond - minTime).toDouble() / timeRange * bounds.width
+                val x = bounds.left + xOffset.toInt()
                 val y = bounds.bottom - (entry.percentageRemaining / 100.0 * bounds.height).toInt()
                 Point(x, y)
             }
@@ -376,7 +380,13 @@ class BalanceChartPanel : JPanel() {
                 .withZone(ZoneId.systemDefault())
                 .format(entry.timestamp)
 
-            toolTipText = "<html><b>$name</b><br>$timeStr<br>${entry.percentageRemaining.toInt()}% (${entry.rawValue} ${entry.rawUnit})</html>"
+            val tooltip = buildString {
+                append("<html><b>$name</b><br>")
+                append("$timeStr<br>")
+                append("${entry.percentageRemaining.toInt()}% ")
+                append("(${entry.rawValue} ${entry.rawUnit})</html>")
+            }
+            toolTipText = tooltip
         } ?: run {
             toolTipText = null
         }

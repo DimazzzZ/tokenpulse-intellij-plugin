@@ -3,7 +3,6 @@ package org.zhavoronkov.tokenpulse.settings
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.zhavoronkov.tokenpulse.model.ConnectionType
@@ -30,7 +29,6 @@ class AccountTest {
         assertEquals(AuthType.CLINE_API_KEY, account.authType)
         assertTrue(account.isEnabled)
         assertEquals("", account.keyPreview)
-        assertNull(account.chatGptUseCodex)
     }
 
     @Test
@@ -59,11 +57,11 @@ class AccountTest {
 
     @Test
     fun `displayLabel uses fullDisplayName from connectionType`() {
-        val account = Account(connectionType = ConnectionType.CHATGPT_SUBSCRIPTION)
+        val account = Account(connectionType = ConnectionType.CODEX_CLI)
 
         val label = account.displayLabel()
 
-        assertEquals("OpenAI: ChatGPT Subscription", label)
+        assertEquals("OpenAI: Codex CLI", label)
     }
 }
 

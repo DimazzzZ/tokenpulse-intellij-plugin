@@ -135,8 +135,10 @@ data class BalanceHistoryEntry(
         private fun extractUsagePercentage(snapshot: BalanceSnapshot): Double {
             // Try various metadata keys that might contain usage percentage
             val keys = listOf(
-                "5h_percent", "weekly_percent", // ChatGPT
-                "session_percent", "week_percent" // Claude Code
+                "5h_percent",
+                "weekly_percent", // ChatGPT
+                "session_percent",
+                "week_percent" // Claude Code
             )
 
             for (key in keys) {

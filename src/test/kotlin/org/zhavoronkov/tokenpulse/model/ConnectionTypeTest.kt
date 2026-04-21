@@ -43,7 +43,7 @@ class ConnectionTypeTest {
     fun `forProvider returns correct connection types for OpenAI`() {
         val openAiTypes = ConnectionType.forProvider(Provider.OPENAI)
 
-        assertTrue(openAiTypes.contains(ConnectionType.CHATGPT_SUBSCRIPTION))
+        assertTrue(openAiTypes.contains(ConnectionType.CODEX_CLI))
         assertTrue(openAiTypes.contains(ConnectionType.OPENAI_PLATFORM))
         assertFalse(openAiTypes.contains(ConnectionType.CLAUDE_CODE))
     }
@@ -53,7 +53,7 @@ class ConnectionTypeTest {
         val anthropicTypes = ConnectionType.forProvider(Provider.ANTHROPIC)
 
         assertTrue(anthropicTypes.contains(ConnectionType.CLAUDE_CODE))
-        assertFalse(anthropicTypes.contains(ConnectionType.CHATGPT_SUBSCRIPTION))
+        assertFalse(anthropicTypes.contains(ConnectionType.CODEX_CLI))
     }
 
     @Test
@@ -99,8 +99,8 @@ class ConnectionTypeTest {
     }
 
     @Test
-    fun `CHATGPT_SUBSCRIPTION has OpenAI provider`() {
-        assertEquals(Provider.OPENAI, ConnectionType.CHATGPT_SUBSCRIPTION.provider)
+    fun `CODEX_CLI has OpenAI provider`() {
+        assertEquals(Provider.OPENAI, ConnectionType.CODEX_CLI.provider)
     }
 
     @Test

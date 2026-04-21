@@ -10,6 +10,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -18,6 +19,7 @@ import org.zhavoronkov.tokenpulse.settings.CredentialsStore
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
 import org.zhavoronkov.tokenpulse.ui.TokenPulseNotifier
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
+import java.util.concurrent.ConcurrentHashMap
 
 @Service(Service.Level.APP)
 class BalanceRefreshService : Disposable {
@@ -41,6 +43,16 @@ class BalanceRefreshService : Disposable {
 
     private var autoRefreshJob: Job? = null
 
+    /**
+     * Tracks the last notification time per account+error fingerprint to avoid spamming
+     * identical error notifications repeatedly.
+     * Key: "accountId:errorType", Value: last notification timestamp.
+     */
+    private val notificationTracker = ConcurrentHashMap<String, Long>()
+
+    /** Minimum time between identical notifications for the same account (30 minutes). */
+    private val notificationThrottleMs = 30 * 60 * 1000L
+
     init {
         startAutoRefresh()
     }
@@ -58,7 +70,7 @@ class BalanceRefreshService : Disposable {
         autoRefreshJob = scope.launch {
             while (isActive) {
                 val interval = TokenPulseSettingsService.getInstance().state.refreshIntervalMinutes
-                delay(interval.toLong() * SECONDS_PER_MINUTE * MILLIS_PER_SECOND)
+                delay((interval * 60).seconds)
                 refreshAll()
             }
         }
@@ -93,10 +105,29 @@ class BalanceRefreshService : Disposable {
             .syncPublisher(BalanceUpdatedTopic.TOPIC)
             .balanceUpdated(accountId, newResult)
 
-        // Record successful results to history for charting
-        if (newResult is ProviderResult.Success) {
-            recordToHistory(newResult)
+        // Handle credential failure cooldowns
+        when (newResult) {
+            is ProviderResult.Success -> {
+                coordinator.clearCredentialCooldown(accountId)
+                recordToHistory(newResult)
+            }
+            is ProviderResult.Failure -> {
+                if (isCredentialRelatedFailure(newResult)) {
+                    coordinator.recordCredentialFailure(accountId)
+                }
+            }
         }
+    }
+
+    /**
+     * Identifies failures that are credential-related and won't self-resolve.
+     * These trigger cooldown behavior to reduce notification spam.
+     *
+     * Only [ProviderResult.Failure.AuthError] is considered credential-related.
+     * Other failure types (NetworkError, RateLimited, etc.) are transient and may self-resolve.
+     */
+    private fun isCredentialRelatedFailure(result: ProviderResult.Failure): Boolean {
+        return result is ProviderResult.Failure.AuthError
     }
 
     private fun recordToHistory(result: ProviderResult.Success) {
@@ -131,13 +162,53 @@ class BalanceRefreshService : Disposable {
         old: ProviderResult?,
         new: ProviderResult.Failure
     ) {
+        val fingerprint = "$accountLabel:${new.javaClass.simpleName}:${normalizeErrorMessage(new.message)}"
+        val now = System.currentTimeMillis()
+
+        // Check throttle for repeated identical notifications
+        val lastNotified = notificationTracker[fingerprint] ?: return
+
+        val elapsedMs = now - lastNotified
+        val shouldThrottle = elapsedMs < notificationThrottleMs
+        if (shouldThrottle) {
+            TokenPulseLogger.Service.debug(
+                "Suppressing duplicate notification for $accountLabel: ${new.message}"
+            )
+            return
+        }
+
         val shouldNotify = old == null || old is ProviderResult.Success ||
             (old is ProviderResult.Failure && old.javaClass != new.javaClass)
 
         if (shouldNotify) {
-            val message = "Failed to refresh $accountLabel: ${new.message}"
+            val message = buildErrorMessage(accountLabel, new)
             TokenPulseNotifier.notifyError(null, message)
+            notificationTracker[fingerprint] = now
         }
+    }
+
+    /**
+     * Normalizes error message for fingerprinting by removing variable parts like timestamps.
+     */
+    private fun normalizeErrorMessage(message: String): String {
+        return message
+            .lowercase()
+            .replace(Regex("\\d+"), "N") // Replace numbers with placeholder
+            .trim()
+    }
+
+    /**
+     * Builds a more actionable error message for credential-related failures.
+     */
+    private fun buildErrorMessage(accountLabel: String, failure: ProviderResult.Failure): String {
+        val baseMessage = "Failed to refresh $accountLabel: ${failure.message}"
+
+        // Add actionable hint for credential issues
+        if (isCredentialRelatedFailure(failure)) {
+            return "$baseMessage Please re-enter your API key in TokenPulse Settings."
+        }
+
+        return baseMessage
     }
 
     override fun dispose() {
@@ -149,9 +220,6 @@ class BalanceRefreshService : Disposable {
     }
 
     companion object {
-        private const val SECONDS_PER_MINUTE = 60L
-        private const val MILLIS_PER_SECOND = 1000L
-
         fun getInstance(): BalanceRefreshService = service()
     }
 }

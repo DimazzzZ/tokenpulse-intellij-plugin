@@ -20,7 +20,7 @@ import javax.swing.JTextArea
  * Guides the user through connecting their Nebius AI Studio billing session via cURL.
  *
  * 1. Open Nebius in browser and log in.
- * 2. DevTools → Network tab → filter by "getCurrentTrial".
+ * 2. DevTools → Network tab → filter by "getBalance".
  * 3. Refresh the page to trigger the request.
  * 4. Right-click the request → "Copy as cURL".
  * 5. Paste the cURL into the text area below.
@@ -35,7 +35,7 @@ class NebiusConnectDialog : DialogWrapper(true) {
         private const val STATUS_SUCCESS = "<html><font color='green'><b>✓ Session captured!</b></font></html>"
         private const val STATUS_EMPTY = "<html><font color='red'>Please paste cURL or JSON first.</font></html>"
         private const val STATUS_PARSE_ERROR = "<html><font color='red'>Could not parse the pasted text. " +
-            "Make sure you used \"Copy as cURL\" on the getCurrentTrial request, " +
+            "Make sure you used \"Copy as cURL\" on the getBalance request, " +
             "or paste a valid JSON blob.</font></html>"
         private const val STATUS_MISSING_FIELDS = "<html><font color='red'>Incomplete — missing: %s. " +
             "Make sure you are logged in and copied the right request.</font></html>"
@@ -77,7 +77,7 @@ class NebiusConnectDialog : DialogWrapper(true) {
             label("<html>1. Open Nebius, login, then DevTools → <b>Network</b>.</html>")
         }
         row {
-            label("<html>2. Refresh, filter by \"getCurrentTrial\", right-click → <b>Copy as cURL</b>.</html>")
+            label("<html>2. Refresh, filter by \"getBalance\", right-click → <b>Copy as cURL</b>.</html>")
         }
         row {
             label("<html>3. Paste result below and click Validate.</html>")

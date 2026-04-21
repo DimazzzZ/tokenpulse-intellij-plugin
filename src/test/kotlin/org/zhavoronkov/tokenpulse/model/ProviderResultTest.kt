@@ -158,7 +158,7 @@ class BalanceSnapshotTest {
     fun `BalanceSnapshot can have metadata`() {
         val snapshot = BalanceSnapshot(
             accountId = "test",
-            connectionType = ConnectionType.CHATGPT_SUBSCRIPTION,
+            connectionType = ConnectionType.CODEX_CLI,
             balance = Balance(),
             metadata = mapOf(
                 "email" to "user@example.com",

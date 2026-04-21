@@ -170,6 +170,7 @@ complexity:
     active: true
     # Increased to 5 for complex validation conditions
     threshold: 5
+    excludes: ['**/test/**']
 
 exceptions:
   TooGenericExceptionCaught:

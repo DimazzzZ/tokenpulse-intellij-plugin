@@ -130,7 +130,7 @@ object ClaudeCliOutputParser {
             "Currentweek",
             "% used",
             "Loading usage data",
-            "Settings:"  // The usage dialog header
+            "Settings:" // The usage dialog header
         )
         return usageIndicators.any { cleanOutput.contains(it, ignoreCase = true) }
     }

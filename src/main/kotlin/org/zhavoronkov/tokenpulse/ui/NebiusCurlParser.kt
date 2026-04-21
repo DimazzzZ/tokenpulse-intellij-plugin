@@ -206,22 +206,31 @@ object NebiusCurlParser {
     }
 
     /**
-     * Extract parentId from the request body.
-     * Handles both --data-raw '{"parentId":"..."}' and -d '{"parentId":"..."}'
+     * Extract parentId/contractId from the request body.
+     * Handles both --data-raw '{"parentId":"..."}' and -d '{"contractId":"..."}'
+     * The getBalance endpoint uses contractId, while getCurrentTrial uses parentId.
      */
     private fun extractParentId(normalized: String): String? {
         // First try to extract from --data-raw or -d argument
         val bodyJson = extractRequestBody(normalized)
 
         if (!bodyJson.isNullOrBlank()) {
-            // Parse the JSON body to extract parentId
+            // Try contractId first (getBalance endpoint), then parentId (getCurrentTrial)
+            val contractIdFromBody = extractContractIdFromJson(bodyJson)
+            if (!contractIdFromBody.isNullOrBlank()) {
+                return contractIdFromBody
+            }
             val parentIdFromBody = extractParentIdFromJson(bodyJson)
             if (!parentIdFromBody.isNullOrBlank()) {
                 return parentIdFromBody
             }
         }
 
-        // Fallback: try to find parentId pattern anywhere in the string
+        // Fallback: try to find contractId or parentId pattern anywhere in the string
+        val contractIdMatch = Regex(""""contractId"\s*:\s*"([^"]+)"""").find(normalized)
+        if (contractIdMatch != null) {
+            return contractIdMatch.groupValues[1]
+        }
         val fallbackMatch = Regex(""""parentId"\s*:\s*"([^"]+)"""").find(normalized)
         return fallbackMatch?.groupValues?.get(1)
     }
@@ -268,6 +277,18 @@ object NebiusCurlParser {
     private fun extractParentIdFromJson(json: String): String? {
         return try {
             val match = Regex(""""parentId"\s*:\s*"([^"]+)"""").find(json)
+            match?.groupValues?.get(1)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Extract contractId from a JSON string (used by getBalance endpoint).
+     */
+    private fun extractContractIdFromJson(json: String): String? {
+        return try {
+            val match = Regex(""""contractId"\s*:\s*"([^"]+)"""").find(json)
             match?.groupValues?.get(1)
         } catch (e: Exception) {
             null

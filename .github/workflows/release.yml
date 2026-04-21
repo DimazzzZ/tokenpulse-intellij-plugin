@@ -81,11 +81,25 @@ jobs:
     - name: Build, test, and analyze
       run: ./gradlew buildPlugin test detekt verifyPlugin --build-cache
     
+    - name: Validate plugin archive integrity
+      run: |
+        PLUGIN_ZIP=$(ls build/distributions/token-pulse-*.zip 2>/dev/null | head -1)
+        if [ -z "$PLUGIN_ZIP" ]; then
+          echo "ERROR: No plugin ZIP found in build/distributions/"
+          exit 1
+        fi
+        echo "Validating: $PLUGIN_ZIP"
+        unzip -t "$PLUGIN_ZIP"
+        unzip -l "$PLUGIN_ZIP" | grep -E "token-pulse/lib/token-pulse.*\.jar$" || (echo "ERROR: Missing main plugin JAR" && exit 1)
+        sha256sum "$PLUGIN_ZIP" | tee "${PLUGIN_ZIP}.sha256"
+    
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: plugin-artifact
-        path: build/distributions/*.zip
+        path: |
+          build/distributions/token-pulse-*.zip
+          build/distributions/token-pulse-*.zip.sha256
         retention-days: 30
 
   create-release:
@@ -183,6 +197,18 @@ jobs:
       run: |
         sed -i "s/^pluginVersion = .*/pluginVersion = ${{ needs.validate-version.outputs.version }}/" gradle.properties
         echo "Updated plugin version to ${{ needs.validate-version.outputs.version }}"
+
+    - name: Final archive validation before publish
+      run: |
+        PLUGIN_ZIP=$(ls build/distributions/token-pulse-*.zip 2>/dev/null | head -1)
+        if [ -z "$PLUGIN_ZIP" ]; then
+          echo "ERROR: No plugin ZIP found in build/distributions/"
+          exit 1
+        fi
+        echo "Final validation before publish: $PLUGIN_ZIP"
+        unzip -t "$PLUGIN_ZIP"
+        unzip -l "$PLUGIN_ZIP" | grep -E "token-pulse/lib/token-pulse.*\.jar$" || (echo "ERROR: Missing main plugin JAR" && exit 1)
+        echo "SHA256: $(sha256sum "$PLUGIN_ZIP" | cut -d' ' -f1)"
 
     - name: Sign and publish plugin to JetBrains Marketplace
       run: ./gradlew signPlugin publishPlugin --build-cache
