@@ -50,7 +50,6 @@ Thumbs.db
 *.temp
 *.swp
 *.swo
-*~
 REFACTORING_PROGRESS.md
 
 # CMake
@@ -96,3 +95,11 @@ ml-llm/
 
 TOKENPULSE_PLAN.md
 openrouter-intellij-plugin
+
+# Plugin signing credentials (NEVER commit these!)
+*.pem
+*.crt
+chain.crt
+private.pem
+private_encrypted.pem
+

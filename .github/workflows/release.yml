@@ -178,6 +178,40 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_to_marketplace == 'true')
 
     steps:
+    - name: Validate required secrets
+      run: |
+        missing_secrets=""
+        if [ -z "${{ secrets.PUBLISH_TOKEN }}" ]; then
+          missing_secrets="${missing_secrets}PUBLISH_TOKEN "
+        fi
+        if [ -z "${{ secrets.CERTIFICATE_CHAIN }}" ]; then
+          missing_secrets="${missing_secrets}CERTIFICATE_CHAIN "
+        fi
+        if [ -z "${{ secrets.PRIVATE_KEY }}" ]; then
+          missing_secrets="${missing_secrets}PRIVATE_KEY "
+        fi
+        if [ -z "${{ secrets.PRIVATE_KEY_PASSWORD }}" ]; then
+          missing_secrets="${missing_secrets}PRIVATE_KEY_PASSWORD "
+        fi
+        
+        if [ -n "$missing_secrets" ]; then
+          echo "::error::Missing required secrets for marketplace publishing: ${missing_secrets}"
+          echo ""
+          echo "Please configure the following secrets in your repository settings:"
+          echo "  Settings -> Secrets and variables -> Actions -> New repository secret"
+          echo ""
+          echo "Required secrets:"
+          echo "  - PUBLISH_TOKEN: Your JetBrains Marketplace plugin upload token"
+          echo "    Get it from: https://plugins.jetbrains.com/author/me/tokens"
+          echo ""
+          echo "  - CERTIFICATE_CHAIN: Your plugin signing certificate chain (PEM format)"
+          echo "  - PRIVATE_KEY: Your plugin signing private key (PEM format)"
+          echo "  - PRIVATE_KEY_PASSWORD: Password for the private key"
+          echo "    Generate signing keys: https://plugins.jetbrains.com/docs/intellij/plugin-signing.html"
+          exit 1
+        fi
+        echo "All required secrets are configured."
+
     - name: Checkout code
       uses: actions/checkout@v4
     
