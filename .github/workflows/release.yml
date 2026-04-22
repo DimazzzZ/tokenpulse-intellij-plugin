@@ -198,6 +198,12 @@ jobs:
         sed -i "s/^pluginVersion = .*/pluginVersion = ${{ needs.validate-version.outputs.version }}/" gradle.properties
         echo "Updated plugin version to ${{ needs.validate-version.outputs.version }}"
 
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: plugin-artifact
+        path: build/distributions/
+
     - name: Final archive validation before publish
       run: |
         PLUGIN_ZIP=$(ls build/distributions/token-pulse-*.zip 2>/dev/null | head -1)
