@@ -1,13 +1,13 @@
-# TokenPulse β
+# TokenPulse
 
 [![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/30615-tokenpulse)
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/releases)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/releases)
 [![CI](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> ⚠️ **Beta Release** — This is an early release (v0.1.0). Features may change and some functionality may be incomplete. Please [report issues](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/issues) on GitHub.
+> ⚠️ **Beta Release** — This is an early release (v0.2.0). Features may change and some functionality may be incomplete. Please [report issues](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/issues) on GitHub.
 
-**TokenPulse β** is an IntelliJ IDEA plugin that aggregates token balances and credit usage across multiple AI providers directly in your IDE status bar.
+**TokenPulse** is an IntelliJ IDEA plugin that aggregates token balances and credit usage across multiple AI providers directly in your IDE status bar.
 
 <p align="center">
   <img src="docs/images/dashboard-screenshot.png" alt="TokenPulse Dashboard" />
@@ -20,7 +20,7 @@
   - **OpenRouter** — Provisioning Key with credits tracking
   - **Cline** — API Key for personal and organization accounts
   - **OpenAI Platform** — Admin API Key (`sk-admin-...`) for organization usage/cost data
-  - **ChatGPT Subscription** — OAuth flow for Pro/Plus subscription tracking
+  - **ChatGPT (Codex CLI)** — CLI-based usage tracking via Codex CLI
   - **Nebius AI Studio** — Cookie-based auth with trial/paid balance
   - **Claude Code** — CLI-based usage extraction via `claude` command
 - **🔄 Smart Refresh** — Configurable auto-refresh with TTL caching and single-flight coalescing to avoid rate limits.
@@ -44,7 +44,7 @@
 
 ## Setup
 
-1. Open **Settings** → **Tools** → **TokenPulse β**.
+1. Open **Settings** → **Tools** → **TokenPulse**.
 2. Click **+** to add a provider account:
    - Select the **Provider** (Cline, OpenRouter, Nebius, OpenAI, ChatGPT, or Claude).
    - Follow the provider-specific instructions in the dialog.
@@ -58,7 +58,7 @@
 | Cline | API Key | https://app.cline.bot/dashboard/account?tab=api-keys |
 | OpenRouter | **Provisioning Key** | https://openrouter.ai/settings/provisioning-keys |
 | OpenAI Platform | **Admin API Key** (`sk-admin-...`) | https://platform.openai.com/settings/organization/admin-keys |
-| ChatGPT Subscription | **OAuth** | Click "Sign in with ChatGPT" in the dialog |
+| ChatGPT (Codex CLI) | **CLI** | Requires `codex` CLI installed and authenticated |
 | Nebius AI Studio | **Billing Session** | Click "Connect Billing Session →" and follow the 3-step guide |
 | Claude Code | **CLI** | Requires `claude` CLI installed and authenticated |
 
@@ -67,13 +67,13 @@
 
 ## Status Bar Display
 
-TokenPulse β offers flexible status bar display options:
+TokenPulse offers flexible status bar display options:
 
 - **Auto Mode** — Adapts based on your first provider (shows % for Claude/ChatGPT, $ for others)
 - **Total Dollars** — Shows combined balance across all dollar-based providers
 - **Single Provider** — Shows data from a specific selected provider
 
-Configure display preferences in **Settings** → **Tools** → **TokenPulse β**.
+Configure display preferences in **Settings** → **Tools** → **TokenPulse**.
 
 ## FAQ
 
@@ -139,7 +139,7 @@ on Linux). They are never written to plain-text settings files.
 ### The status bar shows "—" or "Error"
 
 - **Auth Error** — the key is invalid or has been revoked. Re-generate it from the provider's dashboard.
-- **Rate Limited** — too many requests. Increase the refresh interval in Settings → TokenPulse β.
+- **Rate Limited** — too many requests. Increase the refresh interval in Settings → TokenPulse.
 - **Error** — a network or API error. Check your internet connection and try "Refresh All" from the dashboard.
 - **$X.XX used** — OpenAI account showing usage data (not a balance).
 

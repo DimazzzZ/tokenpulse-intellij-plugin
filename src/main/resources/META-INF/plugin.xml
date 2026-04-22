@@ -17,7 +17,7 @@
         <li><b>OpenRouter</b> — Provisioning Key with credits tracking</li>
         <li><b>Cline</b> — API Key for personal and organization accounts</li>
         <li><b>OpenAI Platform</b> — Admin API Key with usage/costs via Organization APIs</li>
-        <li><b>ChatGPT Subscription</b> — OAuth flow for Pro/Plus subscription tracking</li>
+        <li><b>ChatGPT (Codex CLI)</b> — CLI-based usage tracking via Codex CLI</li>
         <li><b>Nebius AI Studio</b> — Cookie-based auth with trial/paid balance</li>
         <li><b>Claude Code</b> — CLI-based usage extraction</li>
     </ul>
@@ -32,9 +32,18 @@
     ]]></description>
 
     <change-notes><![CDATA[
+    <b>0.2.0</b> — Stabilization and Codex CLI update (2026-04-22)<br>
+    <ul>
+        <li><b>Codex CLI integration:</b> ChatGPT now uses Codex CLI for simpler setup without OAuth</li>
+        <li><b>Improved reliability:</b> Better credential handling and reduced notification spam</li>
+        <li><b>Nebius improvements:</b> Enhanced balance extraction and connection handling</li>
+        <li><b>Code quality:</b> Removed dead code, fixed warnings, improved exception handling</li>
+        <li><b>Removed:</b> Legacy ChatGPT OAuth flow (replaced with Codex CLI)</li>
+    </ul>
+    <br>
     <b>0.1.0</b> — Initial beta release (2026-03-10)<br>
     <ul>
-        <li><b>Multi-provider support:</b> OpenRouter, Cline, OpenAI Platform, ChatGPT Subscription, Nebius AI Studio, Claude Code</li>
+        <li><b>Multi-provider support:</b> OpenRouter, Cline, OpenAI Platform, Nebius AI Studio, Claude Code</li>
         <li><b>Status bar widget:</b> Live aggregate balance in your IDE</li>
         <li><b>Dashboard:</b> Per-account details with status, credits, tokens, and timestamps</li>
         <li><b>Settings page:</b> Full CRUD account management under Tools → TokenPulse</li>

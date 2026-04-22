@@ -41,12 +41,15 @@ class WhatsNewNotificationActivity : ProjectActivity {
         NotificationGroupManager.getInstance()
             .getNotificationGroup("TokenPulse Updates")
             .createNotification(
-                "TokenPulse β Updated to v$version",
+                "TokenPulse Updated to v$version",
                 """
-                <b>New in this version:</b><br/>
-                • Improved quality gates with Detekt analysis<br/>
-                • Centralized project metadata management<br/>
-                • Automated release workflows and CI improvements
+                <b>Thank you for sticking with TokenPulse!</b><br/>
+                I really appreciate everyone who waited for fixes after 0.1.0.<br/><br/>
+                <b>New in v$version:</b><br/>
+                • ChatGPT now uses Codex CLI for simpler setup (no OAuth)<br/>
+                • Improved credential handling and reduced notification spam<br/>
+                • Better Nebius balance extraction and connection reliability<br/>
+                • Code quality improvements and bug fixes
                 """.trimIndent(),
                 NotificationType.INFORMATION
             )

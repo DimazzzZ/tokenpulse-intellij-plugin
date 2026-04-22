@@ -1,6 +1,6 @@
 # 🛠️ Development Guide
 
-This guide covers development setup, building, testing, and contributing to the TokenPulse β IntelliJ Plugin.
+This guide covers development setup, building, testing, and contributing to the TokenPulse IntelliJ Plugin.
 
 ## 📋 Prerequisites
 
@@ -91,7 +91,7 @@ token-pulse/
 
 All versioning and platform compatibility info is centralized in **`gradle.properties`**:
 ```properties
-pluginVersion = 0.1.0
+pluginVersion = 0.2.0
 pluginSinceBuild = 242
 platformVersion = 2024.2
 ```
@@ -125,6 +125,6 @@ Code quality is enforced via **Detekt**. The build will fail if any issues are f
 
 1. Update version in `gradle.properties`.
 2. Add a new entry to `CHANGELOG.md`.
-3. Create a git tag: `git tag v0.1.0` and push it.
+3. Create a git tag: `git tag v0.2.0` and push it.
 4. CI will automatically create a GitHub Release and attach the ZIP artifact.
 5. **Manually publish** the signed artifact to the JetBrains Marketplace (see `MARKETPLACE.md`).
