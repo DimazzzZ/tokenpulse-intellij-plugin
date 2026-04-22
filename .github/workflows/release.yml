@@ -179,18 +179,23 @@ jobs:
 
     steps:
     - name: Validate required secrets
+      env:
+        PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
+        CERTIFICATE_CHAIN: ${{ secrets.CERTIFICATE_CHAIN }}
+        PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
       run: |
         missing_secrets=""
-        if [ -z "${{ secrets.PUBLISH_TOKEN }}" ]; then
+        if [ -z "$PUBLISH_TOKEN" ]; then
           missing_secrets="${missing_secrets}PUBLISH_TOKEN "
         fi
-        if [ -z "${{ secrets.CERTIFICATE_CHAIN }}" ]; then
+        if [ -z "$CERTIFICATE_CHAIN" ]; then
           missing_secrets="${missing_secrets}CERTIFICATE_CHAIN "
         fi
-        if [ -z "${{ secrets.PRIVATE_KEY }}" ]; then
+        if [ -z "$PRIVATE_KEY" ]; then
           missing_secrets="${missing_secrets}PRIVATE_KEY "
         fi
-        if [ -z "${{ secrets.PRIVATE_KEY_PASSWORD }}" ]; then
+        if [ -z "$PRIVATE_KEY_PASSWORD" ]; then
           missing_secrets="${missing_secrets}PRIVATE_KEY_PASSWORD "
         fi
         
