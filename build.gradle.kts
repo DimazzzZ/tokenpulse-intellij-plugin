@@ -85,6 +85,9 @@ tasks.register<io.gitlab.arturbosch.detekt.Detekt>("detektSarif") {
     description = "Runs detekt and generates SARIF report for GitHub Code Scanning"
     group = "verification"
 
+    buildUponDefaultConfig = true
+    config.setFrom("$projectDir/config/detekt/detekt.yml")
+
     setSource(files("src/main/kotlin"))
     include("**/*.kt")
     exclude("**/test/**", "**/*Test.kt")
