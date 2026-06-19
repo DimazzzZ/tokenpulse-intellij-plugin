@@ -94,6 +94,28 @@ enum class ConnectionType(
         displayName = "Billing Session",
         description = "Browser session for Token Factory billing. Captured automatically.",
         defaultAuthType = AuthType.NEBIUS_BILLING_SESSION
+    ),
+
+    /**
+     * Xiaomi MiMo API - pay-as-you-go billing.
+     * Uses API key for chat completions, session capture for balance tracking.
+     */
+    XIAOMI_API(
+        provider = Provider.XIAOMI,
+        displayName = "API (Pay-as-you-go)",
+        description = "Pay-as-you-go API key. Balance tracked via Xiaomi platform session.",
+        defaultAuthType = AuthType.XIAOMI_API_KEY
+    ),
+
+    /**
+     * Xiaomi MiMo Token Plan - subscription with Credits quota.
+     * Uses Token Plan API key, session capture for Credits usage tracking.
+     */
+    XIAOMI_TOKEN_PLAN(
+        provider = Provider.XIAOMI,
+        displayName = "Token Plan",
+        description = "Token Plan subscription with Credits quota. Tracked via Xiaomi platform session.",
+        defaultAuthType = AuthType.XIAOMI_TOKEN_PLAN_KEY
     );
 
     /**
@@ -129,13 +151,21 @@ enum class ConnectionType(
             CLAUDE_CODE -> emptySet() // Uses metadata percentage, not dollar formats
             // Codex CLI uses percentage from metadata (not Credits)
             CODEX_CLI -> emptySet() // Uses metadata percentage, not dollar formats
+            // Xiaomi API has dollar balance, supports all formats
+            XIAOMI_API -> setOf(
+                StatusBarDollarFormat.REMAINING_ONLY,
+                StatusBarDollarFormat.USED_OF_REMAINING,
+                StatusBarDollarFormat.PERCENTAGE_REMAINING
+            )
+            // Xiaomi Token Plan uses Credits (percentage-based)
+            XIAOMI_TOKEN_PLAN -> emptySet() // Uses Credits percentage, not dollar formats
         }
 
     /**
      * Returns true if this connection type uses percentage-based display (not dollar formats).
      */
     val usesPercentageDisplay: Boolean
-        get() = this == CLAUDE_CODE || this == CODEX_CLI
+        get() = this == CLAUDE_CODE || this == CODEX_CLI || this == XIAOMI_TOKEN_PLAN
 
     /**
      * Whether this connection type is currently available for use.

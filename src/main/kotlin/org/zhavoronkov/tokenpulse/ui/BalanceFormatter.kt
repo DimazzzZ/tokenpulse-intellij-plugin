@@ -19,7 +19,8 @@ object BalanceFormatter {
     /** Connection types that report usage as percentage (not dollars). */
     private val usagePercentageTypes = setOf(
         ConnectionType.CLAUDE_CODE,
-        ConnectionType.CODEX_CLI
+        ConnectionType.CODEX_CLI,
+        ConnectionType.XIAOMI_TOKEN_PLAN
     )
 
     /**
@@ -42,10 +43,48 @@ object BalanceFormatter {
     fun formatUsagePercentageForStatusBar(
         result: ProviderResult.Success,
         format: StatusBarFormat,
-        provider: Provider? = null
+        provider: Provider? = null,
+        dollarFormat: StatusBarDollarFormat? = null
     ): String {
         val metadata = result.snapshot.metadata
         val connectionType = result.snapshot.connectionType
+
+        // For XIAOMI_TOKEN_PLAN with non-percentage format, show credits data
+        if (connectionType == ConnectionType.XIAOMI_TOKEN_PLAN && dollarFormat != null &&
+            dollarFormat != StatusBarDollarFormat.PERCENTAGE_REMAINING
+        ) {
+            val tokens = result.snapshot.balance.tokens
+            if (tokens != null) {
+                val effectiveFormat = dollarFormat
+                val text = when (effectiveFormat) {
+                    StatusBarDollarFormat.USED_OF_REMAINING -> {
+                        val used = tokens.used
+                        val total = tokens.total
+                        if (used != null && total != null) {
+                            when (format) {
+                                StatusBarFormat.COMPACT -> "${formatShortCredits(used)} / ${formatShortCredits(total)}"
+                                StatusBarFormat.DESCRIPTIVE -> "${formatShortCredits(used)} used of ${formatShortCredits(total)} Credits"
+                            }
+                        } else {
+                            "--"
+                        }
+                    }
+                    StatusBarDollarFormat.REMAINING_ONLY -> {
+                        val remaining = tokens.remaining
+                        if (remaining != null) {
+                            when (format) {
+                                StatusBarFormat.COMPACT -> formatShortCredits(remaining)
+                                StatusBarFormat.DESCRIPTIVE -> "${formatShortCredits(remaining)} Credits remaining"
+                            }
+                        } else {
+                            "--"
+                        }
+                    }
+                    else -> "--"
+                }
+                return if (provider != null && text != "--") "$text (${provider.abbreviation})" else text
+            }
+        }
 
         // Extract usage percentages based on connection type
         val usageData = when (connectionType) {
@@ -64,6 +103,10 @@ object BalanceFormatter {
                 val fiveHour = metadata["fiveHourUsed"]?.toFloatOrNull()?.toInt()
                 val weekly = metadata["weeklyUsed"]?.toFloatOrNull()?.toInt()
                 UsageData(fiveHour, weekly, "5h", "wk")
+            }
+            ConnectionType.XIAOMI_TOKEN_PLAN -> {
+                val used = metadata["sessionUsed"]?.toIntOrNull()
+                UsageData(used, null, "Credits", "")
             }
             else -> UsageData(null, null, "", "")
         }
@@ -110,6 +153,37 @@ object BalanceFormatter {
         } else {
             joined
         }
+    }
+
+    /**
+     * Formats a credit count as a short human-readable string.
+     * Examples: 123, 1.5K, 2.3M, 3.3B
+     */
+    fun formatShortCredits(credits: Long): String {
+        return when {
+            credits < 1_000 -> credits.toString()
+            credits < 1_000_000 -> {
+                val k = credits / 1_000.0
+                if (k == k.toLong().toDouble()) "${k.toLong()}K" else "%.1fK".format(k)
+            }
+            credits < 1_000_000_000 -> {
+                val m = credits / 1_000_000.0
+                if (m == m.toLong().toDouble()) "${m.toLong()}M" else "%.1fM".format(m)
+            }
+            else -> {
+                val b = credits / 1_000_000_000.0
+                if (b == b.toLong().toDouble()) "${b.toLong()}B" else "%.1fB".format(b)
+            }
+        }
+    }
+
+    /**
+     * Formats a dollar amount as a short human-readable string with $ prefix.
+     * Examples: $123, $1.5K, $2.3M, $3.3B
+     */
+    fun formatShortDollars(amount: BigDecimal): String {
+        val value = amount.setScale(0, RoundingMode.HALF_UP).toLong()
+        return "$${formatShortCredits(value)}"
     }
 
     /**
@@ -248,7 +322,8 @@ object BalanceFormatter {
     fun formatCreditsForStatusBar(
         credits: Credits,
         dollarFormat: StatusBarDollarFormat,
-        provider: Provider? = null
+        provider: Provider? = null,
+        format: StatusBarFormat = StatusBarFormat.COMPACT
     ): String {
         val remaining = credits.remaining
         val used = credits.used
@@ -266,8 +341,8 @@ object BalanceFormatter {
         val effectiveFormat = capability.bestAvailable(dollarFormat)
 
         val text = when (effectiveFormat) {
-            StatusBarDollarFormat.REMAINING_ONLY -> formatRemainingOnly(remaining, used)
-            StatusBarDollarFormat.USED_OF_REMAINING -> formatUsedOfRemaining(used, remaining)
+            StatusBarDollarFormat.REMAINING_ONLY -> formatRemainingOnly(remaining, used, format)
+            StatusBarDollarFormat.USED_OF_REMAINING -> formatUsedOfRemaining(used, remaining, format)
             StatusBarDollarFormat.PERCENTAGE_REMAINING -> formatPercentageRemaining(remaining, used, total)
         }
 
@@ -278,18 +353,41 @@ object BalanceFormatter {
         }
     }
 
-    private fun formatRemainingOnly(remaining: BigDecimal?, used: BigDecimal?): String {
-        if (remaining != null) return "\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
-        if (used != null) return "\$${used.setScale(0, RoundingMode.HALF_UP)} used"
+    private fun formatRemainingOnly(remaining: BigDecimal?, used: BigDecimal?, format: StatusBarFormat): String {
+        if (remaining != null) {
+            return when (format) {
+                StatusBarFormat.COMPACT -> formatShortDollars(remaining)
+                StatusBarFormat.DESCRIPTIVE -> "${formatShortDollars(remaining)} remaining"
+            }
+        }
+        if (used != null) {
+            return when (format) {
+                StatusBarFormat.COMPACT -> "${formatShortDollars(used)} used"
+                StatusBarFormat.DESCRIPTIVE -> "${formatShortDollars(used)} used"
+            }
+        }
         return "--"
     }
 
-    private fun formatUsedOfRemaining(used: BigDecimal?, remaining: BigDecimal?): String {
+    private fun formatUsedOfRemaining(used: BigDecimal?, remaining: BigDecimal?, format: StatusBarFormat): String {
         if (used != null && remaining != null) {
-            return "\$${used.setScale(0, RoundingMode.HALF_UP)}/\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
+            return when (format) {
+                StatusBarFormat.COMPACT -> "${formatShortDollars(used)} / ${formatShortDollars(remaining)}"
+                StatusBarFormat.DESCRIPTIVE -> "${formatShortDollars(used)} used of ${formatShortDollars(remaining)}"
+            }
         }
-        if (remaining != null) return "\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
-        if (used != null) return "\$${used.setScale(0, RoundingMode.HALF_UP)} used"
+        if (remaining != null) {
+            return when (format) {
+                StatusBarFormat.COMPACT -> formatShortDollars(remaining)
+                StatusBarFormat.DESCRIPTIVE -> "${formatShortDollars(remaining)} remaining"
+            }
+        }
+        if (used != null) {
+            return when (format) {
+                StatusBarFormat.COMPACT -> "${formatShortDollars(used)} used"
+                StatusBarFormat.DESCRIPTIVE -> "${formatShortDollars(used)} used"
+            }
+        }
         return "--"
     }
 

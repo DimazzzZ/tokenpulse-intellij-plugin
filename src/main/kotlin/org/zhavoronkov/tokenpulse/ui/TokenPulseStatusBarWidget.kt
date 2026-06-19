@@ -38,6 +38,9 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
 
     companion object {
         private const val MAX_DISPLAY_LENGTH = 20
+        private const val THOUSAND = 1_000L
+        private const val MILLION = 1_000_000L
+        private const val BILLION = 1_000_000_000L
     }
 
     override fun ID(): String = "TokenPulse"
@@ -96,28 +99,20 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
         format: org.zhavoronkov.tokenpulse.settings.StatusBarFormat
     ): String {
         val settings = TokenPulseSettingsService.getInstance().state
-        val firstAccount = enabledAccounts.firstOrNull() ?: return "TP: --"
-        val firstResult = successfulResults[firstAccount.id]
 
-        // Check if first provider is usage-percentage type
-        if (BalanceFormatter.isUsagePercentageType(firstAccount.connectionType)) {
-            // Show usage percentage for the first provider
-            return if (firstResult != null) {
-                "TP: ${BalanceFormatter.formatUsagePercentageForStatusBar(firstResult, format)}"
-            } else {
-                "TP: --"
+        for (account in enabledAccounts) {
+            val result = successfulResults[account.id] ?: continue
+            if (BalanceFormatter.isUsagePercentageType(account.connectionType)) {
+                return "TP: ${BalanceFormatter.formatUsagePercentageForStatusBar(result, format, null, settings.statusBarDollarFormat)}"
             }
-        }
-
-        // First provider is dollar-based - show with new dollar format
-        if (firstResult != null) {
-            val credits = firstResult.snapshot.balance.credits
+            val credits = result.snapshot.balance.credits
             if (credits != null) {
-                val provider = firstAccount.connectionType.provider
+                val provider = account.connectionType.provider
                 return "TP: ${BalanceFormatter.formatCreditsForStatusBar(
                     credits,
                     settings.statusBarDollarFormat,
-                    provider
+                    provider,
+                    format
                 )}"
             }
         }
@@ -174,20 +169,28 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
             null
         } ?: enabledAccounts.firstOrNull() ?: return "TP: --"
 
-        val result = successfulResults[primaryAccount.id] ?: return "TP: --"
-        val provider = primaryAccount.connectionType.provider
+        // Try primary account first, fall back to first account with data
+        val activeAccount = if (successfulResults.containsKey(primaryAccount.id)) {
+            primaryAccount
+        } else {
+            enabledAccounts.firstOrNull { successfulResults.containsKey(it.id) }
+        } ?: return "TP: --"
+
+        val result = successfulResults[activeAccount.id] ?: return "TP: --"
+        val provider = activeAccount.connectionType.provider
 
         // Format based on provider type
-        return if (BalanceFormatter.isUsagePercentageType(primaryAccount.connectionType)) {
-            "TP: ${BalanceFormatter.formatUsagePercentageForStatusBar(result, format, provider)}"
+        val formatted = if (BalanceFormatter.isUsagePercentageType(activeAccount.connectionType)) {
+            BalanceFormatter.formatUsagePercentageForStatusBar(result, format, provider, settings.statusBarDollarFormat)
         } else {
             val credits = result.snapshot.balance.credits
             if (credits != null) {
-                "TP: ${BalanceFormatter.formatCreditsForStatusBar(credits, settings.statusBarDollarFormat, provider)}"
+                BalanceFormatter.formatCreditsForStatusBar(credits, settings.statusBarDollarFormat, provider, format)
             } else {
-                "TP: --"
+                "--"
             }
         }
+        return if (formatted == "--") "TP: --" else "TP: $formatted"
     }
 
     /**
@@ -241,14 +244,12 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
 
                         if (snapshot.connectionType == ConnectionType.NEBIUS_BILLING && breakdown != null) {
                             appendNebiusBreakdownRows(breakdown)
-                        } else if (snapshot.connectionType ==
-                            ConnectionType.CODEX_CLI
-                        ) {
+                        } else if (snapshot.connectionType == ConnectionType.CODEX_CLI) {
                             appendCodexRows(snapshot.metadata)
-                        } else if (snapshot.connectionType ==
-                            ConnectionType.CLAUDE_CODE
-                        ) {
+                        } else if (snapshot.connectionType == ConnectionType.CLAUDE_CODE) {
                             appendClaudeCodeRows(snapshot.metadata)
+                        } else if (snapshot.connectionType == ConnectionType.XIAOMI_TOKEN_PLAN) {
+                            appendXiaomiTokenPlanRows(snapshot.metadata, snapshot.balance.tokens)
                         } else {
                             appendCreditsRows(snapshot.balance.credits, snapshot.connectionType)
                         }
@@ -461,6 +462,40 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
         if (status != null) {
             append("<tr><td colspan='2' style='padding-top: 4px;'>")
             append("<font size='-2' color='gray'>Status: $status</font></td></tr>")
+        }
+    }
+
+    private fun StringBuilder.appendXiaomiTokenPlanRows(
+        metadata: Map<String, String>?,
+        tokens: org.zhavoronkov.tokenpulse.model.Tokens?
+    ) {
+        if (metadata == null && tokens == null) {
+            append("<tr><td colspan='2'><i>No usage data</i></td></tr>")
+            return
+        }
+
+        val usedPercent = metadata?.get("sessionUsed")?.toIntOrNull()
+        val planUsed = tokens?.used
+        val planTotal = tokens?.total
+
+        if (usedPercent != null) {
+            val remaining = 100 - usedPercent
+            append("<tr><td>Credits remaining:</td><td align='right'><b>$remaining%</b></td></tr>")
+        }
+
+        if (planUsed != null && planTotal != null && planTotal > 0) {
+            val usedFormatted = formatCredits(planUsed)
+            val totalFormatted = formatCredits(planTotal)
+            append("<tr><td>Used:</td><td align='right'>$usedFormatted / $totalFormatted</td></tr>")
+        }
+    }
+
+    private fun formatCredits(credits: Long): String {
+        return when {
+            credits >= BILLION -> String.format(java.util.Locale.US, "%.1fB", credits / BILLION.toDouble())
+            credits >= MILLION -> String.format(java.util.Locale.US, "%.1fM", credits / MILLION.toDouble())
+            credits >= THOUSAND -> String.format(java.util.Locale.US, "%.1fK", credits / THOUSAND.toDouble())
+            else -> credits.toString()
         }
     }
 
