@@ -117,7 +117,7 @@ style:
     active: true
   ReturnCount:
     active: true
-    max: 8
+    max: 5
     excludeLabeled: true
     excludeReturnFromLambda: true
     excludeGuardClauses: true
@@ -161,7 +161,7 @@ complexity:
   CyclomaticComplexMethod:
     active: true
     # Increased to 30 for complex provider/UI methods
-    threshold: 30
+    threshold: 20
   NestedBlockDepth:
     active: true
     # Increased to 6 for complex async/callback patterns

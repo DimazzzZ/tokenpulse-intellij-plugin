@@ -27,7 +27,7 @@ import java.math.RoundingMode
 
 class TokenPulseStatusBarWidgetFactory : StatusBarWidgetFactory {
     override fun getId(): String = "TokenPulse"
-    override fun getDisplayName(): String = "TokenPulse β"
+    override fun getDisplayName(): String = org.zhavoronkov.tokenpulse.utils.Constants.DISPLAY_NAME
     override fun isAvailable(project: Project): Boolean = true
     override fun createWidget(project: Project): StatusBarWidget = TokenPulseStatusBarWidget()
     override fun canBeEnabledOn(statusBar: StatusBar): Boolean = true
@@ -218,7 +218,7 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
         val rows = buildString {
             // Header summary
             append("<tr><td colspan='2' style='padding-bottom: 4px;'>")
-            append("<b>TokenPulse β Summary</b></td></tr>")
+            append("<b>${org.zhavoronkov.tokenpulse.utils.Constants.DISPLAY_NAME} Summary</b></td></tr>")
             append("<tr><td>Active:</td><td align='right'>$successCount connected")
             val errSuffix = if (errorCount > 1) "s" else ""
             if (errorCount > 0) append(", <font color='#CC4444'>$errorCount error$errSuffix</font>")
@@ -509,7 +509,7 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
         return """
             <html>
             <table border='0' cellpadding='1' cellspacing='0'>
-              <tr><td colspan='2'><b>TokenPulse β</b></td></tr>
+              <tr><td colspan='2'><b>${org.zhavoronkov.tokenpulse.utils.Constants.DISPLAY_NAME}</b></td></tr>
               <tr height='2'><td></td></tr>
               <tr><td colspan='2'>$message</td></tr>
               $hintRow
@@ -578,7 +578,7 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
         })
 
         return JBPopupFactory.getInstance().createActionGroupPopup(
-            "TokenPulse β",
+            org.zhavoronkov.tokenpulse.utils.Constants.DISPLAY_NAME,
             group,
             com.intellij.openapi.actionSystem.DataContext.EMPTY_CONTEXT,
             JBPopupFactory.ActionSelectionAid.SPEEDSEARCH,

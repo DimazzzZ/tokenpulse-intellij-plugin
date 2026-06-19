@@ -14,6 +14,7 @@ import org.zhavoronkov.tokenpulse.provider.ProviderClient
 import org.zhavoronkov.tokenpulse.settings.Account
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.Instant
 
 /**
  * Provider client for the Cline AI coding assistant service.
@@ -62,6 +63,7 @@ class ClineProviderClient(
                 BalanceSnapshot(
                     accountId = account.id,
                     connectionType = ConnectionType.CLINE_API,
+                    timestamp = Instant.now(),
                     balance = Balance(
                         credits = Credits(
                             remaining = creditsToUsd(balanceVal),
@@ -81,7 +83,7 @@ class ClineProviderClient(
     override fun testCredentials(account: Account, secret: String): ProviderResult {
         return when (val result = fetchMe(secret)) {
             is MeResult.Success -> ProviderResult.Success(
-                BalanceSnapshot("test", ConnectionType.CLINE_API, Balance())
+                BalanceSnapshot("test", ConnectionType.CLINE_API, Balance(), timestamp = Instant.now())
             )
             is MeResult.Failure.Auth -> ProviderResult.Failure.AuthError(result.message)
             is MeResult.Failure.RateLimited -> ProviderResult.Failure.RateLimited(result.message)
@@ -157,14 +159,7 @@ class ClineProviderClient(
     private data class UserInfoWrapper(val data: UserResponse?)
 
     private data class UserResponse(
-        val id: String,
-        val organizations: List<OrgInfo>?
-    )
-
-    private data class OrgInfo(
-        val organizationId: String,
-        val memberId: String,
-        val active: Boolean
+        val id: String
     )
 
     private data class BalanceResponse(val balance: BigDecimal)

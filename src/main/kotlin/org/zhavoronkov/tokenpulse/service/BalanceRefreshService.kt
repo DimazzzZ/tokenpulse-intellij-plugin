@@ -10,7 +10,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -18,8 +17,10 @@ import org.zhavoronkov.tokenpulse.model.ProviderResult
 import org.zhavoronkov.tokenpulse.settings.CredentialsStore
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
 import org.zhavoronkov.tokenpulse.ui.TokenPulseNotifier
+import org.zhavoronkov.tokenpulse.utils.Constants
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration.Companion.seconds
 
 @Service(Service.Level.APP)
 class BalanceRefreshService : Disposable {
@@ -51,7 +52,7 @@ class BalanceRefreshService : Disposable {
     private val notificationTracker = ConcurrentHashMap<String, Long>()
 
     /** Minimum time between identical notifications for the same account (30 minutes). */
-    private val notificationThrottleMs = 30 * 60 * 1000L
+    private val notificationThrottleMs = Constants.NOTIFICATION_THROTTLE_MS
 
     init {
         startAutoRefresh()
@@ -165,20 +166,20 @@ class BalanceRefreshService : Disposable {
         val fingerprint = "$accountLabel:${new.javaClass.simpleName}:${normalizeErrorMessage(new.message)}"
         val now = System.currentTimeMillis()
 
-        // Check throttle for repeated identical notifications
-        val lastNotified = notificationTracker[fingerprint] ?: return
-
-        val elapsedMs = now - lastNotified
-        val shouldThrottle = elapsedMs < notificationThrottleMs
-        if (shouldThrottle) {
-            TokenPulseLogger.Service.debug(
-                "Suppressing duplicate notification for $accountLabel: ${new.message}"
-            )
-            return
-        }
-
         val shouldNotify = old == null || old is ProviderResult.Success ||
             (old is ProviderResult.Failure && old.javaClass != new.javaClass)
+
+        // Check throttle for repeated identical notifications
+        val lastNotified = notificationTracker[fingerprint]
+        if (lastNotified != null) {
+            val elapsedMs = now - lastNotified
+            if (elapsedMs < notificationThrottleMs) {
+                TokenPulseLogger.Service.debug(
+                    "Suppressing duplicate notification for $accountLabel: ${new.message}"
+                )
+                return
+            }
+        }
 
         if (shouldNotify) {
             val message = buildErrorMessage(accountLabel, new)

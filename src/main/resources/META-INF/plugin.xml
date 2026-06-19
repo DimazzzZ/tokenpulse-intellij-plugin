@@ -92,10 +92,14 @@
         <action id="TokenPulse.RefreshAll"
                 class="org.zhavoronkov.tokenpulse.actions.RefreshAllAction"
                 text="Refresh All Token Balances"
-                description="Force a refresh of all configured account balances"/>
+                description="Force a refresh of all configured account balances">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
         <action id="TokenPulse.OpenSettings"
                 class="org.zhavoronkov.tokenpulse.actions.OpenSettingsAction"
                 text="TokenPulse Settings..."
-                description="Configure AI provider accounts and refresh interval"/>
+                description="Configure AI provider accounts and refresh interval">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
     </actions>
 </idea-plugin>

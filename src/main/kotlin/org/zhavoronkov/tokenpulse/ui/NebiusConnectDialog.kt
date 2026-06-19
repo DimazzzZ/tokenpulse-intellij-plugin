@@ -152,6 +152,7 @@ class NebiusConnectDialog : DialogWrapper(true) {
         return try {
             gson.fromJson(text.substring(start, end + 1), NebiusProviderClient.NebiusSession::class.java)
         } catch (e: Exception) {
+            org.zhavoronkov.tokenpulse.utils.TokenPulseLogger.Provider.debug("Failed to parse JSON: ${e.message}")
             null
         }
     }

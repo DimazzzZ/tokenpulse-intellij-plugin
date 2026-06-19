@@ -31,7 +31,7 @@ class WelcomeNotificationActivity : ProjectActivity {
         NotificationGroupManager.getInstance()
             .getNotificationGroup("TokenPulse Notifications")
             .createNotification(
-                "Welcome to TokenPulse β!",
+                "Welcome to ${org.zhavoronkov.tokenpulse.utils.Constants.DISPLAY_NAME}!",
                 """
                 <html>
                 Track your AI token balances directly in the status bar.

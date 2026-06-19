@@ -42,15 +42,15 @@ class SecretRedactorTest {
     }
 
     @Test
-    fun `redact replaces long hex strings 32+ chars`() {
+    fun `redact does not replace long hex strings without prefix`() {
         val text = "Token: abcdef1234567890abcdef1234567890"
-        assertEquals("Token: [REDACTED]", SecretRedactor.redact(text))
+        assertEquals("Token: abcdef1234567890abcdef1234567890", SecretRedactor.redact(text))
     }
 
     @Test
-    fun `redact replaces long alphanumeric tokens 32+ chars`() {
+    fun `redact does not replace long alphanumeric tokens without prefix`() {
         val text = "API key is ABCDEFGHIJKLMNOPQRSTUVWXYZ123456"
-        assertEquals("API key is [REDACTED]", SecretRedactor.redact(text))
+        assertEquals("API key is ABCDEFGHIJKLMNOPQRSTUVWXYZ123456", SecretRedactor.redact(text))
     }
 
     @Test
@@ -88,7 +88,7 @@ class SecretRedactorTest {
         val text = """
             Line1: sk-abc12345678901234567890
             Line2: normal text
-            Line3: anotherSecret1234567890abcdef1234
+            Line3: or-abc123456789012345678901
         """.trimIndent()
         val expected = """
             Line1: [REDACTED]
@@ -115,5 +115,29 @@ class SecretRedactorTest {
     fun `redact does not match underscores in token`() {
         val text = "Token: abc_123_def_456_ghi_789_jkl_012"
         assertEquals("Token: abc_123_def_456_ghi_789_jkl_012", SecretRedactor.redact(text))
+    }
+
+    @Test
+    fun `redact replaces OpenRouter or- tokens`() {
+        val text = "Key is or-abcdef123456789012345678"
+        assertEquals("Key is [REDACTED]", SecretRedactor.redact(text))
+    }
+
+    @Test
+    fun `redact replaces Cline clnt- tokens`() {
+        val text = "Key is clnt-abcdef123456789012345678"
+        assertEquals("Key is [REDACTED]", SecretRedactor.redact(text))
+    }
+
+    @Test
+    fun `redact does not replace short or- tokens under 20 chars`() {
+        val text = "Key is or-short123"
+        assertEquals("Key is or-short123", SecretRedactor.redact(text))
+    }
+
+    @Test
+    fun `redact does not replace short clnt- tokens under 20 chars`() {
+        val text = "Key is clnt-short123"
+        assertEquals("Key is clnt-short123", SecretRedactor.redact(text))
     }
 }

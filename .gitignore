@@ -96,6 +96,9 @@ ml-llm/
 TOKENPULSE_PLAN.md
 openrouter-intellij-plugin
 
+# MimoCode
+.mimocode/
+
 # Plugin signing credentials (NEVER commit these!)
 *.pem
 *.crt

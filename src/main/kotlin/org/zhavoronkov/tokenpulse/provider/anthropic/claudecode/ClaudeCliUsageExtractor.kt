@@ -268,6 +268,7 @@ class ClaudeCliUsageExtractor {
             val output = process.inputStream.bufferedReader().readText().trim()
             if (process.waitFor() == 0 && output.isNotBlank()) output else null
         } catch (e: Exception) {
+            TokenPulseLogger.Provider.debug("Failed to find expect path: ${e.message}")
             null
         }
     }

@@ -10,6 +10,7 @@ import org.zhavoronkov.tokenpulse.model.Tokens
 import org.zhavoronkov.tokenpulse.provider.ProviderClient
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
+import java.time.Instant
 
 /**
  * Provider client for Codex CLI (ChatGPT Plus/Pro/Team).
@@ -117,6 +118,7 @@ class CodexProviderClient(
             BalanceSnapshot(
                 accountId = account.id,
                 connectionType = ConnectionType.CODEX_CLI,
+                timestamp = Instant.now(),
                 balance = Balance(
                     credits = Credits(used = null, total = null, remaining = null),
                     tokens = Tokens(used = totalUsed, total = TOTAL_TOKENS, remaining = totalRemaining)

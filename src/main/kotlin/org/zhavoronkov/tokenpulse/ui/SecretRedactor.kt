@@ -1,8 +1,9 @@
 package org.zhavoronkov.tokenpulse.ui
 
 object SecretRedactor {
-    // Matches sk-... (OpenAI/OpenRouter style), long hex strings, or long alphanumeric tokens
-    private val TOKEN_REGEX = Regex("""(?i)(Bearer\s+)?(sk-[a-zA-Z0-9]{20,}|[a-zA-Z0-9]{32,})""")
+    private val TOKEN_REGEX = Regex(
+        """(?i)(Bearer\s+)?(sk-[a-zA-Z0-9]{20,}|or-[a-zA-Z0-9]{20,}|clnt-[a-zA-Z0-9]{20,})"""
+    )
 
     /**
      * Redacts sensitive looking patterns from the given text.

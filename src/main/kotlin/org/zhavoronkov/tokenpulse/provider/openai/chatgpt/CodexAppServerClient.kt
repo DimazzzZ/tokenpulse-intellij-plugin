@@ -62,7 +62,11 @@ class CodexAppServerClient(
     private var inputWriter: OutputStreamWriter? = null
     private var outputReader: BufferedReader? = null
     private var errorReader: BufferedReader? = null
+
+    @Volatile
     private var isInitialized = false
+    private var stdoutReaderThread: Thread? = null
+    private var stderrReaderThread: Thread? = null
 
     /**
      * Captures stderr output during startup for diagnostics.
@@ -89,7 +93,12 @@ class CodexAppServerClient(
     var lastRateLimitsErrorMessage: String? = null
         private set
 
-    private val pendingCalls = ConcurrentHashMap<Int, CompletableFuture<JsonObject>>()
+    private val pendingCalls = ConcurrentHashMap<Int, PendingCall>()
+
+    private data class PendingCall(
+        val future: CompletableFuture<JsonObject>,
+        val method: String
+    )
     private val nextId = AtomicInteger(1)
 
     /**
@@ -130,11 +139,8 @@ class CodexAppServerClient(
             // Check if process is still alive before attempting initialize
             if (!process!!.isAlive) {
                 val exitCode = process!!.exitValue()
-                val stderrPreview = startupErrorBuffer.toString()
-                    .lineSequence()
-                    .take(5)
-                    .joinToString("\n")
-                    .takeIf { it.isNotBlank() }
+                val stderrPreview = getStderrPreview()
+                stop()
 
                 val result = CodexStartupResult(
                     success = false,
@@ -169,11 +175,8 @@ class CodexAppServerClient(
                 result
             }
         } catch (e: java.util.concurrent.TimeoutException) {
-            val stderrPreview = startupErrorBuffer.toString()
-                .lineSequence()
-                .take(5)
-                .joinToString("\n")
-                .takeIf { it.isNotBlank() }
+            stop()
+            val stderrPreview = getStderrPreview()
             val result = CodexStartupResult(
                 success = false,
                 errorMessage = "Codex app-server initialize timed out after ${INITIALIZE_TIMEOUT_SECONDS}s",
@@ -184,11 +187,8 @@ class CodexAppServerClient(
             TokenPulseLogger.Provider.error("Codex app-server initialize timed out", e)
             result
         } catch (e: Exception) {
-            val stderrPreview = startupErrorBuffer.toString()
-                .lineSequence()
-                .take(5)
-                .joinToString("\n")
-                .takeIf { it.isNotBlank() }
+            stop()
+            val stderrPreview = getStderrPreview()
             val result = CodexStartupResult(
                 success = false,
                 errorMessage = "Failed to start Codex app-server: ${e.message}",
@@ -204,6 +204,12 @@ class CodexAppServerClient(
     /**
      * Get the Codex CLI version string, or null if not available.
      */
+    private fun getStderrPreview(): String? = startupErrorBuffer.toString()
+        .lineSequence()
+        .take(5)
+        .joinToString("\n")
+        .takeIf { it.isNotBlank() }
+
     private fun getCodexVersion(): String? {
         return try {
             val processBuilder = ProcessBuilder(CODEX_COMMAND, "--version")
@@ -349,6 +355,8 @@ class CodexAppServerClient(
     fun stop() {
         try {
             isInitialized = false
+            stdoutReaderThread?.interrupt()
+            stderrReaderThread?.interrupt()
             process?.destroy()
             inputWriter?.close()
             outputReader?.close()
@@ -360,6 +368,8 @@ class CodexAppServerClient(
             inputWriter = null
             outputReader = null
             errorReader = null
+            stdoutReaderThread = null
+            stderrReaderThread = null
         }
     }
 
@@ -396,7 +406,7 @@ class CodexAppServerClient(
         }
 
         val future = CompletableFuture<JsonObject>()
-        pendingCalls[id] = future
+        pendingCalls[id] = PendingCall(future, method)
 
         TokenPulseLogger.Provider.debug("Codex JSON-RPC request: $method")
 
@@ -433,7 +443,7 @@ class CodexAppServerClient(
     }
 
     private fun startResponseReader() {
-        Thread {
+        stdoutReaderThread = Thread({
             try {
                 var line: String?
                 while (outputReader?.readLine().also { line = it } != null) {
@@ -442,9 +452,12 @@ class CodexAppServerClient(
             } catch (e: Exception) {
                 TokenPulseLogger.Provider.warn("Codex response reader error", e)
             }
-        }.start()
+        }, "codex-stdout-reader").apply {
+            isDaemon = true
+            start()
+        }
 
-        Thread {
+        stderrReaderThread = Thread({
             try {
                 var line: String?
                 while (errorReader?.readLine().also { line = it } != null) {
@@ -453,14 +466,17 @@ class CodexAppServerClient(
             } catch (_: Exception) {
                 // Ignore stderr read errors
             }
-        }.start()
+        }, "codex-stderr-reader").apply {
+            isDaemon = true
+            start()
+        }
     }
 
     /**
      * Classify a JSON-RPC error message into a known error code.
      * Handles both simple messages and nested JSON body with error.code field.
      */
-    private fun classifyErrorCode(message: String): String {
+    internal fun classifyErrorCode(message: String): String {
         val lowerMessage = message.lowercase()
 
         // Check for nested JSON error code pattern: "code": "token_expired"
@@ -498,7 +514,8 @@ class CodexAppServerClient(
 
             if (response.has("id")) {
                 val id = response.get("id").asInt
-                val future = pendingCalls.remove(id)
+                val pendingCall = pendingCalls.remove(id)
+                val future = pendingCall?.future
 
                 if (response.has("error")) {
                     val error = response.getAsJsonObject("error")
@@ -508,8 +525,8 @@ class CodexAppServerClient(
                     // Never use JSON-RPC error.code (-32603) for UX classification
                     val code = classifyErrorCode(message)
 
-                    // Store error info for rateLimits method calls
-                    future?.let {
+                    // Only store error info for rateLimits method calls
+                    if (pendingCall?.method == "account/rateLimits/read") {
                         lastRateLimitsErrorCode = code
                         lastRateLimitsErrorMessage = message
                     }
@@ -533,29 +550,31 @@ class CodexAppServerClient(
     }
 
     private fun parseRateLimitsResponse(response: JsonObject): RateLimits {
-        val result = RateLimits()
+        var primary: RateLimitBucket? = null
+        var secondary: RateLimitBucket? = null
 
         response.getAsJsonObject("rateLimits")?.let { rateLimits ->
-            rateLimits.getAsJsonObject("primary")?.let { result.primary = parseRateLimitBucket(it) }
-            rateLimits.getAsJsonObject("secondary")?.let { result.secondary = parseRateLimitBucket(it) }
+            rateLimits.getAsJsonObject("primary")?.let { primary = parseRateLimitBucket(it) }
+            rateLimits.getAsJsonObject("secondary")?.let { secondary = parseRateLimitBucket(it) }
         }
 
+        val bucketsById = mutableMapOf<String, RateLimitBucket>()
         response.getAsJsonObject("rateLimitsByLimitId")?.let { byId ->
             byId.keySet().forEach { limitId ->
                 val value = byId.get(limitId)
                 if (value is JsonObject) {
-                    val bucket = parseRateLimitBucket(value).also { it.limitId = limitId }
-                    result.bucketsById[limitId] = bucket
+                    val bucket = parseRateLimitBucket(value).copy(limitId = limitId)
+                    bucketsById[limitId] = bucket
                 }
             }
         }
 
-        result.bucketsByWindow[WINDOW_5_HOURS] =
-            result.bucketsById.values.filter { it.windowDurationMins == WINDOW_5_HOURS }
-        result.bucketsByWindow[WINDOW_WEEK] =
-            result.bucketsById.values.filter { it.windowDurationMins == WINDOW_WEEK }
+        val bucketsByWindow = mapOf(
+            WINDOW_5_HOURS to bucketsById.values.filter { it.windowDurationMins == WINDOW_5_HOURS },
+            WINDOW_WEEK to bucketsById.values.filter { it.windowDurationMins == WINDOW_WEEK }
+        )
 
-        result.codeReviewBucket = result.bucketsById.values.find { bucket ->
+        val codeReviewBucket = bucketsById.values.find { bucket ->
             bucket.windowDurationMins == WINDOW_WEEK &&
                 (
                     bucket.limitName?.contains("review", ignoreCase = true) == true ||
@@ -564,12 +583,18 @@ class CodexAppServerClient(
         }
 
         TokenPulseLogger.Provider.debug(
-            "Rate limits: primary=${result.primary?.usedPercent}%, " +
-                "5h_buckets=${result.bucketsByWindow[WINDOW_5_HOURS]?.size}, " +
-                "weekly_buckets=${result.bucketsByWindow[WINDOW_WEEK]?.size}"
+            "Rate limits: primary=${primary?.usedPercent}%, " +
+                "5h_buckets=${bucketsByWindow[WINDOW_5_HOURS]?.size}, " +
+                "weekly_buckets=${bucketsByWindow[WINDOW_WEEK]?.size}"
         )
 
-        return result
+        return RateLimits(
+            primary = primary,
+            secondary = secondary,
+            bucketsById = bucketsById,
+            bucketsByWindow = bucketsByWindow,
+            codeReviewBucket = codeReviewBucket
+        )
     }
 
     private fun parseRateLimitBucket(json: JsonObject): RateLimitBucket {
@@ -631,8 +656,8 @@ class CodexAppServerClient(
      * Represents a rate limit bucket with usage information.
      */
     data class RateLimitBucket(
-        var limitId: String? = null,
-        var limitName: String? = null,
+        val limitId: String? = null,
+        val limitName: String? = null,
         val usedPercent: Float? = null,
         val windowDurationMins: Int? = null,
         val resetsAt: Long? = null
@@ -647,11 +672,11 @@ class CodexAppServerClient(
      * 3. Any bucket with matching window from combined sources
      */
     data class RateLimits(
-        var primary: RateLimitBucket? = null,
-        var secondary: RateLimitBucket? = null,
-        val bucketsById: MutableMap<String, RateLimitBucket> = mutableMapOf(),
-        val bucketsByWindow: MutableMap<Int, List<RateLimitBucket>> = mutableMapOf(),
-        var codeReviewBucket: RateLimitBucket? = null
+        val primary: RateLimitBucket? = null,
+        val secondary: RateLimitBucket? = null,
+        val bucketsById: Map<String, RateLimitBucket> = emptyMap(),
+        val bucketsByWindow: Map<Int, List<RateLimitBucket>> = emptyMap(),
+        val codeReviewBucket: RateLimitBucket? = null
     ) {
         /**
          * Returns the 5-hour (300 min) rate limit bucket.

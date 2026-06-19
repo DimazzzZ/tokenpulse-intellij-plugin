@@ -13,6 +13,7 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.tokenpulse.model.ConnectionType
+import org.zhavoronkov.tokenpulse.model.ProviderResult
 import org.zhavoronkov.tokenpulse.service.BalanceRefreshService
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.settings.CredentialsStore
@@ -25,7 +26,6 @@ import javax.swing.JComponent
 
 class TokenPulseConfigurable : Configurable {
     private val settingsService = TokenPulseSettingsService.getInstance()
-    private val settings = settingsService.state
     private val tableModel = AccountTableModel()
     private val table = object : JBTable(tableModel) {
         override fun getToolTipText(e: java.awt.event.MouseEvent): String? {
@@ -36,7 +36,7 @@ class TokenPulseConfigurable : Configurable {
             val account = tableModel.getItem(convertRowIndexToModel(row))
             val result = BalanceRefreshService.getInstance().results.value[account.id]
 
-            if (result is org.zhavoronkov.tokenpulse.model.ProviderResult.Failure) {
+            if (result is ProviderResult.Failure) {
                 return result.message
             }
             return super.getToolTipText(e)
@@ -44,6 +44,18 @@ class TokenPulseConfigurable : Configurable {
     }
 
     private var myModified = false
+
+    // Local snapshot of settings — bound to UI, written back only in apply()
+    private var autoRefreshEnabled = true
+    private var refreshIntervalMinutes = 15
+    private var showCredits = true
+    private var showTokens = true
+    private var statusBarDisplayMode = StatusBarDisplayMode.AUTO
+    private var statusBarPrimaryAccountId: String? = null
+    private var statusBarFormat = StatusBarFormat.COMPACT
+    private var statusBarDollarFormat = StatusBarDollarFormat.USED_OF_REMAINING
+
+    private val tableModelListener = javax.swing.event.TableModelListener { myModified = true }
 
     // Status bar settings UI components
     private lateinit var displayModeCombo: ComboBox<StatusBarDisplayMode>
@@ -84,14 +96,23 @@ class TokenPulseConfigurable : Configurable {
     }
 
     override fun createComponent(): JComponent {
+        // Snapshot live settings so Cancel reverts cleanly
+        val liveSettings = settingsService.state
+        autoRefreshEnabled = liveSettings.autoRefreshEnabled
+        refreshIntervalMinutes = liveSettings.refreshIntervalMinutes
+        showCredits = liveSettings.showCredits
+        showTokens = liveSettings.showTokens
+        statusBarDisplayMode = liveSettings.statusBarDisplayMode
+        statusBarPrimaryAccountId = liveSettings.statusBarPrimaryAccountId
+        statusBarFormat = liveSettings.statusBarFormat
+        statusBarDollarFormat = liveSettings.statusBarDollarFormat
+
         // Deep copy accounts to prevent immediate mutation of saved settings when toggling checkboxes
-        tableModel.items = settings.accounts.map { it.copy() }.toMutableList()
+        tableModel.items = liveSettings.accounts.map { it.copy() }.toMutableList()
         configureTable()
 
         // Listen for table edits (like toggling 'Enabled' checkbox) to enable 'Apply' button
-        tableModel.addTableModelListener {
-            myModified = true
-        }
+        tableModel.addTableModelListener(tableModelListener)
 
         val decorator = createTableDecorator()
 
@@ -113,7 +134,7 @@ class TokenPulseConfigurable : Configurable {
                         renderer = com.intellij.ui.SimpleListCellRenderer.create("") { it.displayName }
                     )
                         .applyToComponent {
-                            selectedItem = settings.statusBarDisplayMode
+                            selectedItem = statusBarDisplayMode
                             addActionListener {
                                 myModified = true
                                 updatePrimaryAccountComboState()
@@ -126,7 +147,7 @@ class TokenPulseConfigurable : Configurable {
                     primaryAccountCombo = comboBox(buildAccountOptions())
                         .applyToComponent {
                             selectedItem = findSelectedAccountOption()
-                            isEnabled = settings.statusBarDisplayMode == StatusBarDisplayMode.SINGLE_PROVIDER
+                            isEnabled = statusBarDisplayMode == StatusBarDisplayMode.SINGLE_PROVIDER
                             addActionListener {
                                 myModified = true
                                 updateBalanceFormatComboState()
@@ -141,7 +162,7 @@ class TokenPulseConfigurable : Configurable {
                         renderer = com.intellij.ui.SimpleListCellRenderer.create("") { it.displayName }
                     )
                         .applyToComponent {
-                            selectedItem = settings.statusBarFormat
+                            selectedItem = statusBarFormat
                             addActionListener { myModified = true }
                         }
                         .component
@@ -152,7 +173,7 @@ class TokenPulseConfigurable : Configurable {
                         renderer = createBalanceFormatRenderer()
                     )
                         .applyToComponent {
-                            selectedItem = settings.statusBarDollarFormat
+                            selectedItem = statusBarDollarFormat
                             addActionListener {
                                 // Prevent selection of unsupported formats
                                 val selected = selectedItem as? StatusBarDollarFormat
@@ -178,20 +199,20 @@ class TokenPulseConfigurable : Configurable {
             group("General Settings") {
                 row {
                     checkBox("Enable auto-refresh")
-                        .bindSelected(settings::autoRefreshEnabled)
+                        .bindSelected(::autoRefreshEnabled)
                         .onChanged { myModified = true }
                 }
                 row("Refresh interval (minutes):") {
                     intTextField(1..MAX_MINUTES)
-                        .bindIntText(settings::refreshIntervalMinutes)
+                        .bindIntText(::refreshIntervalMinutes)
                         .onChanged { myModified = true }
                 }
                 row {
                     checkBox("Show credits (e.g. $6.00)")
-                        .bindSelected(settings::showCredits)
+                        .bindSelected(::showCredits)
                         .onChanged { myModified = true }
                     checkBox("Show tokens (e.g. 1,000)")
-                        .bindSelected(settings::showTokens)
+                        .bindSelected(::showTokens)
                         .onChanged { myModified = true }
                 }
             }
@@ -207,7 +228,7 @@ class TokenPulseConfigurable : Configurable {
     }
 
     private fun findSelectedAccountOption(): AccountOption {
-        val primaryId = settings.statusBarPrimaryAccountId ?: return AccountOption.FirstEnabled
+        val primaryId = statusBarPrimaryAccountId ?: return AccountOption.FirstEnabled
         val account = tableModel.items.find { it.id == primaryId }
         return if (account != null) AccountOption.Specific(account) else AccountOption.FirstEnabled
     }
@@ -335,39 +356,18 @@ class TokenPulseConfigurable : Configurable {
                 val secret = dialog.getSecret()
                 val connectionType = dialog.getConnectionType()
 
-                // Special handling for Codex CLI: only one account allowed
-                if (connectionType == ConnectionType.CODEX_CLI) {
+                // Special handling for single-instance providers (only one account allowed)
+                if (connectionType == ConnectionType.CODEX_CLI || connectionType == ConnectionType.CLAUDE_CODE) {
                     val existingIdx = tableModel.items.indexOfFirst {
-                        it.connectionType == ConnectionType.CODEX_CLI
+                        it.connectionType == connectionType
                     }
                     if (existingIdx != -1) {
                         val existing = tableModel.getItem(existingIdx)
-                        val updated = existing.copy(
-                            isEnabled = dialog.getIsEnabled()
-                        )
+                        val updated = existing.copy(isEnabled = dialog.getIsEnabled())
                         tableModel.setItem(existingIdx, updated)
                         Messages.showInfoMessage(
-                            "Codex CLI is already configured. The existing account has been updated.",
-                            "Account Updated"
-                        )
-                        myModified = true
-                        return@setAddAction
-                    }
-                }
-
-                // Special handling for Claude Code: only one account allowed
-                if (connectionType == ConnectionType.CLAUDE_CODE) {
-                    val existingIdx = tableModel.items.indexOfFirst {
-                        it.connectionType == ConnectionType.CLAUDE_CODE
-                    }
-                    if (existingIdx != -1) {
-                        val existing = tableModel.getItem(existingIdx)
-                        val updated = existing.copy(
-                            isEnabled = dialog.getIsEnabled()
-                        )
-                        tableModel.setItem(existingIdx, updated)
-                        Messages.showInfoMessage(
-                            "Claude Code is already configured. The existing account has been updated.",
+                            "${connectionType.fullDisplayName} is already configured. " +
+                                "The existing account has been updated.",
                             "Account Updated"
                         )
                         myModified = true
@@ -421,8 +421,17 @@ class TokenPulseConfigurable : Configurable {
 
     override fun isModified(): Boolean = myModified
 
+    override fun disposeUIResources() {
+        tableModel.removeTableModelListener(tableModelListener)
+    }
+
     override fun apply() {
+        val settings = settingsService.state
         settings.accounts = tableModel.items.toList()
+        settings.autoRefreshEnabled = autoRefreshEnabled
+        settings.refreshIntervalMinutes = refreshIntervalMinutes
+        settings.showCredits = showCredits
+        settings.showTokens = showTokens
 
         // Apply status bar settings
         settings.statusBarDisplayMode = displayModeCombo.selectedItem as? StatusBarDisplayMode
@@ -441,7 +450,7 @@ class TokenPulseConfigurable : Configurable {
         myModified = false
     }
 
-    override fun getDisplayName(): String = "TokenPulse β"
+    override fun getDisplayName(): String = org.zhavoronkov.tokenpulse.utils.Constants.DISPLAY_NAME
 
     /**
      * Returns a display-safe preview string for the stored secret.

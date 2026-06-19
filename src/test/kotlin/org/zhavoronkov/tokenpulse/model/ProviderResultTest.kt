@@ -105,6 +105,7 @@ class ProviderResultTest {
     private fun createTestSnapshot(): BalanceSnapshot = BalanceSnapshot(
         accountId = "test-id",
         connectionType = ConnectionType.OPENROUTER_PROVISIONING,
+        timestamp = Instant.now(),
         balance = Balance(
             credits = Credits(remaining = BigDecimal("10.50"))
         )
@@ -122,6 +123,7 @@ class BalanceSnapshotTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.OPENROUTER_PROVISIONING,
+            timestamp = Instant.now(),
             balance = Balance()
         )
         val afterTest = Instant.now()
@@ -148,6 +150,7 @@ class BalanceSnapshotTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.OPENROUTER_PROVISIONING,
+            timestamp = Instant.now(),
             balance = Balance()
         )
 
@@ -159,6 +162,7 @@ class BalanceSnapshotTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.CODEX_CLI,
+            timestamp = Instant.now(),
             balance = Balance(),
             metadata = mapOf(
                 "email" to "user@example.com",
@@ -175,6 +179,7 @@ class BalanceSnapshotTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.NEBIUS_BILLING,
+            timestamp = Instant.now(),
             balance = Balance()
         )
 
@@ -192,6 +197,7 @@ class BalanceSnapshotTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.NEBIUS_BILLING,
+            timestamp = Instant.now(),
             balance = Balance(),
             nebiusBreakdown = breakdown
         )

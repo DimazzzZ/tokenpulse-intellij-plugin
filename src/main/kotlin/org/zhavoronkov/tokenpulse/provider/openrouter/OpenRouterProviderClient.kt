@@ -13,6 +13,7 @@ import org.zhavoronkov.tokenpulse.model.Tokens
 import org.zhavoronkov.tokenpulse.provider.ProviderClient
 import org.zhavoronkov.tokenpulse.settings.Account
 import java.math.BigDecimal
+import java.time.Instant
 
 /**
  * Provider client for OpenRouter unified API gateway.
@@ -44,6 +45,7 @@ class OpenRouterProviderClient(
                 BalanceSnapshot(
                     accountId = account.id,
                     connectionType = ConnectionType.OPENROUTER_PROVISIONING,
+                    timestamp = Instant.now(),
                     balance = Balance(credits = credits, tokens = tokens)
                 )
             )

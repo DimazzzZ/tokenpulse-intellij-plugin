@@ -10,6 +10,7 @@ import org.zhavoronkov.tokenpulse.model.Provider
 import org.zhavoronkov.tokenpulse.model.ProviderResult
 import org.zhavoronkov.tokenpulse.settings.StatusBarFormat
 import java.math.BigDecimal
+import java.time.Instant
 
 class StatusBarFormatterTest {
 
@@ -107,6 +108,7 @@ class StatusBarFormatterTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.CLAUDE_CODE,
+            timestamp = Instant.now(),
             balance = Balance(),
             metadata = mapOf(
                 "fiveHourUtilization" to "14",
@@ -123,6 +125,7 @@ class StatusBarFormatterTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.CLAUDE_CODE,
+            timestamp = Instant.now(),
             balance = Balance(),
             metadata = mapOf(
                 "fiveHourUtilization" to "14",
@@ -139,6 +142,7 @@ class StatusBarFormatterTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.CLAUDE_CODE,
+            timestamp = Instant.now(),
             balance = Balance(),
             metadata = mapOf(
                 "fiveHourUtilization" to "14",
@@ -159,6 +163,7 @@ class StatusBarFormatterTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.CODEX_CLI,
+            timestamp = Instant.now(),
             balance = Balance(),
             metadata = mapOf(
                 "fiveHourUsed" to "25.5",
@@ -175,6 +180,7 @@ class StatusBarFormatterTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.CLAUDE_CODE,
+            timestamp = Instant.now(),
             balance = Balance(),
             metadata = emptyMap()
         )
@@ -188,6 +194,7 @@ class StatusBarFormatterTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.CLAUDE_CODE,
+            timestamp = Instant.now(),
             balance = Balance(),
             metadata = mapOf(
                 "sessionUsed" to "0",
@@ -204,6 +211,7 @@ class StatusBarFormatterTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.CLAUDE_CODE,
+            timestamp = Instant.now(),
             balance = Balance(),
             metadata = mapOf(
                 "sessionUsed" to "30",
@@ -220,6 +228,7 @@ class StatusBarFormatterTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.CLAUDE_CODE,
+            timestamp = Instant.now(),
             balance = Balance()
         )
         val data = BalanceFormatter.getStatusBarDataFromSnapshot(snapshot)
@@ -231,6 +240,7 @@ class StatusBarFormatterTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.OPENROUTER_PROVISIONING,
+            timestamp = Instant.now(),
             balance = Balance(credits = Credits(remaining = BigDecimal("100.00")))
         )
         val data = BalanceFormatter.getStatusBarDataFromSnapshot(snapshot)
@@ -245,6 +255,7 @@ class StatusBarFormatterTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.OPENAI_PLATFORM,
+            timestamp = Instant.now(),
             balance = Balance(credits = Credits(used = BigDecimal("50.00")))
         )
         val data = BalanceFormatter.getStatusBarDataFromSnapshot(snapshot)
@@ -259,6 +270,7 @@ class StatusBarFormatterTest {
         val snapshot = BalanceSnapshot(
             accountId = "test",
             connectionType = ConnectionType.OPENROUTER_PROVISIONING,
+            timestamp = Instant.now(),
             balance = Balance()
         )
         val data = BalanceFormatter.getStatusBarDataFromSnapshot(snapshot)

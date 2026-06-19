@@ -19,6 +19,7 @@ import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.utils.Constants.OPENAI_ADMIN_KEY_PREFIX
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.math.BigDecimal
+import java.time.Instant
 import java.util.concurrent.ThreadLocalRandom
 
 /**
@@ -94,6 +95,7 @@ class OpenAiPlatformProviderClient(
                 BalanceSnapshot(
                     accountId = account.id,
                     connectionType = ConnectionType.OPENAI_PLATFORM,
+                    timestamp = Instant.now(),
                     balance = Balance(
                         credits = Credits(used = creditsUsed),
                         tokens = Tokens(used = tokensUsed)
@@ -145,6 +147,7 @@ class OpenAiPlatformProviderClient(
             val data = gson.fromJson(secret, TokenData::class.java)
             if (data.accessToken.isNullOrBlank() || data.refreshToken.isNullOrBlank()) null else data
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            TokenPulseLogger.Provider.debug("Failed to parse OAuth token data: ${e.message}")
             null
         }
     }
@@ -453,6 +456,7 @@ class OpenAiPlatformProviderClient(
                 reasoningTokens = totalReasoning
             )
         } catch (e: Exception) {
+            TokenPulseLogger.Provider.debug("Failed to parse usage entry: ${e.message}")
             null
         }
     }
@@ -479,6 +483,7 @@ class OpenAiPlatformProviderClient(
 
             CostEntry(amount = totalAmount)
         } catch (e: Exception) {
+            TokenPulseLogger.Provider.debug("Failed to parse cost entry: ${e.message}")
             null
         }
     }

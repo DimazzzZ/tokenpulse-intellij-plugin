@@ -1,5 +1,6 @@
 package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 
+import org.zhavoronkov.tokenpulse.utils.CliLocator
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.io.File
 
@@ -176,36 +177,14 @@ object ClaudeCliExecutor {
     }
 
     private fun findClaudeViaCommand(osType: OsType): String? {
-        val command = when (osType) {
-            OsType.WINDOWS -> listOf("where", "claude")
-            else -> listOf("which", "claude")
-        }
-
-        return try {
-            val process = ProcessBuilder(command)
-                .redirectErrorStream(true)
-                .start()
-
-            val output = process.inputStream.bufferedReader().readText().trim()
-            val exitCode = process.waitFor()
-
-            if (exitCode == 0 && output.isNotBlank()) {
-                // On Windows, 'where' may return multiple lines; take the first
-                val path = output.lines().firstOrNull()?.trim()
-                path?.takeIf { File(it).exists() }
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            TokenPulseLogger.Provider.debug("Failed to find claude via command: ${e.message}")
-            null
-        }
+        val locations = getKnownLocations(osType)
+        return CliLocator.findBinary("claude", locations)
     }
 
-    private fun findClaudeInKnownLocations(osType: OsType): String? {
+    private fun getKnownLocations(osType: OsType): List<String> {
         val homeDir = System.getProperty("user.home")
 
-        val locations = when (osType) {
+        return when (osType) {
             OsType.WINDOWS -> listOf(
                 "${System.getenv("APPDATA")}\\npm\\claude.cmd",
                 "${System.getenv("APPDATA")}\\npm\\claude",
@@ -227,22 +206,26 @@ object ClaudeCliExecutor {
                 "/usr/bin/claude",
                 "$homeDir/.npm-global/bin/claude",
                 "$homeDir/.local/bin/claude",
-                "$homeDir/bin/claude",
-                "$homeDir/.nvm/versions/node/*/bin/claude" // NVM installs
+                "$homeDir/bin/claude"
             )
             OsType.UNKNOWN -> emptyList()
         }
+    }
+
+    private fun findClaudeInKnownLocations(osType: OsType): String? {
+        val locations = getKnownLocations(osType)
 
         for (location in locations) {
-            // Handle glob patterns for NVM
-            if (location.contains("*")) {
-                findGlobMatch(location)?.let { return it }
-            } else {
-                val file = File(location)
-                if (file.exists() && file.canExecute()) {
-                    return file.absolutePath
-                }
+            val file = File(location)
+            if (file.exists() && file.canExecute()) {
+                return file.absolutePath
             }
+        }
+
+        // Handle NVM glob patterns on Linux
+        if (osType == OsType.LINUX) {
+            val homeDir = System.getProperty("user.home")
+            findGlobMatch("$homeDir/.nvm/versions/node/*/bin/claude")?.let { return it }
         }
 
         return null
