@@ -17,7 +17,7 @@ data class BalanceSnapshot(
     val accountId: String,
     val connectionType: ConnectionType,
     val balance: Balance,
-    val timestamp: Instant = Instant.now(),
+    val timestamp: Instant,
     /** Non-null only for Nebius accounts; carries paid/trial split for tooltip rendering. */
     val nebiusBreakdown: NebiusBalanceBreakdown? = null,
     /** Additional provider-specific metadata (e.g., rate limit percentages, email, plan type). */

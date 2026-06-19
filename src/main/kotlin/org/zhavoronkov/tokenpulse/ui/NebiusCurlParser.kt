@@ -1,6 +1,7 @@
 package org.zhavoronkov.tokenpulse.ui
 
 import org.zhavoronkov.tokenpulse.provider.nebius.NebiusProviderClient
+import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
@@ -48,6 +49,7 @@ object NebiusCurlParser {
             try {
                 java.net.URI(url).path
             } catch (e: Exception) {
+                TokenPulseLogger.Provider.debug("Failed to parse cURL: ${e.message}")
                 null
             }
         }

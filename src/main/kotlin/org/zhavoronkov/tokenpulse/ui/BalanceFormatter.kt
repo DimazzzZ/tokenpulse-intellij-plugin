@@ -14,7 +14,7 @@ import java.text.NumberFormat
 import java.util.Locale
 
 object BalanceFormatter {
-    private val numberFormat = NumberFormat.getNumberInstance(Locale.US)
+    private val numberFormat = ThreadLocal.withInitial { NumberFormat.getNumberInstance(Locale.US) }
 
     /** Connection types that report usage as percentage (not dollars). */
     private val usagePercentageTypes = setOf(
@@ -266,63 +266,9 @@ object BalanceFormatter {
         val effectiveFormat = capability.bestAvailable(dollarFormat)
 
         val text = when (effectiveFormat) {
-            StatusBarDollarFormat.REMAINING_ONLY -> {
-                if (remaining != null) {
-                    "\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
-                } else if (used != null) {
-                    "\$${used.setScale(0, RoundingMode.HALF_UP)} used"
-                } else {
-                    "--"
-                }
-            }
-            StatusBarDollarFormat.USED_OF_REMAINING -> {
-                // Show used/remaining format: $193/$200
-                when {
-                    used != null && remaining != null -> {
-                        "\$${used.setScale(0, RoundingMode.HALF_UP)}/\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
-                    }
-                    remaining != null -> {
-                        // Fallback: show remaining only
-                        "\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
-                    }
-                    used != null -> {
-                        // Fallback: show used only
-                        "\$${used.setScale(0, RoundingMode.HALF_UP)} used"
-                    }
-                    else -> "--"
-                }
-            }
-            StatusBarDollarFormat.PERCENTAGE_REMAINING -> {
-                when {
-                    remaining != null && total != null && total > BigDecimal.ZERO -> {
-                        val percentage = remaining.multiply(BigDecimal(100))
-                            .divide(total, 0, RoundingMode.HALF_UP)
-                            .toInt()
-                        "$percentage% remaining"
-                    }
-                    remaining != null && used != null -> {
-                        val computedTotal = remaining + used
-                        if (computedTotal > BigDecimal.ZERO) {
-                            val percentage = remaining.multiply(BigDecimal(100))
-                                .divide(computedTotal, 0, RoundingMode.HALF_UP)
-                                .toInt()
-                            "$percentage% remaining"
-                        } else {
-                            // Fallback to remaining only
-                            "\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
-                        }
-                    }
-                    remaining != null -> {
-                        // Fallback: can't compute percentage, show remaining
-                        "\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
-                    }
-                    used != null -> {
-                        // Fallback: can't compute percentage, show used
-                        "\$${used.setScale(0, RoundingMode.HALF_UP)} used"
-                    }
-                    else -> "--"
-                }
-            }
+            StatusBarDollarFormat.REMAINING_ONLY -> formatRemainingOnly(remaining, used)
+            StatusBarDollarFormat.USED_OF_REMAINING -> formatUsedOfRemaining(used, remaining)
+            StatusBarDollarFormat.PERCENTAGE_REMAINING -> formatPercentageRemaining(remaining, used, total)
         }
 
         return if (provider != null && text != "--") {
@@ -330,6 +276,45 @@ object BalanceFormatter {
         } else {
             text
         }
+    }
+
+    private fun formatRemainingOnly(remaining: BigDecimal?, used: BigDecimal?): String {
+        if (remaining != null) return "\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
+        if (used != null) return "\$${used.setScale(0, RoundingMode.HALF_UP)} used"
+        return "--"
+    }
+
+    private fun formatUsedOfRemaining(used: BigDecimal?, remaining: BigDecimal?): String {
+        if (used != null && remaining != null) {
+            return "\$${used.setScale(0, RoundingMode.HALF_UP)}/\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
+        }
+        if (remaining != null) return "\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
+        if (used != null) return "\$${used.setScale(0, RoundingMode.HALF_UP)} used"
+        return "--"
+    }
+
+    private fun formatPercentageRemaining(
+        remaining: BigDecimal?,
+        used: BigDecimal?,
+        total: BigDecimal?
+    ): String {
+        if (remaining != null && total != null && total > BigDecimal.ZERO) {
+            val percentage = remaining.multiply(BigDecimal(100))
+                .divide(total, 0, RoundingMode.HALF_UP).toInt()
+            return "$percentage% remaining"
+        }
+        if (remaining != null && used != null) {
+            val computedTotal = remaining + used
+            if (computedTotal > BigDecimal.ZERO) {
+                val percentage = remaining.multiply(BigDecimal(100))
+                    .divide(computedTotal, 0, RoundingMode.HALF_UP).toInt()
+                return "$percentage% remaining"
+            }
+            return "\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
+        }
+        if (remaining != null) return "\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
+        if (used != null) return "\$${used.setScale(0, RoundingMode.HALF_UP)} used"
+        return "--"
     }
 
     /**
@@ -467,7 +452,7 @@ object BalanceFormatter {
             when {
                 tokens.remaining != null -> parts.add(formatTokens(tokens.remaining))
                 tokens.used != null -> {
-                    val totalStr = tokens.total?.let { "/ ${numberFormat.format(it)}" } ?: ""
+                    val totalStr = tokens.total?.let { "/ ${numberFormat.get().format(it)}" } ?: ""
                     parts.add("${formatTokensUsage(tokens.used)}$totalStr")
                 }
                 tokens.total != null -> parts.add(formatTokens(tokens.total))
@@ -476,5 +461,5 @@ object BalanceFormatter {
         }
     }
 
-    private fun formatNumber(number: Long): String = numberFormat.format(number)
+    private fun formatNumber(number: Long): String = numberFormat.get().format(number)
 }

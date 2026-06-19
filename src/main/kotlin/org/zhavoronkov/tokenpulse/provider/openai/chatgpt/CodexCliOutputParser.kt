@@ -23,12 +23,10 @@ package org.zhavoronkov.tokenpulse.provider.openai.chatgpt
  */
 object CodexCliOutputParser {
 
-    private val ANSI_PATTERN = Regex("\\x1B(?:[@-Z\\-_]|\\[[0-?]*[ -/]*[@-~])")
-
     /**
      * Strips ANSI escape codes from terminal output.
      */
-    fun stripAnsiCodes(input: String): String = ANSI_PATTERN.replace(input, "")
+    fun stripAnsiCodes(input: String): String = org.zhavoronkov.tokenpulse.utils.AnsiUtils.stripAnsiCodes(input)
 
     /**
      * Result of parsing Codex CLI status output.

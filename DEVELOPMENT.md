@@ -4,9 +4,9 @@ This guide covers development setup, building, testing, and contributing to the 
 
 ## 📋 Prerequisites
 
-- **JDK 17 (exactly)** — The build toolchain, Kotlin compiler, and Gradle daemon are all pinned to
-  Java 17. Using a newer JDK (18+) may cause Kotlin compiler or IntelliJ Platform compatibility
-  issues. Install Zulu JDK 17 or any other JDK 17 distribution.
+- **JDK 21 (exactly)** — The build toolchain, Kotlin compiler, and Gradle daemon are all pinned to
+  Java 21. Using a different JDK may cause Kotlin compiler or IntelliJ Platform compatibility
+  issues. Install Zulu JDK 21 or any other JDK 21 distribution.
 - **IntelliJ IDEA** — Community or Ultimate Edition with Plugin Development support.
 
 ## 🚀 Quick Start
@@ -49,15 +49,15 @@ For day-to-day development, use the fast build script to skip slow analysis task
 ### 2. Development Run
 ```bash
 # Launch a development instance of the IDE with the plugin installed
-# Requires Java 17 — set JAVA_HOME to your JDK 17 installation if needed:
-#   export JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home
+# Requires Java 21 — set JAVA_HOME to your JDK 21 installation if needed:
+#   export JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home
 ./gradlew runIde
 ```
 
-> **Java 17 required for runs.** The `gradle.properties` file pins the Kotlin compiler and Gradle
-> daemon to Java 17. If `./gradlew runIde` fails with a JDK version error, verify your active JDK:
+> **Java 21 required for runs.** The `gradle.properties` file pins the Kotlin compiler and Gradle
+> daemon to Java 21. If `./gradlew runIde` fails with a JDK version error, verify your active JDK:
 > ```bash
-> java -version   # must show 17.x
+> java -version   # must show 21.x
 > ./gradlew -version  # shows the JDK Gradle is using
 > ```
 > On macOS with multiple JDKs installed, set `JAVA_HOME` explicitly before running Gradle.

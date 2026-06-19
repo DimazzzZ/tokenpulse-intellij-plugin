@@ -4,6 +4,9 @@ package org.zhavoronkov.tokenpulse.utils
  * Application-wide constants to avoid magic numbers throughout the codebase.
  */
 object Constants {
+    // Display Name
+    const val DISPLAY_NAME = "TokenPulse β"
+
     // UI Dimensions
     const val PASSWORD_FIELD_COLUMNS = 50
     const val TEXT_AREA_COLUMNS = 36
@@ -41,6 +44,9 @@ object Constants {
     const val DEFAULT_REFRESH_INTERVAL_MS = 60000L
     const val MIN_REFRESH_INTERVAL_MS = 10000L
     const val MAX_REFRESH_INTERVAL_MS = 300000L
+
+    // Notification Throttle
+    const val NOTIFICATION_THROTTLE_MS = 30 * 60 * 1000L
 
     // Validation
     const val MIN_API_KEY_LENGTH = 20

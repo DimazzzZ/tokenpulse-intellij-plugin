@@ -14,6 +14,8 @@ import org.zhavoronkov.tokenpulse.model.ProviderResult
 import org.zhavoronkov.tokenpulse.model.TimeRange
 import org.zhavoronkov.tokenpulse.service.BalanceHistoryService
 import org.zhavoronkov.tokenpulse.service.BalanceRefreshService
+import org.zhavoronkov.tokenpulse.service.BalanceUpdatedListener
+import org.zhavoronkov.tokenpulse.service.BalanceUpdatedTopic
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
 import org.zhavoronkov.tokenpulse.ui.chart.BalanceChartPanel
 import java.awt.BorderLayout
@@ -94,10 +96,24 @@ class TokenPulseDashboardDialog(project: Project) : DialogWrapper(project) {
     }
 
     init {
-        title = "TokenPulse β Dashboard"
+        title = "${org.zhavoronkov.tokenpulse.utils.Constants.DISPLAY_NAME} Dashboard"
         setOKButtonText("Refresh All")
         setCancelButtonText("Close")
         init()
+
+        // Subscribe to balance updates for reactive UI refresh
+        val connection = ApplicationManager.getApplication().messageBus.connect(disposable)
+        connection.subscribe(
+            BalanceUpdatedTopic.TOPIC,
+            object : BalanceUpdatedListener {
+                override fun balanceUpdated(accountId: String, result: ProviderResult) {
+                    ApplicationManager.getApplication().invokeLater {
+                        tableModel.fireTableDataChanged()
+                        refreshChartData()
+                    }
+                }
+            }
+        )
 
         // Initialize chart type combo
         chartTypeCombo.selectedItem = ChartType.LINE
@@ -233,11 +249,6 @@ class TokenPulseDashboardDialog(project: Project) : DialogWrapper(project) {
 
     private fun performRefresh() {
         BalanceRefreshService.getInstance().refreshAll(force = true)
-        // Schedule UI update after a short delay
-        ApplicationManager.getApplication().invokeLater {
-            refreshChartData()
-            tableModel.fireTableDataChanged()
-        }
     }
 
     override fun createActions(): Array<Action> = arrayOf(okAction, cancelAction)

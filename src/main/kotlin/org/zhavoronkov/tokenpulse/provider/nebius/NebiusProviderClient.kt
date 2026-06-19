@@ -17,6 +17,7 @@ import org.zhavoronkov.tokenpulse.provider.ProviderClient
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.math.BigDecimal
+import java.time.Instant
 
 /**
  * Provider client for Nebius AI Studio (Token Factory).
@@ -143,6 +144,7 @@ class NebiusProviderClient(
                     BalanceSnapshot(
                         accountId = account.id,
                         connectionType = ConnectionType.NEBIUS_BILLING,
+                        timestamp = Instant.now(),
                         balance = Balance(credits = Credits(total = combinedTotal, remaining = combinedRemaining)),
                         nebiusBreakdown = NebiusBalanceBreakdown(
                             paidRemaining = paidRemaining,
@@ -244,45 +246,49 @@ class NebiusProviderClient(
     ): ProviderResult {
         val hasParityData = !session.rawCookieHeader.isNullOrBlank()
         val errors = mutableListOf<String>()
+        var result: ProviderResult? = null
 
-        // Strategy sequence: NativeCurl → Parity → Constructed → Direct
         if (hasParityData) {
-            val nativeResult = tryStrategy("NativeCurl", account, traceId) {
+            result = tryStrategy("NativeCurl", account, traceId) {
                 executeWithNativeCurl(session, endpoint, contractId, parser, account)
             }
-            if (nativeResult != null) return nativeResult
-            errors.add("NativeCurl: failed")
+            if (result == null) errors.add("NativeCurl: failed")
 
-            val parityStandardResult = tryStrategy("Parity+Standard", account, traceId) {
-                val request = buildRequest(session, endpoint, contractId, useParity = true)
+            if (result == null) {
+                result = tryStrategy("Parity+Standard", account, traceId) {
+                    val request = buildRequest(session, endpoint, contractId, useParity = true)
+                    executeWithClient(baseClient, request, account, parser)
+                }
+                if (result == null) errors.add("Parity+Standard: failed")
+            }
+
+            if (result == null) {
+                result = tryStrategy("Parity+HTTP/1.1", account, traceId) {
+                    val request = buildRequest(session, endpoint, contractId, useParity = true)
+                    executeWithClient(http1Client, request, account, parser)
+                }
+                if (result == null) errors.add("Parity+HTTP/1.1: failed")
+            }
+        }
+
+        if (result == null) {
+            result = tryStrategy("Constructed+Standard", account, traceId) {
+                val request = buildRequest(session, endpoint, contractId, useParity = false)
                 executeWithClient(baseClient, request, account, parser)
             }
-            if (parityStandardResult != null) return parityStandardResult
-            errors.add("Parity+Standard: failed")
+            if (result == null) errors.add("Constructed+Standard: failed")
+        }
 
-            val parityHttp1Result = tryStrategy("Parity+HTTP/1.1", account, traceId) {
-                val request = buildRequest(session, endpoint, contractId, useParity = true)
-                executeWithClient(http1Client, request, account, parser)
+        if (result == null) {
+            result = tryStrategy("Direct", account, traceId) {
+                val request = buildRequest(session, endpoint, contractId, useParity = hasParityData)
+                executeWithClient(directClient, request, account, parser)
             }
-            if (parityHttp1Result != null) return parityHttp1Result
-            errors.add("Parity+HTTP/1.1: failed")
+            if (result == null) errors.add("Direct: failed")
         }
 
-        val constructedResult = tryStrategy("Constructed+Standard", account, traceId) {
-            val request = buildRequest(session, endpoint, contractId, useParity = false)
-            executeWithClient(baseClient, request, account, parser)
-        }
-        if (constructedResult != null) return constructedResult
-        errors.add("Constructed+Standard: failed")
-
-        val directResult = tryStrategy("Direct", account, traceId) {
-            val request = buildRequest(session, endpoint, contractId, useParity = hasParityData)
-            executeWithClient(directClient, request, account, parser)
-        }
-        if (directResult != null) return directResult
-        errors.add("Direct: failed")
-
-        return ProviderResult.Failure.NetworkError("Failed to connect to Nebius: ${errors.joinToString(", ")}")
+        return result
+            ?: ProviderResult.Failure.NetworkError("Failed to connect to Nebius: ${errors.joinToString(", ")}")
     }
 
     private inline fun tryStrategy(
@@ -449,7 +455,8 @@ class NebiusProviderClient(
         return try {
             val session = gson.fromJson(secret, NebiusSession::class.java)
             if (validateSession(session)) session else null
-        } catch (@Suppress("TooGenericExceptionCaught") _: Exception) {
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            TokenPulseLogger.Provider.debug("Failed to parse Nebius session: ${e.message}")
             null
         }
     }
@@ -480,6 +487,7 @@ class NebiusProviderClient(
                 BalanceSnapshot(
                     accountId = account.id,
                     connectionType = ConnectionType.NEBIUS_BILLING,
+                    timestamp = Instant.now(),
                     balance = Balance(credits = Credits(total = balanceValue, remaining = balanceValue))
                 )
             )
@@ -516,6 +524,7 @@ class NebiusProviderClient(
                 BalanceSnapshot(
                     accountId = account.id,
                     connectionType = ConnectionType.NEBIUS_BILLING,
+                    timestamp = Instant.now(),
                     balance = Balance(credits = Credits(total = total, remaining = remaining))
                 )
             )
@@ -544,10 +553,15 @@ class NebiusProviderClient(
     object DefaultCommandExecutor : CommandExecutor {
         override fun execute(cmd: List<String>): CommandResult {
             val process = ProcessBuilder(cmd).start()
-            val output = process.inputStream.bufferedReader().readText()
-            val error = process.errorStream.bufferedReader().readText()
-            val exitCode = process.waitFor()
-            return CommandResult(output, error, exitCode)
+            try {
+                val output = process.inputStream.bufferedReader().use { it.readText() }
+                val error = process.errorStream.bufferedReader().use { it.readText() }
+                val exitCode = process.waitFor()
+                return CommandResult(output, error, exitCode)
+            } catch (e: Exception) {
+                process.destroyForcibly()
+                throw e
+            }
         }
     }
 

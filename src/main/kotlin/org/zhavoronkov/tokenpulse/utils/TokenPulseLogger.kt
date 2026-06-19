@@ -8,7 +8,7 @@ import com.intellij.openapi.diagnostic.Logger
  */
 object TokenPulseLogger {
 
-    private const val PLUGIN_NAME = "TokenPulse β"
+    private const val PLUGIN_NAME = Constants.DISPLAY_NAME
     private const val LOG_PREFIX = "[$PLUGIN_NAME]"
     private const val DEBUG_PREFIX = "[$PLUGIN_NAME][DEBUG]"
 

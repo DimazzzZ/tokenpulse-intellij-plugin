@@ -5,6 +5,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.zhavoronkov.tokenpulse.model.ProviderResult
 import org.zhavoronkov.tokenpulse.settings.Account
@@ -83,7 +84,7 @@ class RefreshCoordinator(
                     "Starting refresh execution for account ${account.id}"
                 )
                 val result = fetcher(account)
-                _results.value = _results.value + (account.id to result)
+                _results.update { it + (account.id to result) }
                 onResult(result)
             } finally {
                 activeJobs.remove(account.id)

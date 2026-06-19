@@ -370,4 +370,223 @@ class RefreshCoordinatorTest {
         assertEquals(true, coordinator.results.value.containsKey("a1"))
         assertEquals(true, coordinator.results.value.containsKey("a2"))
     }
+
+    // === Credential cooldown tests ===
+
+    @Test
+    fun `recordCredentialFailure sets initial cooldown of 300 seconds`() = runTest {
+        val testClock = TestClock()
+        val coordinator = RefreshCoordinator(
+            scope = this,
+            fetcher = {
+                ProviderResult.Success(
+                    BalanceSnapshot("a1", ConnectionType.CLINE_API, Balance(), timestamp = testClock.instant())
+                )
+            },
+            clock = testClock
+        )
+
+        coordinator.recordCredentialFailure("a1")
+
+        // Within 300 seconds, refresh should be skipped
+        val callCount = AtomicInteger(0)
+        val coordinator2 = RefreshCoordinator(
+            scope = this,
+            fetcher = {
+                callCount.incrementAndGet()
+                ProviderResult.Success(
+                    BalanceSnapshot("a1", ConnectionType.CLINE_API, Balance(), timestamp = testClock.instant())
+                )
+            },
+            clock = testClock
+        )
+        coordinator2.recordCredentialFailure("a1")
+
+        // Advance 299 seconds — still in cooldown
+        testClock.advance(Duration.ofSeconds(299))
+        coordinator2.refreshAccount(account(), force = false)
+        advanceUntilIdle()
+        assertEquals(0, callCount.get(), "Should be in cooldown at 299 seconds")
+    }
+
+    @Test
+    fun `recordCredentialFailure doubles cooldown on repeated failures`() = runTest {
+        val testClock = TestClock()
+        val coordinator = RefreshCoordinator(
+            scope = this,
+            fetcher = {
+                ProviderResult.Success(
+                    BalanceSnapshot("a1", ConnectionType.CLINE_API, Balance(), timestamp = testClock.instant())
+                )
+            },
+            clock = testClock
+        )
+
+        // First failure: 300s cooldown
+        coordinator.recordCredentialFailure("a1")
+        // Second failure: 600s cooldown
+        coordinator.recordCredentialFailure("a1")
+        // Third failure: 1200s cooldown
+        coordinator.recordCredentialFailure("a1")
+
+        // After 600s, should still be in cooldown (1200s cooldown active)
+        testClock.advance(Duration.ofSeconds(600))
+        val callCount = AtomicInteger(0)
+        val coordinator2 = RefreshCoordinator(
+            scope = this,
+            fetcher = {
+                callCount.incrementAndGet()
+                ProviderResult.Success(
+                    BalanceSnapshot("a1", ConnectionType.CLINE_API, Balance(), timestamp = testClock.instant())
+                )
+            },
+            clock = testClock
+        )
+        coordinator2.recordCredentialFailure("a1")
+        coordinator2.recordCredentialFailure("a1")
+        coordinator2.recordCredentialFailure("a1")
+
+        testClock.advance(Duration.ofSeconds(1199))
+        coordinator2.refreshAccount(account(), force = false)
+        advanceUntilIdle()
+        assertEquals(0, callCount.get(), "Should still be in cooldown at 1199 seconds")
+    }
+
+    @Test
+    fun `recordCredentialFailure caps cooldown at 3600 seconds`() = runTest {
+        val testClock = TestClock()
+        val coordinator = RefreshCoordinator(
+            scope = this,
+            fetcher = {
+                ProviderResult.Success(
+                    BalanceSnapshot("a1", ConnectionType.CLINE_API, Balance(), timestamp = testClock.instant())
+                )
+            },
+            clock = testClock
+        )
+
+        // Repeatedly fail to hit the cap: 300, 600, 1200, 2400, 3600 (cap)
+        repeat(10) { coordinator.recordCredentialFailure("a1") }
+
+        // After 3600 seconds, cooldown should expire
+        testClock.advance(Duration.ofSeconds(3600))
+        val callCount = AtomicInteger(0)
+        val coordinator2 = RefreshCoordinator(
+            scope = this,
+            fetcher = {
+                callCount.incrementAndGet()
+                ProviderResult.Success(
+                    BalanceSnapshot("a1", ConnectionType.CLINE_API, Balance(), timestamp = testClock.instant())
+                )
+            },
+            clock = testClock
+        )
+        repeat(10) { coordinator2.recordCredentialFailure("a1") }
+
+        testClock.advance(Duration.ofSeconds(3600))
+        coordinator2.refreshAccount(account(), force = false)
+        advanceUntilIdle()
+        assertEquals(1, callCount.get(), "Should be allowed after max cooldown expires")
+    }
+
+    @Test
+    fun `clearCredentialCooldown removes cooldown for account`() = runTest {
+        val testClock = TestClock()
+        val callCount = AtomicInteger(0)
+        val coordinator = RefreshCoordinator(
+            scope = this,
+            fetcher = {
+                callCount.incrementAndGet()
+                ProviderResult.Success(
+                    BalanceSnapshot("a1", ConnectionType.CLINE_API, Balance(), timestamp = testClock.instant())
+                )
+            },
+            clock = testClock
+        )
+
+        coordinator.recordCredentialFailure("a1")
+        coordinator.clearCredentialCooldown("a1")
+
+        // Should be able to refresh immediately after clearing
+        coordinator.refreshAccount(account(), force = false)
+        advanceUntilIdle()
+        assertEquals(1, callCount.get(), "Should refresh after cooldown is cleared")
+    }
+
+    @Test
+    fun `credential failure cooldown does not affect other accounts`() = runTest {
+        val testClock = TestClock()
+        val callCount = AtomicInteger(0)
+        val coordinator = RefreshCoordinator(
+            scope = this,
+            fetcher = {
+                callCount.incrementAndGet()
+                ProviderResult.Success(
+                    BalanceSnapshot(it.id, ConnectionType.CLINE_API, Balance(), timestamp = testClock.instant())
+                )
+            },
+            clock = testClock
+        )
+
+        val account1 = Account(id = "a1", connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+        val account2 = Account(id = "a2", connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+
+        // Set cooldown on account1 only
+        coordinator.recordCredentialFailure("a1")
+
+        // Refresh account2 — should succeed
+        coordinator.refreshAccount(account2, force = false)
+        advanceUntilIdle()
+        assertEquals(1, callCount.get(), "Account2 should not be affected by account1 cooldown")
+    }
+
+    @Test
+    fun `failure result does not trigger credential cooldown automatically`() = runTest {
+        val testClock = TestClock()
+        val callCount = AtomicInteger(0)
+        val coordinator = RefreshCoordinator(
+            scope = this,
+            fetcher = {
+                callCount.incrementAndGet()
+                ProviderResult.Failure.AuthError("Invalid credentials")
+            },
+            clock = testClock
+        )
+
+        // First refresh fails
+        coordinator.refreshAccount(account(), force = false)
+        advanceUntilIdle()
+        assertEquals(1, callCount.get())
+
+        // Second refresh should NOT be in cooldown (coordinator doesn't auto-classify)
+        coordinator.refreshAccount(account(), force = false)
+        advanceUntilIdle()
+        assertEquals(2, callCount.get(), "Failure alone should not set cooldown")
+    }
+
+    @Test
+    fun `results StateFlow update is atomic with concurrent accounts`() = runTest {
+        val testClock = TestClock()
+        val coordinator = RefreshCoordinator(
+            scope = this,
+            fetcher = { account ->
+                ProviderResult.Success(
+                    BalanceSnapshot(account.id, ConnectionType.CLINE_API, Balance(), timestamp = testClock.instant())
+                )
+            },
+            clock = testClock
+        )
+
+        val account1 = Account(id = "a1", connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+        val account2 = Account(id = "a2", connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+
+        coordinator.refreshAccount(account1, force = false)
+        coordinator.refreshAccount(account2, force = false)
+        advanceUntilIdle()
+
+        val results = coordinator.results.value
+        assertEquals(true, results.containsKey("a1"), "Results should contain account a1")
+        assertEquals(true, results.containsKey("a2"), "Results should contain account a2")
+        assertEquals(2, results.size, "Both accounts should be in results")
+    }
 }

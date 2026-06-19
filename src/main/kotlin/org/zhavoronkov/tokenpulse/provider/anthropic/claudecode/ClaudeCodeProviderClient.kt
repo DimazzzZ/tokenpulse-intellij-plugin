@@ -8,6 +8,7 @@ import org.zhavoronkov.tokenpulse.model.Tokens
 import org.zhavoronkov.tokenpulse.provider.ProviderClient
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
+import java.time.Instant
 
 /**
  * Provider client for Claude Code (Claude CLI).
@@ -104,6 +105,7 @@ class ClaudeCodeProviderClient : ProviderClient {
             BalanceSnapshot(
                 accountId = account.id,
                 connectionType = ConnectionType.CLAUDE_CODE,
+                timestamp = Instant.now(),
                 balance = Balance(
                     tokens = Tokens(
                         used = tokensUsed,
@@ -136,6 +138,7 @@ class ClaudeCodeProviderClient : ProviderClient {
             BalanceSnapshot(
                 accountId = account.id,
                 connectionType = ConnectionType.CLAUDE_CODE,
+                timestamp = Instant.now(),
                 balance = Balance(),
                 metadata = mapOf("version" to version)
             )
