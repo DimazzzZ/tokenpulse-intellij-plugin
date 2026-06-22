@@ -506,6 +506,36 @@ class BalanceFormatterTest {
     }
 
     @Test
+    fun `formats PERCENTAGE_REMAINING with zero remaining and used`() {
+        val formatted = BalanceFormatter.formatCreditsForStatusBar(
+            Credits(remaining = BigDecimal.ZERO, used = BigDecimal.ZERO),
+            StatusBarDollarFormat.PERCENTAGE_REMAINING
+        )
+        assertEquals("0% remaining", formatted)
+    }
+
+    @Test
+    fun `formats PERCENTAGE_REMAINING with only remaining falls back to remaining only`() {
+        val formatted = BalanceFormatter.formatCreditsForStatusBar(
+            Credits(remaining = BigDecimal(55)),
+            StatusBarDollarFormat.PERCENTAGE_REMAINING
+        )
+        // Falls back to REMAINING_ONLY since percentage cannot be calculated
+        assertEquals("$55", formatted)
+    }
+
+    @Test
+    fun `formats REMAINING_ONLY DESCRIPTIVE with only used`() {
+        val formatted = BalanceFormatter.formatCreditsForStatusBar(
+            Credits(used = BigDecimal(50)),
+            StatusBarDollarFormat.REMAINING_ONLY,
+            null,
+            StatusBarFormat.DESCRIPTIVE
+        )
+        assertEquals("$50 used this period", formatted)
+    }
+
+    @Test
     fun `returns dashes when no data available`() {
         val formatted = BalanceFormatter.formatCreditsForStatusBar(
             Credits(),

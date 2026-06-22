@@ -384,7 +384,7 @@ object BalanceFormatter {
         if (used != null) {
             return when (format) {
                 StatusBarFormat.COMPACT -> "${formatShortDollars(used)} used"
-                StatusBarFormat.DESCRIPTIVE -> "${formatShortDollars(used)} used"
+                StatusBarFormat.DESCRIPTIVE -> "${formatShortDollars(used)} used this period"
             }
         }
         return "--"
@@ -399,8 +399,10 @@ object BalanceFormatter {
         // Prefer "remaining / total" format
         if (remaining != null && total != null) {
             return when (format) {
-                StatusBarFormat.COMPACT -> "${formatShortDollars(remaining)} / ${formatShortDollars(total)}"
-                StatusBarFormat.DESCRIPTIVE -> "${formatShortDollars(remaining)} of ${formatShortDollars(total)} remaining"
+                StatusBarFormat.COMPACT ->
+                    "${formatShortDollars(remaining)} / ${formatShortDollars(total)}"
+                StatusBarFormat.DESCRIPTIVE ->
+                    "${formatShortDollars(remaining)} of ${formatShortDollars(total)} remaining"
             }
         }
         // Fallback to "used / remaining" if total not available
@@ -442,10 +444,10 @@ object BalanceFormatter {
                     .divide(computedTotal, 0, RoundingMode.HALF_UP).toInt()
                 return "$percentage% remaining"
             }
-            return "\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
+            // Both zero
+            return "0% remaining"
         }
-        if (remaining != null) return "\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
-        if (used != null) return "\$${used.setScale(0, RoundingMode.HALF_UP)} used"
+        // Cannot calculate percentage without total or used
         return "--"
     }
 

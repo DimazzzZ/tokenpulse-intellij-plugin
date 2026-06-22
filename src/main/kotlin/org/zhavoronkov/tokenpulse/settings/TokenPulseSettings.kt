@@ -32,8 +32,8 @@ enum class StatusBarDollarFormat(val displayName: String, val description: Strin
     /** Show only remaining balance: "$200" */
     REMAINING_ONLY("Remaining only", "\$200 (OR)"),
 
-    /** Show used/remaining: "$193/$200" (used of current remaining balance) */
-    USED_OF_REMAINING("Used / Remaining", "\$193/\$200 (OR)"),
+    /** Show remaining/total: "$200/$393" (remaining of total balance) */
+    USED_OF_REMAINING("Remaining / Total", "\$200/\$393 (OR)"),
 
     /** Show percentage remaining: "51% remaining" */
     PERCENTAGE_REMAINING("Percentage remaining", "51% remaining (OR)")
