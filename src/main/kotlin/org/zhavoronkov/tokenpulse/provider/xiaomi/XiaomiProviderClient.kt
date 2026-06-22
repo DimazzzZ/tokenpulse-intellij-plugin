@@ -10,7 +10,9 @@ import org.zhavoronkov.tokenpulse.model.ConnectionType
 import org.zhavoronkov.tokenpulse.model.Credits
 import org.zhavoronkov.tokenpulse.model.ProviderResult
 import org.zhavoronkov.tokenpulse.model.Tokens
+import org.zhavoronkov.tokenpulse.provider.HttpErrorHandler
 import org.zhavoronkov.tokenpulse.provider.ProviderClient
+import org.zhavoronkov.tokenpulse.provider.SessionParser
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.math.BigDecimal
@@ -58,77 +60,15 @@ class XiaomiProviderClient(
                 "Invalid Xiaomi session. Please re-capture your session from platform.xiaomimimo.com"
             )
 
-        return try {
-            when (account.connectionType) {
-                ConnectionType.XIAOMI_API -> fetchApiBalance(session, traceId)
-                ConnectionType.XIAOMI_TOKEN_PLAN -> fetchTokenPlanUsage(session, account, traceId)
-                else -> ProviderResult.Failure.AuthError("Unsupported connection type: ${account.connectionType}")
-            }
-        } catch (e: AuthException) {
-            ProviderResult.Failure.AuthError(e.message ?: "Authentication failed")
-        } catch (e: RateLimitException) {
-            ProviderResult.Failure.RateLimited("Rate limit exceeded")
-        } catch (e: ServerException) {
-            ProviderResult.Failure.NetworkError(e.message ?: "Server error", e)
-        } catch (e: Exception) {
-            ProviderResult.Failure.NetworkError("Unexpected error: ${e.message}", e)
+        return when (account.connectionType) {
+            ConnectionType.XIAOMI_API -> fetchApiBalance(session, traceId)
+            ConnectionType.XIAOMI_TOKEN_PLAN -> fetchTokenPlanUsage(session, account, traceId)
+            else -> ProviderResult.Failure.AuthError("Unsupported connection type: ${account.connectionType}")
         }
     }
 
-    override fun testCredentials(account: Account, secret: String): ProviderResult {
-        val session = parseSession(secret)
-            ?: return ProviderResult.Failure.AuthError("Invalid session format")
-
-        return try {
-            when (account.connectionType) {
-                ConnectionType.XIAOMI_API -> {
-                    val request = buildRequest(session, "/api/v1/balance")
-                    executeRequest(request) { body ->
-                        val json = gson.fromJson(body, JsonObject::class.java)
-                        if (json.getAsJsonPrimitive("code")?.asInt == 0) {
-                            ProviderResult.Success(
-                                BalanceSnapshot(
-                                    accountId = account.id,
-                                    connectionType = ConnectionType.XIAOMI_API,
-                                    balance = Balance(),
-                                    timestamp = Instant.now()
-                                )
-                            )
-                        } else {
-                            ProviderResult.Failure.AuthError("Session expired or invalid")
-                        }
-                    }
-                }
-                ConnectionType.XIAOMI_TOKEN_PLAN -> {
-                    val request = buildRequest(session, "/api/v1/tokenPlan/usage")
-                    executeRequest(request) { body ->
-                        val json = gson.fromJson(body, JsonObject::class.java)
-                        if (json.getAsJsonPrimitive("code")?.asInt == 0) {
-                            ProviderResult.Success(
-                                BalanceSnapshot(
-                                    accountId = account.id,
-                                    connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
-                                    balance = Balance(),
-                                    timestamp = Instant.now()
-                                )
-                            )
-                        } else {
-                            ProviderResult.Failure.AuthError("Session expired or invalid")
-                        }
-                    }
-                }
-                else -> ProviderResult.Failure.AuthError("Unsupported connection type")
-            }
-        } catch (e: AuthException) {
-            ProviderResult.Failure.AuthError(e.message ?: "Authentication failed")
-        } catch (e: RateLimitException) {
-            ProviderResult.Failure.RateLimited("Rate limit exceeded")
-        } catch (e: ServerException) {
-            ProviderResult.Failure.NetworkError(e.message ?: "Server error", e)
-        } catch (e: Exception) {
-            ProviderResult.Failure.NetworkError("Unexpected error: ${e.message}", e)
-        }
-    }
+    override fun testCredentials(account: Account, secret: String): ProviderResult =
+        fetchBalance(account, secret)
 
     private fun fetchApiBalance(session: XiaomiSession, traceId: String): ProviderResult {
         TokenPulseLogger.Provider.debug("[$traceId] Fetching Xiaomi API balance")
@@ -232,15 +172,14 @@ class XiaomiProviderClient(
         }
     }
 
-    private fun parseSession(secret: String): XiaomiSession? {
-        return try {
-            val session = gson.fromJson(secret, XiaomiSession::class.java)
-            if (session.serviceToken.isNullOrBlank()) null else session
-        } catch (e: Exception) {
-            TokenPulseLogger.Provider.debug("Failed to parse Xiaomi session: ${e.message}")
-            null
-        }
-    }
+    private fun parseSession(secret: String): XiaomiSession? =
+        SessionParser.parse(
+            secret = secret,
+            sessionClass = XiaomiSession::class.java,
+            validator = { !it.serviceToken.isNullOrBlank() },
+            providerName = "Xiaomi",
+            gson = gson
+        )
 
     private fun buildRequest(session: XiaomiSession, path: String): Request {
         val cookieBuilder = StringBuilder()
@@ -258,17 +197,12 @@ class XiaomiProviderClient(
             .build()
     }
 
-    private fun <T> executeRequest(request: Request, parser: (String) -> T): T {
+    private fun executeRequest(request: Request, parser: (String) -> ProviderResult): ProviderResult {
         val response = httpClient.newCall(request).execute()
         val body = response.body?.string() ?: ""
 
         if (!response.isSuccessful) {
-            val exception = when (response.code) {
-                401 -> AuthException("Xiaomi session expired. Please re-capture your session.")
-                429 -> RateLimitException()
-                else -> ServerException("Xiaomi API error: HTTP ${response.code}")
-            }
-            throw exception
+            return HttpErrorHandler.mapHttpError(response.code, "Xiaomi")
         }
 
         return parser(body)
@@ -280,10 +214,6 @@ class XiaomiProviderClient(
         val slh: String? = null,
         val ph: String? = null
     )
-
-    class AuthException(message: String) : Exception(message)
-    class RateLimitException : Exception("Rate limit exceeded")
-    class ServerException(message: String) : Exception(message)
 
     companion object {
         const val XIAOMI_PLATFORM_URL = "https://platform.xiaomimimo.com"

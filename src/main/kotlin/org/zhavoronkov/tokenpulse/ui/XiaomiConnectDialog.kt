@@ -8,6 +8,7 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import org.zhavoronkov.tokenpulse.utils.Constants.TEXT_AREA_COLUMNS
 import org.zhavoronkov.tokenpulse.utils.Constants.TEXT_AREA_ROWS
+import org.zhavoronkov.tokenpulse.utils.CurlCookieExtractor
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JScrollPane
@@ -45,49 +46,15 @@ class XiaomiConnectDialog : DialogWrapper(true) {
          * Handles both single-quoted and double-quoted cookie values.
          */
         fun extractCookiesFromCurl(text: String): XiaomiSessionCookies? {
-            val cookieString = extractQuotedValue(text, 'b')
-                ?: extractQuotedValue(text, 'c')
-                ?: return null
+            val cookieString = CurlCookieExtractor.extractCookieString(text) ?: return null
+            val cookies = CurlCookieExtractor.parseCookieString(cookieString)
 
-            val cookies = cookieString.split(";").map { it.trim() }
-
-            var serviceToken: String? = null
-            var userId: String? = null
-            var slh: String? = null
-            var ph: String? = null
-
-            for (cookie in cookies) {
-                val eqIndex = cookie.indexOf('=')
-                if (eqIndex < 0) continue
-
-                val name = cookie.substring(0, eqIndex).trim()
-                val value = cookie.substring(eqIndex + 1).trim()
-                    .removeSurrounding("\"")
-                    .removeSurrounding("'")
-
-                when (name) {
-                    "api-platform_serviceToken" -> serviceToken = value
-                    "userId" -> userId = value
-                    "api-platform_slh" -> slh = value
-                    "api-platform_ph" -> ph = value
-                }
-            }
-
-            return XiaomiSessionCookies(serviceToken, userId, slh, ph)
-        }
-
-        /**
-         * Extract a quoted value after a cURL flag (e.g., -b '...' or -b "...").
-         * Tries single quotes first (allows double quotes inside), then double quotes.
-         */
-        private fun extractQuotedValue(text: String, flag: Char): String? {
-            val singleQuotePattern = Regex("""-$flag\s+'([^']+)'""")
-            singleQuotePattern.find(text)?.let { return it.groupValues[1] }
-
-            val doubleQuotePattern = Regex("""-$flag\s+"([^"]+)"""")
-            doubleQuotePattern.find(text)?.let { return it.groupValues[1] }
-
-            return null
+            return XiaomiSessionCookies(
+                serviceToken = cookies["api-platform_serviceToken"],
+                userId = cookies["userId"],
+                slh = cookies["api-platform_slh"],
+                ph = cookies["api-platform_ph"]
+            )
         }
     }
 

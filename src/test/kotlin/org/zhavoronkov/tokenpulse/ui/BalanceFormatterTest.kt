@@ -712,7 +712,10 @@ class BalanceFormatterTest {
             metadata = mapOf("sessionUsed" to "25")
         )
         val formatted = BalanceFormatter.formatUsagePercentageForStatusBar(
-            result, StatusBarFormat.DESCRIPTIVE, null, StatusBarDollarFormat.REMAINING_ONLY
+            result,
+            StatusBarFormat.DESCRIPTIVE,
+            null,
+            StatusBarDollarFormat.REMAINING_ONLY
         )
         assertEquals("8.3B Credits remaining", formatted)
     }

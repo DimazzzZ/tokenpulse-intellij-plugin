@@ -13,7 +13,9 @@ import org.zhavoronkov.tokenpulse.model.ConnectionType
 import org.zhavoronkov.tokenpulse.model.Credits
 import org.zhavoronkov.tokenpulse.model.NebiusBalanceBreakdown
 import org.zhavoronkov.tokenpulse.model.ProviderResult
+import org.zhavoronkov.tokenpulse.provider.HttpErrorHandler
 import org.zhavoronkov.tokenpulse.provider.ProviderClient
+import org.zhavoronkov.tokenpulse.provider.SessionParser
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.math.BigDecimal
@@ -320,19 +322,13 @@ class NebiusProviderClient(
         parser: (Account, String) -> ProviderResult
     ): ProviderResult {
         return client.newCall(request).execute().use { response ->
-            when {
-                response.code in listOf(HTTP_FORBIDDEN, HTTP_UNAUTHORIZED) ->
-                    ProviderResult.Failure.AuthError("Nebius session expired. Please reconnect.")
-                response.code == HTTP_TOO_MANY_REQUESTS ->
-                    ProviderResult.Failure.RateLimited("Nebius rate limit exceeded")
-                !response.isSuccessful ->
-                    ProviderResult.Failure.UnknownError("Nebius error: ${response.code}")
-                else -> {
-                    val body = response.body?.string()
-                        ?: return ProviderResult.Failure.ParseError("Empty response body")
-                    parser(account, body)
-                }
+            if (!response.isSuccessful) {
+                return HttpErrorHandler.mapHttpError(response.code, "Nebius")
             }
+
+            val body = response.body?.string()
+                ?: return ProviderResult.Failure.ParseError("Empty response body")
+            parser(account, body)
         }
     }
 
@@ -451,15 +447,14 @@ class NebiusProviderClient(
             !session.csrfToken.isNullOrBlank() &&
             !session.parentId.isNullOrBlank()
 
-    private fun parseSession(secret: String): NebiusSession? {
-        return try {
-            val session = gson.fromJson(secret, NebiusSession::class.java)
-            if (validateSession(session)) session else null
-        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-            TokenPulseLogger.Provider.debug("Failed to parse Nebius session: ${e.message}")
-            null
-        }
-    }
+    private fun parseSession(secret: String): NebiusSession? =
+        SessionParser.parse(
+            secret = secret,
+            sessionClass = NebiusSession::class.java,
+            validator = ::validateSession,
+            providerName = "Nebius",
+            gson = gson
+        )
 
     private fun parsePaidBalanceResponse(account: Account, body: String): ProviderResult {
         return try {

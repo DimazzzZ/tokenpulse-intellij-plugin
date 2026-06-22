@@ -1,6 +1,7 @@
 package org.zhavoronkov.tokenpulse.ui
 
 import org.zhavoronkov.tokenpulse.provider.nebius.NebiusProviderClient
+import org.zhavoronkov.tokenpulse.utils.CurlCookieExtractor
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -103,7 +104,7 @@ object NebiusCurlParser {
 
     private fun extractCookies(normalized: String): String {
         // Try -b or --cookie flag first (preferred for Chrome "Copy as cURL")
-        extractCookiesFromBFlag(normalized)?.let { return it }
+        CurlCookieExtractor.extractCookieString(normalized)?.let { return it }
 
         // Then try -H "Cookie: ..." header
         extractCookiesFromHeader(normalized)?.let { return it }
@@ -115,23 +116,8 @@ object NebiusCurlParser {
      * Extract cookies from -b 'cookies' or --cookie 'cookies' format.
      * Chrome uses: -b 'cookie1=val1; cookie2=val2'
      */
-    private fun extractCookiesFromBFlag(normalized: String): String? {
-        // Match -b 'cookies' or -b "cookies" or --cookie 'cookies'
-        val patterns = listOf(
-            """-b\s+'([^']+)'""",
-            """-b\s+"([^"]+)"""",
-            """--cookie\s+'([^']+)'""",
-            """--cookie\s+"([^"]+)""""
-        )
-
-        for (pattern in patterns) {
-            val match = Regex(pattern).find(normalized)
-            if (match != null) {
-                return match.groupValues[1]
-            }
-        }
-        return null
-    }
+    private fun extractCookiesFromBFlag(normalized: String): String? =
+        CurlCookieExtractor.extractCookieString(normalized)
 
     /**
      * Extract cookies from -H "Cookie: ..." header format.
