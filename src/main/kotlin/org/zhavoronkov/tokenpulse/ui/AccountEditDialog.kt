@@ -44,6 +44,19 @@ class AccountEditDialog(
     private val existingSecret: String?
 ) : DialogWrapper(true) {
 
+    companion object {
+        private val XIAOMI_TYPES = setOf(ConnectionType.XIAOMI_API, ConnectionType.XIAOMI_TOKEN_PLAN)
+        private val SESSION_BASED_TYPES = setOf(
+            ConnectionType.NEBIUS_BILLING,
+            ConnectionType.OPENAI_PLATFORM,
+            ConnectionType.CODEX_CLI,
+            ConnectionType.CLAUDE_CODE,
+            ConnectionType.OPENROUTER_PLUGIN,
+            ConnectionType.XIAOMI_API,
+            ConnectionType.XIAOMI_TOKEN_PLAN
+        )
+    }
+
     // ── Connection type selector ───────────────────────────────────────────
     // Only show available connection types (excludes "Coming soon" features)
     private val connectionTypeCombo = ComboBox(
@@ -67,12 +80,7 @@ class AccountEditDialog(
 
     // ── Key field (hidden for Nebius, OpenAI, Codex CLI, Claude Code, and Xiaomi) ────
     private val keyField = JBPasswordField().apply {
-        val showKey = account?.connectionType != ConnectionType.NEBIUS_BILLING &&
-            account?.connectionType != ConnectionType.OPENAI_PLATFORM &&
-            account?.connectionType != ConnectionType.CODEX_CLI &&
-            account?.connectionType != ConnectionType.CLAUDE_CODE &&
-            account?.connectionType != ConnectionType.XIAOMI_API &&
-            account?.connectionType != ConnectionType.XIAOMI_TOKEN_PLAN
+        val showKey = account?.connectionType !in SESSION_BASED_TYPES
         text = if (showKey) existingSecret ?: "" else ""
         columns = TEXT_AREA_COLUMNS
     }
@@ -145,13 +153,7 @@ class AccountEditDialog(
     )
 
     private val xiaomiStatusLabel = JBLabel(
-        if (
-            (
-                account?.connectionType == ConnectionType.XIAOMI_API ||
-                    account?.connectionType == ConnectionType.XIAOMI_TOKEN_PLAN
-                ) &&
-            !existingSecret.isNullOrBlank()
-        ) {
+        if (account?.connectionType in XIAOMI_TYPES && !existingSecret.isNullOrBlank()) {
             "<html><font color='green'>✓ Session connected</font></html>"
         } else {
             "<html><i>Not connected</i></html>"
@@ -199,8 +201,7 @@ class AccountEditDialog(
         val isCodex = connectionType == ConnectionType.CODEX_CLI
         val isClaudeCode = connectionType == ConnectionType.CLAUDE_CODE
         val isOpenRouterPlugin = connectionType == ConnectionType.OPENROUTER_PLUGIN
-        val isXiaomi = connectionType == ConnectionType.XIAOMI_API ||
-            connectionType == ConnectionType.XIAOMI_TOKEN_PLAN
+        val isXiaomi = connectionType in XIAOMI_TYPES
         val isOther = !isNebius && !isOpenAi && !isCodex && !isClaudeCode && !isOpenRouterPlugin && !isXiaomi
 
         keyField.isVisible = isOther
@@ -379,23 +380,14 @@ class AccountEditDialog(
                     it != ConnectionType.CODEX_CLI &&
                     it != ConnectionType.CLAUDE_CODE &&
                     it != ConnectionType.OPENROUTER_PLUGIN &&
-                    it != ConnectionType.XIAOMI_API &&
-                    it != ConnectionType.XIAOMI_TOKEN_PLAN
+                    it !in XIAOMI_TYPES
             }
         )
 
         row {
             cell(getKeyButton)
         }.visibleIf(
-            connectionTypeCombo.selectedValueMatches {
-                it != ConnectionType.NEBIUS_BILLING &&
-                    it != ConnectionType.OPENAI_PLATFORM &&
-                    it != ConnectionType.CODEX_CLI &&
-                    it != ConnectionType.CLAUDE_CODE &&
-                    it != ConnectionType.OPENROUTER_PLUGIN &&
-                    it != ConnectionType.XIAOMI_API &&
-                    it != ConnectionType.XIAOMI_TOKEN_PLAN
-            }
+            connectionTypeCombo.selectedValueMatches { it !in SESSION_BASED_TYPES }
         )
 
         // --- Nebius Row ---
@@ -427,9 +419,7 @@ class AccountEditDialog(
             cell(xiaomiConnectButton)
             cell(xiaomiStatusLabel)
         }.visibleIf(
-            connectionTypeCombo.selectedValueMatches {
-                it == ConnectionType.XIAOMI_API || it == ConnectionType.XIAOMI_TOKEN_PLAN
-            }
+            connectionTypeCombo.selectedValueMatches { it in XIAOMI_TYPES }
         )
 
         separator()
@@ -465,8 +455,7 @@ class AccountEditDialog(
             account.connectionType != ConnectionType.NEBIUS_BILLING &&
             account.connectionType != ConnectionType.CODEX_CLI &&
             account.connectionType != ConnectionType.CLAUDE_CODE &&
-            account.connectionType != ConnectionType.XIAOMI_API &&
-            account.connectionType != ConnectionType.XIAOMI_TOKEN_PLAN
+            account.connectionType !in XIAOMI_TYPES
     }
 
     // ── Public accessors ───────────────────────────────────────────────────

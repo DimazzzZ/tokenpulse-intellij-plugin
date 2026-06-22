@@ -38,9 +38,6 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
 
     companion object {
         private const val MAX_DISPLAY_LENGTH = 20
-        private const val THOUSAND = 1_000L
-        private const val MILLION = 1_000_000L
-        private const val BILLION = 1_000_000_000L
     }
 
     override fun ID(): String = "TokenPulse"
@@ -490,18 +487,9 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
         }
 
         if (planUsed != null && planTotal != null && planTotal > 0) {
-            val usedFormatted = formatCredits(planUsed)
-            val totalFormatted = formatCredits(planTotal)
+            val usedFormatted = BalanceFormatter.formatShortCredits(planUsed)
+            val totalFormatted = BalanceFormatter.formatShortCredits(planTotal)
             append("<tr><td>Used:</td><td align='right'>$usedFormatted / $totalFormatted</td></tr>")
-        }
-    }
-
-    private fun formatCredits(credits: Long): String {
-        return when {
-            credits >= BILLION -> String.format(java.util.Locale.US, "%.1fB", credits / BILLION.toDouble())
-            credits >= MILLION -> String.format(java.util.Locale.US, "%.1fM", credits / MILLION.toDouble())
-            credits >= THOUSAND -> String.format(java.util.Locale.US, "%.1fK", credits / THOUSAND.toDouble())
-            else -> credits.toString()
         }
     }
 

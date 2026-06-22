@@ -217,7 +217,5 @@ class XiaomiProviderClient(
 
     companion object {
         const val XIAOMI_PLATFORM_URL = "https://platform.xiaomimimo.com"
-        const val XIAOMI_API_URL = "https://api.xiaomimimo.com/v1"
-        const val XIAOMI_TOKEN_PLAN_SGP_URL = "https://token-plan-sgp.xiaomimimo.com/v1"
     }
 }

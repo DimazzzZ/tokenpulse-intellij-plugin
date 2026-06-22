@@ -5,6 +5,31 @@ All notable changes to the TokenPulse plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-22
+
+### Added
+- **Xiaomi MiMo provider** — Two connection types: API (pay-as-you-go) and Token Plan (subscription Credits)
+- **Session capture flow** — XiaomiConnectDialog for capturing platform session via cURL
+- **Shared infrastructure** — SessionParser, HttpErrorHandler, CurlCookieExtractor utilities for session-based providers
+- **Status bar format options** — Percentage, Used/Remaining, Remaining only with Compact/Descriptive variants
+- **Short number formatting** — Credits displayed as 3.3B, 7.7M, 1.5K for readability
+
+### Changed
+- **Account fields changed to `var`** — Required for XStream XML serialization (was breaking account persistence on restart)
+- **Status bar format improvements** — formatAutoMode now iterates all accounts until finding usable data
+- **Widget refresh on settings change** — Status bar updates immediately when format dropdown changes
+- **Code quality overhaul** — Extracted utilities, improved test coverage, fixed detekt issues
+
+### Fixed
+- **Account serialization** — All Account fields must be `var` for XStream deserialization
+- **Status bar showing "--"** — Fixed multiple issues causing status bar to show no data
+- **Format order** — "Used / Remaining" now shows "Remaining / Total" as intended
+- **PERCENTAGE_REMAINING** — Returns "--" instead of raw dollar amount when percentage cannot be calculated
+- **Xiaomi API accountId** — Fixed empty accountId in BalanceSnapshot
+
+### Removed
+- **Unused constants** — Removed XIAOMI_API_URL, XIAOMI_TOKEN_PLAN_SGP_URL, duplicate formatCredits
+
 ## [0.2.0] - 2026-04-22
 
 ### Added

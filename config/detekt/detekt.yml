@@ -165,7 +165,7 @@ complexity:
     ignoreAnnotatedParameter: ['Inject']
   CyclomaticComplexMethod:
     active: true
-    # Increased to 30 for complex provider/UI methods
+    # Threshold for complex provider/UI methods
     threshold: 20
   NestedBlockDepth:
     active: true
