@@ -73,13 +73,13 @@ enum class AuthType(val displayName: String) {
  * @property keyPreview Masked preview of the API key for display purposes.
  */
 data class Account(
-    val id: String = UUID.randomUUID().toString(),
-    val name: String = "",
-    val connectionType: ConnectionType = ConnectionType.CLINE_API,
-    val authType: AuthType = AuthType.CLINE_API_KEY,
+    var id: String = UUID.randomUUID().toString(),
+    var name: String = "",
+    var connectionType: ConnectionType = ConnectionType.CLINE_API,
+    var authType: AuthType = AuthType.CLINE_API_KEY,
     var isEnabled: Boolean = true,
     /** Masked preview of the API key, e.g. "sk-or-…91bc". Stored for display only, not sensitive. */
-    val keyPreview: String = ""
+    var keyPreview: String = ""
 ) {
     /** Human-readable label shown in the accounts table. */
     fun displayLabel(): String {
