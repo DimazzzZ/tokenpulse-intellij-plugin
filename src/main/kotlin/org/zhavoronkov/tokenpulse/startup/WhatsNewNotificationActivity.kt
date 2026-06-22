@@ -43,12 +43,12 @@ class WhatsNewNotificationActivity : ProjectActivity {
             .createNotification(
                 "TokenPulse Updated to v$version",
                 """
-                <b>Thank you for sticking with TokenPulse!</b><br/>
-                I really appreciate everyone who waited for fixes after 0.1.0.<br/><br/>
+                <b>Thank you for using TokenPulse!</b><br/><br/>
                 <b>New in v$version:</b><br/>
-                • ChatGPT now uses Codex CLI for simpler setup (no OAuth)<br/>
-                • Improved credential handling and reduced notification spam<br/>
-                • Better Nebius balance extraction and connection reliability<br/>
+                • <b>Xiaomi MiMo provider</b> — API (pay-as-you-go) and Token Plan (subscription Credits)<br/>
+                • Session-based authentication with cURL capture flow<br/>
+                • Improved status bar format options (Percentage, Used/Remaining, Remaining only)<br/>
+                • Account persistence fix — accounts no longer revert to Cline on restart<br/>
                 • Code quality improvements and bug fixes
                 """.trimIndent(),
                 NotificationType.INFORMATION
