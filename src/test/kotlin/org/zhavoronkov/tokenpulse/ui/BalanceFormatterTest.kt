@@ -752,5 +752,4 @@ class BalanceFormatterTest {
         val data = BalanceFormatter.getStatusBarDataFromSnapshot(snap)
         assert(data is BalanceFormatter.StatusBarData.UsagePercentage)
     }
->>>>>>> 3297755 (refactor: code quality overhaul — fix critical bugs, extract utilities, add test coverage (#9))
 }
