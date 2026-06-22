@@ -648,7 +648,8 @@ class BalanceFormatterTest {
             metadata = mapOf("sessionUsed" to "25")
         )
         val formatted = BalanceFormatter.formatUsagePercentageForStatusBar(
-            result, StatusBarFormat.COMPACT
+            result,
+            StatusBarFormat.COMPACT
         )
         assertEquals("75% Credits", formatted)
     }
@@ -660,7 +661,8 @@ class BalanceFormatterTest {
             metadata = mapOf("sessionUsed" to "25")
         )
         val formatted = BalanceFormatter.formatUsagePercentageForStatusBar(
-            result, StatusBarFormat.DESCRIPTIVE
+            result,
+            StatusBarFormat.DESCRIPTIVE
         )
         assertEquals("75% of Credits remaining", formatted)
     }
@@ -673,7 +675,10 @@ class BalanceFormatterTest {
             metadata = mapOf("sessionUsed" to "25")
         )
         val formatted = BalanceFormatter.formatUsagePercentageForStatusBar(
-            result, StatusBarFormat.COMPACT, null, StatusBarDollarFormat.USED_OF_REMAINING
+            result,
+            StatusBarFormat.COMPACT,
+            null,
+            StatusBarDollarFormat.USED_OF_REMAINING
         )
         assertEquals("2.7B / 11B", formatted)
     }
@@ -686,7 +691,10 @@ class BalanceFormatterTest {
             metadata = mapOf("sessionUsed" to "25")
         )
         val formatted = BalanceFormatter.formatUsagePercentageForStatusBar(
-            result, StatusBarFormat.DESCRIPTIVE, null, StatusBarDollarFormat.USED_OF_REMAINING
+            result,
+            StatusBarFormat.DESCRIPTIVE,
+            null,
+            StatusBarDollarFormat.USED_OF_REMAINING
         )
         assertEquals("2.7B used of 11B Credits", formatted)
     }
@@ -699,7 +707,10 @@ class BalanceFormatterTest {
             metadata = mapOf("sessionUsed" to "25")
         )
         val formatted = BalanceFormatter.formatUsagePercentageForStatusBar(
-            result, StatusBarFormat.COMPACT, null, StatusBarDollarFormat.REMAINING_ONLY
+            result,
+            StatusBarFormat.COMPACT,
+            null,
+            StatusBarDollarFormat.REMAINING_ONLY
         )
         assertEquals("8.3B", formatted)
     }

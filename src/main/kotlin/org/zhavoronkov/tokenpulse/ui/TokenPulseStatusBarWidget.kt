@@ -103,7 +103,13 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
         for (account in enabledAccounts) {
             val result = successfulResults[account.id] ?: continue
             if (BalanceFormatter.isUsagePercentageType(account.connectionType)) {
-                return "TP: ${BalanceFormatter.formatUsagePercentageForStatusBar(result, format, null, settings.statusBarDollarFormat)}"
+                val formatted = BalanceFormatter.formatUsagePercentageForStatusBar(
+                    result,
+                    format,
+                    null,
+                    settings.statusBarDollarFormat
+                )
+                return "TP: $formatted"
             }
             val credits = result.snapshot.balance.credits
             if (credits != null) {

@@ -15,6 +15,7 @@ import java.util.Locale
 
 object BalanceFormatter {
     private val numberFormat = ThreadLocal.withInitial { NumberFormat.getNumberInstance(Locale.US) }
+    private const val SHORT_FORMAT = "%.1f"
 
     /** Connection types that report usage as percentage (not dollars). */
     private val usagePercentageTypes = setOf(
@@ -46,45 +47,65 @@ object BalanceFormatter {
         provider: Provider? = null,
         dollarFormat: StatusBarDollarFormat? = null
     ): String {
-        val metadata = result.snapshot.metadata
         val connectionType = result.snapshot.connectionType
 
         // For XIAOMI_TOKEN_PLAN with non-percentage format, show credits data
         if (connectionType == ConnectionType.XIAOMI_TOKEN_PLAN && dollarFormat != null &&
             dollarFormat != StatusBarDollarFormat.PERCENTAGE_REMAINING
         ) {
-            val tokens = result.snapshot.balance.tokens
-            if (tokens != null) {
-                val effectiveFormat = dollarFormat
-                val text = when (effectiveFormat) {
-                    StatusBarDollarFormat.USED_OF_REMAINING -> {
-                        val used = tokens.used
-                        val total = tokens.total
-                        if (used != null && total != null) {
-                            when (format) {
-                                StatusBarFormat.COMPACT -> "${formatShortCredits(used)} / ${formatShortCredits(total)}"
-                                StatusBarFormat.DESCRIPTIVE -> "${formatShortCredits(used)} used of ${formatShortCredits(total)} Credits"
-                            }
-                        } else {
-                            "--"
-                        }
-                    }
-                    StatusBarDollarFormat.REMAINING_ONLY -> {
-                        val remaining = tokens.remaining
-                        if (remaining != null) {
-                            when (format) {
-                                StatusBarFormat.COMPACT -> formatShortCredits(remaining)
-                                StatusBarFormat.DESCRIPTIVE -> "${formatShortCredits(remaining)} Credits remaining"
-                            }
-                        } else {
-                            "--"
-                        }
-                    }
-                    else -> "--"
-                }
-                return if (provider != null && text != "--") "$text (${provider.abbreviation})" else text
-            }
+            return formatXiaomiTokenPlanCredits(result, format, provider, dollarFormat)
         }
+
+        return formatUsagePercentage(result, format, provider)
+    }
+
+    private fun formatXiaomiTokenPlanCredits(
+        result: ProviderResult.Success,
+        format: StatusBarFormat,
+        provider: Provider?,
+        dollarFormat: StatusBarDollarFormat
+    ): String {
+        val tokens = result.snapshot.balance.tokens ?: return "--"
+
+        val text = when (dollarFormat) {
+            StatusBarDollarFormat.USED_OF_REMAINING -> {
+                val used = tokens.used
+                val total = tokens.total
+                if (used != null && total != null) {
+                    when (format) {
+                        StatusBarFormat.COMPACT ->
+                            "${formatShortCredits(used)} / ${formatShortCredits(total)}"
+                        StatusBarFormat.DESCRIPTIVE ->
+                            "${formatShortCredits(used)} used of ${formatShortCredits(total)} Credits"
+                    }
+                } else {
+                    "--"
+                }
+            }
+            StatusBarDollarFormat.REMAINING_ONLY -> {
+                val remaining = tokens.remaining
+                if (remaining != null) {
+                    when (format) {
+                        StatusBarFormat.COMPACT -> formatShortCredits(remaining)
+                        StatusBarFormat.DESCRIPTIVE -> "${formatShortCredits(remaining)} Credits remaining"
+                    }
+                } else {
+                    "--"
+                }
+            }
+            else -> "--"
+        }
+
+        return if (provider != null && text != "--") "$text (${provider.abbreviation})" else text
+    }
+
+    private fun formatUsagePercentage(
+        result: ProviderResult.Success,
+        format: StatusBarFormat,
+        provider: Provider?
+    ): String {
+        val metadata = result.snapshot.metadata
+        val connectionType = result.snapshot.connectionType
 
         // Extract usage percentages based on connection type
         val usageData = when (connectionType) {
@@ -164,15 +185,15 @@ object BalanceFormatter {
             credits < 1_000 -> credits.toString()
             credits < 1_000_000 -> {
                 val k = credits / 1_000.0
-                if (k == k.toLong().toDouble()) "${k.toLong()}K" else "%.1fK".format(k)
+                if (k == k.toLong().toDouble()) "${k.toLong()}K" else "${SHORT_FORMAT}K".format(k)
             }
             credits < 1_000_000_000 -> {
                 val m = credits / 1_000_000.0
-                if (m == m.toLong().toDouble()) "${m.toLong()}M" else "%.1fM".format(m)
+                if (m == m.toLong().toDouble()) "${m.toLong()}M" else "${SHORT_FORMAT}M".format(m)
             }
             else -> {
                 val b = credits / 1_000_000_000.0
-                if (b == b.toLong().toDouble()) "${b.toLong()}B" else "%.1fB".format(b)
+                if (b == b.toLong().toDouble()) "${b.toLong()}B" else "${SHORT_FORMAT}B".format(b)
             }
         }
     }

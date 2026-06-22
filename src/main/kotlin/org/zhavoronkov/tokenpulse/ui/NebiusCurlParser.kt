@@ -113,13 +113,6 @@ object NebiusCurlParser {
     }
 
     /**
-     * Extract cookies from -b 'cookies' or --cookie 'cookies' format.
-     * Chrome uses: -b 'cookie1=val1; cookie2=val2'
-     */
-    private fun extractCookiesFromBFlag(normalized: String): String? =
-        CurlCookieExtractor.extractCookieString(normalized)
-
-    /**
      * Extract cookies from -H "Cookie: ..." header format.
      */
     private fun extractCookiesFromHeader(normalized: String): String? {

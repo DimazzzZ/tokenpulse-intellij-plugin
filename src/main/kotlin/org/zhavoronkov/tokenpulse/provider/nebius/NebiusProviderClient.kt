@@ -581,9 +581,6 @@ class NebiusProviderClient(
         private const val BALANCE_ENDPOINT = "/api-mfe/billing/gateway/root/customers/getBalance"
         private const val TENANT_ENDPOINT = "/connect/nebius.iam.v1.AiTenantService/List"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
-        private const val HTTP_UNAUTHORIZED = 401
-        private const val HTTP_FORBIDDEN = 403
-        private const val HTTP_TOO_MANY_REQUESTS = 429
         private const val USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
     }

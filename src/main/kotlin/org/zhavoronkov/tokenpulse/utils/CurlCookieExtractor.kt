@@ -36,19 +36,17 @@ object CurlCookieExtractor {
         // Try -b flag first
         extractQuotedValue(text, 'b')?.let { return it }
 
-        // Try --cookie flag
-        val cookiePattern = Regex("""--cookie\s+'([^']+)'""")
-        cookiePattern.find(text)?.let { return it.groupValues[1] }
+        // Try --cookie flag or -H "Cookie: ..." header
+        val patterns = listOf(
+            """--cookie\s+'([^']+)'""",
+            """--cookie\s+"([^"]+)"""",
+            """-H\s+'[Cc]ookie:\s*([^']+)'""",
+            """-H\s+"[Cc]ookie:\s*([^"]+)""""
+        )
 
-        val cookiePatternDouble = Regex("""--cookie\s+"([^"]+)"""")
-        cookiePatternDouble.find(text)?.let { return it.groupValues[1] }
-
-        // Try -H "Cookie: ..." header
-        val headerPattern = Regex("""-H\s+'[Cc]ookie:\s*([^']+)'""")
-        headerPattern.find(text)?.let { return it.groupValues[1] }
-
-        val headerPatternDouble = Regex("""-H\s+"[Cc]ookie:\s*([^"]+)"""")
-        headerPatternDouble.find(text)?.let { return it.groupValues[1] }
+        for (pattern in patterns) {
+            Regex(pattern).find(text)?.let { return it.groupValues[1] }
+        }
 
         return null
     }
