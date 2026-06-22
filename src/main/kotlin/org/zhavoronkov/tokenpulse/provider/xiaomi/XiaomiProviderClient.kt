@@ -61,7 +61,7 @@ class XiaomiProviderClient(
             )
 
         return when (account.connectionType) {
-            ConnectionType.XIAOMI_API -> fetchApiBalance(session, traceId)
+            ConnectionType.XIAOMI_API -> fetchApiBalance(session, account, traceId)
             ConnectionType.XIAOMI_TOKEN_PLAN -> fetchTokenPlanUsage(session, account, traceId)
             else -> ProviderResult.Failure.AuthError("Unsupported connection type: ${account.connectionType}")
         }
@@ -70,7 +70,7 @@ class XiaomiProviderClient(
     override fun testCredentials(account: Account, secret: String): ProviderResult =
         fetchBalance(account, secret)
 
-    private fun fetchApiBalance(session: XiaomiSession, traceId: String): ProviderResult {
+    private fun fetchApiBalance(session: XiaomiSession, account: Account, traceId: String): ProviderResult {
         TokenPulseLogger.Provider.debug("[$traceId] Fetching Xiaomi API balance")
         val request = buildRequest(session, "/api/v1/balance")
 
@@ -95,7 +95,7 @@ class XiaomiProviderClient(
 
             ProviderResult.Success(
                 BalanceSnapshot(
-                    accountId = "",
+                    accountId = account.id,
                     connectionType = ConnectionType.XIAOMI_API,
                     balance = Balance(
                         credits = Credits(

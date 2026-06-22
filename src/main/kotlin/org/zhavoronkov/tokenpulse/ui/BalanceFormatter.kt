@@ -363,7 +363,7 @@ object BalanceFormatter {
 
         val text = when (effectiveFormat) {
             StatusBarDollarFormat.REMAINING_ONLY -> formatRemainingOnly(remaining, used, format)
-            StatusBarDollarFormat.USED_OF_REMAINING -> formatUsedOfRemaining(used, remaining, format)
+            StatusBarDollarFormat.USED_OF_REMAINING -> formatUsedOfRemaining(used, remaining, total, format)
             StatusBarDollarFormat.PERCENTAGE_REMAINING -> formatPercentageRemaining(remaining, used, total)
         }
 
@@ -384,13 +384,28 @@ object BalanceFormatter {
         if (used != null) {
             return when (format) {
                 StatusBarFormat.COMPACT -> "${formatShortDollars(used)} used"
-                StatusBarFormat.DESCRIPTIVE -> "${formatShortDollars(used)} used"
+                StatusBarFormat.DESCRIPTIVE -> "${formatShortDollars(used)} used this period"
             }
         }
         return "--"
     }
 
-    private fun formatUsedOfRemaining(used: BigDecimal?, remaining: BigDecimal?, format: StatusBarFormat): String {
+    private fun formatUsedOfRemaining(
+        used: BigDecimal?,
+        remaining: BigDecimal?,
+        total: BigDecimal?,
+        format: StatusBarFormat
+    ): String {
+        // Prefer "remaining / total" format
+        if (remaining != null && total != null) {
+            return when (format) {
+                StatusBarFormat.COMPACT ->
+                    "${formatShortDollars(remaining)} / ${formatShortDollars(total)}"
+                StatusBarFormat.DESCRIPTIVE ->
+                    "${formatShortDollars(remaining)} of ${formatShortDollars(total)} remaining"
+            }
+        }
+        // Fallback to "used / remaining" if total not available
         if (used != null && remaining != null) {
             return when (format) {
                 StatusBarFormat.COMPACT -> "${formatShortDollars(used)} / ${formatShortDollars(remaining)}"
@@ -429,10 +444,10 @@ object BalanceFormatter {
                     .divide(computedTotal, 0, RoundingMode.HALF_UP).toInt()
                 return "$percentage% remaining"
             }
-            return "\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
+            // Both zero
+            return "0% remaining"
         }
-        if (remaining != null) return "\$${remaining.setScale(0, RoundingMode.HALF_UP)}"
-        if (used != null) return "\$${used.setScale(0, RoundingMode.HALF_UP)} used"
+        // Cannot calculate percentage without total or used
         return "--"
     }
 
