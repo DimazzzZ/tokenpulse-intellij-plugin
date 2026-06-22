@@ -63,6 +63,66 @@ class AccountTest {
 
         assertEquals("OpenAI: Codex CLI", label)
     }
+
+    @Test
+    fun `Account fields are mutable (var not val) for XStream serialization`() {
+        val account = Account(
+            id = "test-id",
+            name = "Test",
+            connectionType = ConnectionType.OPENROUTER_PROVISIONING,
+            authType = AuthType.OPENROUTER_PROVISIONING_KEY,
+            keyPreview = "sk-or-…91bc"
+        )
+
+        // Verify all fields can be modified (var not val)
+        account.id = "new-id"
+        account.name = "New Name"
+        account.connectionType = ConnectionType.XIAOMI_API
+        account.authType = AuthType.XIAOMI_API_KEY
+        account.isEnabled = false
+        account.keyPreview = "new-preview"
+
+        assertEquals("new-id", account.id)
+        assertEquals("New Name", account.name)
+        assertEquals(ConnectionType.XIAOMI_API, account.connectionType)
+        assertEquals(AuthType.XIAOMI_API_KEY, account.authType)
+        assertFalse(account.isEnabled)
+        assertEquals("new-preview", account.keyPreview)
+    }
+
+    @Test
+    fun `Account copy preserves all fields`() {
+        val original = Account(
+            id = "test-id",
+            name = "Test",
+            connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
+            authType = AuthType.XIAOMI_TOKEN_PLAN_KEY,
+            isEnabled = false,
+            keyPreview = "tp-…1234"
+        )
+
+        val copy = original.copy()
+
+        assertEquals(original.id, copy.id)
+        assertEquals(original.name, copy.name)
+        assertEquals(original.connectionType, copy.connectionType)
+        assertEquals(original.authType, copy.authType)
+        assertEquals(original.isEnabled, copy.isEnabled)
+        assertEquals(original.keyPreview, copy.keyPreview)
+    }
+
+    @Test
+    fun `Account connectionType and authType are preserved after copy`() {
+        val original = Account(
+            connectionType = ConnectionType.NEBIUS_BILLING,
+            authType = AuthType.NEBIUS_BILLING_SESSION
+        )
+
+        val copy = original.copy(name = "Updated")
+
+        assertEquals(ConnectionType.NEBIUS_BILLING, copy.connectionType)
+        assertEquals(AuthType.NEBIUS_BILLING_SESSION, copy.authType)
+    }
 }
 
 /**
