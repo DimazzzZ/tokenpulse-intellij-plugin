@@ -363,7 +363,7 @@ object BalanceFormatter {
 
         val text = when (effectiveFormat) {
             StatusBarDollarFormat.REMAINING_ONLY -> formatRemainingOnly(remaining, used, format)
-            StatusBarDollarFormat.USED_OF_REMAINING -> formatUsedOfRemaining(used, remaining, format)
+            StatusBarDollarFormat.USED_OF_REMAINING -> formatUsedOfRemaining(used, remaining, total, format)
             StatusBarDollarFormat.PERCENTAGE_REMAINING -> formatPercentageRemaining(remaining, used, total)
         }
 
@@ -390,7 +390,20 @@ object BalanceFormatter {
         return "--"
     }
 
-    private fun formatUsedOfRemaining(used: BigDecimal?, remaining: BigDecimal?, format: StatusBarFormat): String {
+    private fun formatUsedOfRemaining(
+        used: BigDecimal?,
+        remaining: BigDecimal?,
+        total: BigDecimal?,
+        format: StatusBarFormat
+    ): String {
+        // Prefer "remaining / total" format
+        if (remaining != null && total != null) {
+            return when (format) {
+                StatusBarFormat.COMPACT -> "${formatShortDollars(remaining)} / ${formatShortDollars(total)}"
+                StatusBarFormat.DESCRIPTIVE -> "${formatShortDollars(remaining)} of ${formatShortDollars(total)} remaining"
+            }
+        }
+        // Fallback to "used / remaining" if total not available
         if (used != null && remaining != null) {
             return when (format) {
                 StatusBarFormat.COMPACT -> "${formatShortDollars(used)} / ${formatShortDollars(remaining)}"

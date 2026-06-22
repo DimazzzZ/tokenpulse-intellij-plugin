@@ -483,7 +483,8 @@ class BalanceFormatterTest {
             Credits(used = BigDecimal(193), remaining = BigDecimal(200)),
             StatusBarDollarFormat.USED_OF_REMAINING
         )
-        assertEquals("\$193 / \$200", formatted)
+        // total = used + remaining = 393, so format is "remaining / total"
+        assertEquals("\$200 / \$393", formatted)
     }
 
     @Test
@@ -752,7 +753,8 @@ class BalanceFormatterTest {
             null,
             StatusBarFormat.DESCRIPTIVE
         )
-        assertEquals("$193 used of $200", formatted)
+        // total = used + remaining = 393, so format is "remaining of total remaining"
+        assertEquals("$200 of $393 remaining", formatted)
     }
 
     // === getStatusBarDataFromSnapshot for XIAOMI_TOKEN_PLAN ===
