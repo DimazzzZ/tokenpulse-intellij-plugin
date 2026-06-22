@@ -1,11 +1,11 @@
 # TokenPulse
 
 [![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/30615-tokenpulse)
-[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/releases)
+[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/releases)
 [![CI](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> ⚠️ **Beta Release** — This is an early release (v0.2.0). Features may change and some functionality may be incomplete. Please [report issues](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/issues) on GitHub.
+> ⚠️ **Beta Release** — This is an early release (v0.3.0). Features may change and some functionality may be incomplete. Please [report issues](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/issues) on GitHub.
 
 **TokenPulse** is an IntelliJ IDEA plugin that aggregates token balances and credit usage across multiple AI providers directly in your IDE status bar.
 
