@@ -65,12 +65,14 @@ class AccountEditDialog(
         addActionListener { updateUiForConnectionType() }
     }
 
-    // ── Key field (hidden for Nebius, OpenAI, Codex CLI, and Claude Code) ────
+    // ── Key field (hidden for Nebius, OpenAI, Codex CLI, Claude Code, and Xiaomi) ────
     private val keyField = JBPasswordField().apply {
         val showKey = account?.connectionType != ConnectionType.NEBIUS_BILLING &&
             account?.connectionType != ConnectionType.OPENAI_PLATFORM &&
             account?.connectionType != ConnectionType.CODEX_CLI &&
-            account?.connectionType != ConnectionType.CLAUDE_CODE
+            account?.connectionType != ConnectionType.CLAUDE_CODE &&
+            account?.connectionType != ConnectionType.XIAOMI_API &&
+            account?.connectionType != ConnectionType.XIAOMI_TOKEN_PLAN
         text = if (showKey) existingSecret ?: "" else ""
         columns = TEXT_AREA_COLUMNS
     }
@@ -98,6 +100,11 @@ class AccountEditDialog(
     // ── Claude Code connect button ────────────────────────────────────────
     private val claudeCodeConnectButton = JButton("Detect Claude CLI →").apply {
         addActionListener { openClaudeConnectDialog() }
+    }
+
+    // ── Xiaomi connect button ─────────────────────────────────────────────
+    private val xiaomiConnectButton = JButton("Connect Xiaomi Account →").apply {
+        addActionListener { openXiaomiConnectDialog() }
     }
 
     private val enabledCheckBox = javax.swing.JCheckBox("Account enabled", account?.isEnabled ?: true)
@@ -137,6 +144,20 @@ class AccountEditDialog(
         }
     )
 
+    private val xiaomiStatusLabel = JBLabel(
+        if (
+            (
+                account?.connectionType == ConnectionType.XIAOMI_API ||
+                    account?.connectionType == ConnectionType.XIAOMI_TOKEN_PLAN
+                ) &&
+            !existingSecret.isNullOrBlank()
+        ) {
+            "<html><font color='green'>✓ Session connected</font></html>"
+        } else {
+            "<html><i>Not connected</i></html>"
+        }
+    )
+
     /** Holds the captured Nebius session JSON (set after successful NebiusConnectDialog). */
     private var capturedNebiusSession: String? =
         if (account?.connectionType == ConnectionType.NEBIUS_BILLING) existingSecret else null
@@ -153,6 +174,16 @@ class AccountEditDialog(
     private var capturedClaudeSecret: String? =
         if (account?.connectionType == ConnectionType.CLAUDE_CODE) existingSecret else null
 
+    /** Holds the captured Xiaomi session JSON. */
+    private var capturedXiaomiSession: String? =
+        if (account?.connectionType == ConnectionType.XIAOMI_API ||
+            account?.connectionType == ConnectionType.XIAOMI_TOKEN_PLAN
+        ) {
+            existingSecret
+        } else {
+            null
+        }
+
     init {
         title = if (account == null) "Add Provider" else "Edit Provider"
         init()
@@ -168,7 +199,9 @@ class AccountEditDialog(
         val isCodex = connectionType == ConnectionType.CODEX_CLI
         val isClaudeCode = connectionType == ConnectionType.CLAUDE_CODE
         val isOpenRouterPlugin = connectionType == ConnectionType.OPENROUTER_PLUGIN
-        val isOther = !isNebius && !isOpenAi && !isCodex && !isClaudeCode && !isOpenRouterPlugin
+        val isXiaomi = connectionType == ConnectionType.XIAOMI_API ||
+            connectionType == ConnectionType.XIAOMI_TOKEN_PLAN
+        val isOther = !isNebius && !isOpenAi && !isCodex && !isClaudeCode && !isOpenRouterPlugin && !isXiaomi
 
         keyField.isVisible = isOther
         getKeyButton.isVisible = isOther
@@ -184,6 +217,9 @@ class AccountEditDialog(
 
         claudeCodeConnectButton.isVisible = isClaudeCode
         claudeCodeStatusLabel.isVisible = isClaudeCode
+
+        xiaomiConnectButton.isVisible = isXiaomi
+        xiaomiStatusLabel.isVisible = isXiaomi
 
         providerHintLabel.text = "<html><font color='gray'>${keyHintFor(connectionType)}</font></html>"
     }
@@ -206,6 +242,7 @@ class AccountEditDialog(
         ConnectionType.CODEX_CLI -> capturedCodexSecret ?: ""
         ConnectionType.NEBIUS_BILLING -> capturedNebiusSession ?: ""
         ConnectionType.OPENAI_PLATFORM -> capturedOpenAiSecret ?: ""
+        ConnectionType.XIAOMI_API, ConnectionType.XIAOMI_TOKEN_PLAN -> capturedXiaomiSession ?: ""
         else -> String(keyField.password).trim()
     }
 
@@ -227,6 +264,8 @@ class AccountEditDialog(
         ConnectionType.NEBIUS_BILLING -> "https://tokenfactory.nebius.com/"
         ConnectionType.OPENAI_PLATFORM -> "https://platform.openai.com/settings/organization/admin-keys"
         ConnectionType.CODEX_CLI -> "https://github.com/openai/codex"
+        ConnectionType.XIAOMI_API,
+        ConnectionType.XIAOMI_TOKEN_PLAN -> "https://platform.xiaomimimo.com/console/api-keys"
     }
 
     private fun openNebiusConnectDialog() {
@@ -284,6 +323,18 @@ class AccountEditDialog(
         }
     }
 
+    private fun openXiaomiConnectDialog() {
+        val dialog = XiaomiConnectDialog()
+        if (dialog.showAndGet()) {
+            val json = dialog.capturedSessionJson
+            if (!json.isNullOrBlank()) {
+                capturedXiaomiSession = json
+                xiaomiStatusLabel.text =
+                    "<html><font color='green'><b>✓ Session connected</b></font></html>"
+            }
+        }
+    }
+
     private fun keyHintFor(connectionType: ConnectionType): String = when (connectionType) {
         ConnectionType.CLAUDE_CODE ->
             "Claude Code uses the Claude CLI for authentication. Click \"Detect Claude CLI →\" to verify installation."
@@ -301,6 +352,12 @@ class AccountEditDialog(
                 "Install via: npm install -g @openai/codex"
         ConnectionType.OPENAI_PLATFORM ->
             "OpenAI API key. Click \"Connect API Key →\" to capture your key."
+        ConnectionType.XIAOMI_API ->
+            "Xiaomi MiMo pay-as-you-go API. Click \"Connect Xiaomi Account →\" to capture your platform session. " +
+                "Get your API key at platform.xiaomimimo.com."
+        ConnectionType.XIAOMI_TOKEN_PLAN ->
+            "Xiaomi MiMo Token Plan. Click \"Connect Xiaomi Account →\" to capture your platform session. " +
+                "Subscribe at platform.xiaomimimo.com/token-plan."
     }
 
     // ── Panel construction ─────────────────────────────────────────────────
@@ -321,7 +378,9 @@ class AccountEditDialog(
                     it != ConnectionType.OPENAI_PLATFORM &&
                     it != ConnectionType.CODEX_CLI &&
                     it != ConnectionType.CLAUDE_CODE &&
-                    it != ConnectionType.OPENROUTER_PLUGIN
+                    it != ConnectionType.OPENROUTER_PLUGIN &&
+                    it != ConnectionType.XIAOMI_API &&
+                    it != ConnectionType.XIAOMI_TOKEN_PLAN
             }
         )
 
@@ -333,7 +392,9 @@ class AccountEditDialog(
                     it != ConnectionType.OPENAI_PLATFORM &&
                     it != ConnectionType.CODEX_CLI &&
                     it != ConnectionType.CLAUDE_CODE &&
-                    it != ConnectionType.OPENROUTER_PLUGIN
+                    it != ConnectionType.OPENROUTER_PLUGIN &&
+                    it != ConnectionType.XIAOMI_API &&
+                    it != ConnectionType.XIAOMI_TOKEN_PLAN
             }
         )
 
@@ -360,6 +421,16 @@ class AccountEditDialog(
             cell(claudeCodeConnectButton)
             cell(claudeCodeStatusLabel)
         }.visibleIf(connectionTypeCombo.selectedValueMatches { it == ConnectionType.CLAUDE_CODE })
+
+        // --- Xiaomi Row ---
+        row {
+            cell(xiaomiConnectButton)
+            cell(xiaomiStatusLabel)
+        }.visibleIf(
+            connectionTypeCombo.selectedValueMatches {
+                it == ConnectionType.XIAOMI_API || it == ConnectionType.XIAOMI_TOKEN_PLAN
+            }
+        )
 
         separator()
 
@@ -393,7 +464,9 @@ class AccountEditDialog(
         return account?.keyPreview?.isNotEmpty() == true &&
             account.connectionType != ConnectionType.NEBIUS_BILLING &&
             account.connectionType != ConnectionType.CODEX_CLI &&
-            account.connectionType != ConnectionType.CLAUDE_CODE
+            account.connectionType != ConnectionType.CLAUDE_CODE &&
+            account.connectionType != ConnectionType.XIAOMI_API &&
+            account.connectionType != ConnectionType.XIAOMI_TOKEN_PLAN
     }
 
     // ── Public accessors ───────────────────────────────────────────────────
@@ -408,6 +481,7 @@ class AccountEditDialog(
             ConnectionType.OPENAI_PLATFORM -> validateOpenAi()
             ConnectionType.CODEX_CLI -> validateCodex()
             ConnectionType.CLAUDE_CODE -> validateClaudeCode()
+            ConnectionType.XIAOMI_API, ConnectionType.XIAOMI_TOKEN_PLAN -> validateXiaomi()
             else -> validateOther()
         }
     }
@@ -447,6 +521,16 @@ class AccountEditDialog(
             return ValidationInfo(
                 "Please detect Claude CLI first. Install via: npm install -g @anthropic-ai/claude-code",
                 claudeCodeConnectButton
+            )
+        }
+        return null
+    }
+
+    private fun validateXiaomi(): ValidationInfo? {
+        if (capturedXiaomiSession.isNullOrBlank()) {
+            return ValidationInfo(
+                "Please connect your Xiaomi account first.",
+                xiaomiConnectButton
             )
         }
         return null

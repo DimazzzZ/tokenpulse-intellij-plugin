@@ -30,6 +30,12 @@ class BalanceFormatterTest {
         metadata = metadata
     )
 
+    private fun successResult(
+        connectionType: ConnectionType,
+        balance: Balance = Balance(),
+        metadata: Map<String, String> = emptyMap()
+    ) = ProviderResult.Success(snapshot(connectionType, balance, metadata))
+
     @Test
     fun `format returns No data when balance is empty`() {
         val balance = Balance()
@@ -477,7 +483,7 @@ class BalanceFormatterTest {
             Credits(used = BigDecimal(193), remaining = BigDecimal(200)),
             StatusBarDollarFormat.USED_OF_REMAINING
         )
-        assertEquals("\$193/\$200", formatted)
+        assertEquals("\$193 / \$200", formatted)
     }
 
     @Test
@@ -578,5 +584,183 @@ class BalanceFormatterTest {
         val balance2 = Balance(tokens = Tokens(used = 9876543L))
         assertEquals("1,234,567 used", BalanceFormatter.format(balance1))
         assertEquals("9,876,543 used", BalanceFormatter.format(balance2))
+    }
+
+    // === formatShortCredits ===
+
+    @Test
+    fun `formatShortCredits formats small numbers without suffix`() {
+        assertEquals("0", BalanceFormatter.formatShortCredits(0))
+        assertEquals("123", BalanceFormatter.formatShortCredits(123))
+        assertEquals("999", BalanceFormatter.formatShortCredits(999))
+    }
+
+    @Test
+    fun `formatShortCredits formats thousands with K suffix`() {
+        assertEquals("1K", BalanceFormatter.formatShortCredits(1000))
+        assertEquals("1.5K", BalanceFormatter.formatShortCredits(1500))
+        assertEquals("999K", BalanceFormatter.formatShortCredits(999000))
+    }
+
+    @Test
+    fun `formatShortCredits formats millions with M suffix`() {
+        assertEquals("1M", BalanceFormatter.formatShortCredits(1_000_000))
+        assertEquals("2.3M", BalanceFormatter.formatShortCredits(2_300_000))
+        assertEquals("999M", BalanceFormatter.formatShortCredits(999_000_000))
+    }
+
+    @Test
+    fun `formatShortCredits formats billions with B suffix`() {
+        assertEquals("1B", BalanceFormatter.formatShortCredits(1_000_000_000))
+        assertEquals("3.3B", BalanceFormatter.formatShortCredits(3_300_000_000))
+        assertEquals("11B", BalanceFormatter.formatShortCredits(11_000_000_000))
+    }
+
+    // === formatShortDollars ===
+
+    @Test
+    fun `formatShortDollars formats with dollar prefix`() {
+        assertEquals("$0", BalanceFormatter.formatShortDollars(BigDecimal.ZERO))
+        assertEquals("$500", BalanceFormatter.formatShortDollars(BigDecimal(500)))
+        assertEquals("$1.5K", BalanceFormatter.formatShortDollars(BigDecimal(1500)))
+        assertEquals("$2.3M", BalanceFormatter.formatShortDollars(BigDecimal(2300000)))
+        assertEquals("$3.3B", BalanceFormatter.formatShortDollars(BigDecimal(3300000000)))
+    }
+
+    // === isUsagePercentageType ===
+
+    @Test
+    fun `isUsagePercentageType returns true for XIAOMI_TOKEN_PLAN`() {
+        assertEquals(true, BalanceFormatter.isUsagePercentageType(ConnectionType.XIAOMI_TOKEN_PLAN))
+    }
+
+    @Test
+    fun `isUsagePercentageType returns false for XIAOMI_API`() {
+        assertEquals(false, BalanceFormatter.isUsagePercentageType(ConnectionType.XIAOMI_API))
+    }
+
+    // === formatUsagePercentageForStatusBar for XIAOMI_TOKEN_PLAN ===
+
+    @Test
+    fun `formatUsagePercentageForStatusBar shows percentage for XIAOMI_TOKEN_PLAN`() {
+        val result = successResult(
+            connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
+            metadata = mapOf("sessionUsed" to "25")
+        )
+        val formatted = BalanceFormatter.formatUsagePercentageForStatusBar(
+            result,
+            StatusBarFormat.COMPACT
+        )
+        assertEquals("75% Credits", formatted)
+    }
+
+    @Test
+    fun `formatUsagePercentageForStatusBar shows descriptive percentage for XIAOMI_TOKEN_PLAN`() {
+        val result = successResult(
+            connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
+            metadata = mapOf("sessionUsed" to "25")
+        )
+        val formatted = BalanceFormatter.formatUsagePercentageForStatusBar(
+            result,
+            StatusBarFormat.DESCRIPTIVE
+        )
+        assertEquals("75% of Credits remaining", formatted)
+    }
+
+    @Test
+    fun `formatUsagePercentageForStatusBar shows used of remaining for XIAOMI_TOKEN_PLAN`() {
+        val result = successResult(
+            connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
+            balance = Balance(tokens = Tokens(used = 2727524596, total = 11000000000, remaining = 8272475404)),
+            metadata = mapOf("sessionUsed" to "25")
+        )
+        val formatted = BalanceFormatter.formatUsagePercentageForStatusBar(
+            result,
+            StatusBarFormat.COMPACT,
+            null,
+            StatusBarDollarFormat.USED_OF_REMAINING
+        )
+        assertEquals("2.7B / 11B", formatted)
+    }
+
+    @Test
+    fun `formatUsagePercentageForStatusBar shows descriptive used of remaining for XIAOMI_TOKEN_PLAN`() {
+        val result = successResult(
+            connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
+            balance = Balance(tokens = Tokens(used = 2727524596, total = 11000000000, remaining = 8272475404)),
+            metadata = mapOf("sessionUsed" to "25")
+        )
+        val formatted = BalanceFormatter.formatUsagePercentageForStatusBar(
+            result,
+            StatusBarFormat.DESCRIPTIVE,
+            null,
+            StatusBarDollarFormat.USED_OF_REMAINING
+        )
+        assertEquals("2.7B used of 11B Credits", formatted)
+    }
+
+    @Test
+    fun `formatUsagePercentageForStatusBar shows remaining only for XIAOMI_TOKEN_PLAN`() {
+        val result = successResult(
+            connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
+            balance = Balance(tokens = Tokens(used = 2727524596, total = 11000000000, remaining = 8272475404)),
+            metadata = mapOf("sessionUsed" to "25")
+        )
+        val formatted = BalanceFormatter.formatUsagePercentageForStatusBar(
+            result,
+            StatusBarFormat.COMPACT,
+            null,
+            StatusBarDollarFormat.REMAINING_ONLY
+        )
+        assertEquals("8.3B", formatted)
+    }
+
+    @Test
+    fun `formatUsagePercentageForStatusBar shows descriptive remaining only for XIAOMI_TOKEN_PLAN`() {
+        val result = successResult(
+            connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
+            balance = Balance(tokens = Tokens(used = 2727524596, total = 11000000000, remaining = 8272475404)),
+            metadata = mapOf("sessionUsed" to "25")
+        )
+        val formatted = BalanceFormatter.formatUsagePercentageForStatusBar(
+            result,
+            StatusBarFormat.DESCRIPTIVE,
+            null,
+            StatusBarDollarFormat.REMAINING_ONLY
+        )
+        assertEquals("8.3B Credits remaining", formatted)
+    }
+
+    // === formatCreditsForStatusBar with DESCRIPTIVE format ===
+
+    @Test
+    fun `formatCreditsForStatusBar shows descriptive remaining only`() {
+        val formatted = BalanceFormatter.formatCreditsForStatusBar(
+            Credits(remaining = BigDecimal(500)),
+            StatusBarDollarFormat.REMAINING_ONLY,
+            null,
+            StatusBarFormat.DESCRIPTIVE
+        )
+        assertEquals("$500 remaining", formatted)
+    }
+
+    @Test
+    fun `formatCreditsForStatusBar shows descriptive used of remaining`() {
+        val formatted = BalanceFormatter.formatCreditsForStatusBar(
+            Credits(used = BigDecimal(193), remaining = BigDecimal(200)),
+            StatusBarDollarFormat.USED_OF_REMAINING,
+            null,
+            StatusBarFormat.DESCRIPTIVE
+        )
+        assertEquals("$193 used of $200", formatted)
+    }
+
+    // === getStatusBarDataFromSnapshot for XIAOMI_TOKEN_PLAN ===
+
+    @Test
+    fun `returns UsagePercentage for XIAOMI_TOKEN_PLAN connection`() {
+        val snap = snapshot(ConnectionType.XIAOMI_TOKEN_PLAN)
+        val data = BalanceFormatter.getStatusBarDataFromSnapshot(snap)
+        assert(data is BalanceFormatter.StatusBarData.UsagePercentage)
     }
 }

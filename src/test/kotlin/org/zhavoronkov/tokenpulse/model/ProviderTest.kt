@@ -61,7 +61,12 @@ class ProviderTest {
     }
 
     @Test
-    fun `there are exactly 5 providers`() {
-        assertEquals(5, Provider.entries.size)
+    fun `XIAOMI has correct display name`() {
+        assertEquals("Xiaomi", Provider.XIAOMI.displayName)
+    }
+
+    @Test
+    fun `there are exactly 6 providers`() {
+        assertEquals(6, Provider.entries.size)
     }
 }

@@ -447,6 +447,12 @@ class TokenPulseConfigurable : Configurable {
 
         settingsService.loadState(settings)
         BalanceRefreshService.getInstance().restartAutoRefresh()
+
+        // Refresh status bar widget to pick up format changes immediately
+        val project = com.intellij.openapi.project.ProjectManager.getInstance().defaultProject
+        val statusBar = com.intellij.openapi.wm.WindowManager.getInstance().getStatusBar(project)
+        statusBar?.updateWidget("TokenPulse")
+
         myModified = false
     }
 
@@ -466,6 +472,7 @@ class TokenPulseConfigurable : Configurable {
             ConnectionType.CLAUDE_CODE -> "CLI"
             ConnectionType.CODEX_CLI -> "CLI"
             ConnectionType.NEBIUS_BILLING -> "Session"
+            ConnectionType.XIAOMI_API, ConnectionType.XIAOMI_TOKEN_PLAN -> "Session"
             ConnectionType.OPENAI_PLATFORM -> {
                 // Detect if secret is OAuth JSON (has accessToken and refreshToken fields)
                 val isOAuthJson = secret.contains("\"accessToken\"") && secret.contains("\"refreshToken\"")

@@ -43,7 +43,23 @@ enum class AuthType(val displayName: String) {
      * The stored secret is a raw API key string (e.g., "sk-...").
      * This is the recommended method for new accounts.
      */
-    OPENAI_API_KEY("API Key")
+    OPENAI_API_KEY("API Key"),
+
+    /**
+     * Xiaomi MiMo API key (pay-as-you-go).
+     *
+     * The stored secret is a raw API key string (e.g., "sk-...").
+     * Balance is tracked via Xiaomi platform session capture.
+     */
+    XIAOMI_API_KEY("API Key"),
+
+    /**
+     * Xiaomi MiMo Token Plan API key.
+     *
+     * The stored secret is a raw API key string (e.g., "tp-...").
+     * Credits usage is tracked via Xiaomi platform session capture.
+     */
+    XIAOMI_TOKEN_PLAN_KEY("Token Plan Key")
 }
 
 /**

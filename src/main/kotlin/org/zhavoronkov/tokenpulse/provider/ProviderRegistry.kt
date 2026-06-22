@@ -10,6 +10,7 @@ import org.zhavoronkov.tokenpulse.provider.openai.chatgpt.CodexProviderClient
 import org.zhavoronkov.tokenpulse.provider.openai.platform.OpenAiPlatformProviderClient
 import org.zhavoronkov.tokenpulse.provider.openrouter.OpenRouterPluginBridgeClient
 import org.zhavoronkov.tokenpulse.provider.openrouter.OpenRouterProviderClient
+import org.zhavoronkov.tokenpulse.provider.xiaomi.XiaomiProviderClient
 
 /**
  * Registry for provider client instances.
@@ -40,6 +41,7 @@ class DefaultProviderRegistry(
     private val openAiPlatformClient by lazy { OpenAiPlatformProviderClient(httpClient, gson) }
     private val codexClient by lazy { CodexProviderClient() }
     private val claudeCodeClient by lazy { ClaudeCodeProviderClient() }
+    private val xiaomiClient by lazy { XiaomiProviderClient(httpClient, gson) }
 
     override fun getClient(connectionType: ConnectionType): ProviderClient {
         return when (connectionType) {
@@ -50,6 +52,8 @@ class DefaultProviderRegistry(
             ConnectionType.OPENAI_PLATFORM -> openAiPlatformClient
             ConnectionType.CODEX_CLI -> codexClient
             ConnectionType.CLAUDE_CODE -> claudeCodeClient
+            ConnectionType.XIAOMI_API -> xiaomiClient
+            ConnectionType.XIAOMI_TOKEN_PLAN -> xiaomiClient
         }
     }
 }

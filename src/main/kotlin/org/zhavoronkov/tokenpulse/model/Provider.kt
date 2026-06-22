@@ -23,7 +23,10 @@ enum class Provider(val displayName: String, val abbreviation: String) {
     OPENROUTER("OpenRouter", "OR"),
 
     /** Nebius - AI Studio / Token Factory cloud service. */
-    NEBIUS("Nebius", "NB");
+    NEBIUS("Nebius", "NB"),
+
+    /** Xiaomi - MiMo AI platform (pay-as-you-go and Token Plan). */
+    XIAOMI("Xiaomi", "XM");
 
     companion object {
         /**
