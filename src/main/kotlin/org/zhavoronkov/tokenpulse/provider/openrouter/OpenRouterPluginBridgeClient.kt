@@ -1,8 +1,5 @@
 package org.zhavoronkov.tokenpulse.provider.openrouter
 
-import com.intellij.ide.plugins.PluginManager
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.extensions.PluginId
 import org.zhavoronkov.tokenpulse.model.ProviderResult
 import org.zhavoronkov.tokenpulse.provider.ProviderClient
 import org.zhavoronkov.tokenpulse.settings.Account
@@ -25,17 +22,17 @@ import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 class OpenRouterPluginBridgeClient : ProviderClient {
 
     companion object {
-        private const val OPENROUTER_PLUGIN_ID = "org.zhavoronkov.openrouter"
         private const val SETTINGS_SERVICE_CLASS = "org.zhavoronkov.openrouter.services.OpenRouterSettingsService"
-        private const val SERVICE_CLASS = "org.zhavoronkov.openrouter.services.OpenRouterService"
 
         /**
          * Check if the OpenRouter plugin is installed.
          */
         fun isPluginInstalled(): Boolean {
             return try {
-                val pluginId = PluginId.getId(OPENROUTER_PLUGIN_ID)
-                PluginManager.isPluginInstalled(pluginId)
+                Class.forName(SETTINGS_SERVICE_CLASS)
+                true
+            } catch (_: ClassNotFoundException) {
+                false
             } catch (e: Exception) {
                 TokenPulseLogger.Provider.debug("OpenRouter plugin check failed: ${e.message}")
                 false
@@ -97,15 +94,6 @@ class OpenRouterPluginBridgeClient : ProviderClient {
             }
         }
 
-        private fun getService(): Any? {
-            return try {
-                val serviceClass = Class.forName(SERVICE_CLASS)
-                ApplicationManager.getApplication().getService(serviceClass)
-            } catch (e: Exception) {
-                TokenPulseLogger.Provider.debug("Failed to get OpenRouter service: ${e.message}")
-                null
-            }
-        }
     }
 
     override fun fetchBalance(account: Account, secret: String): ProviderResult {

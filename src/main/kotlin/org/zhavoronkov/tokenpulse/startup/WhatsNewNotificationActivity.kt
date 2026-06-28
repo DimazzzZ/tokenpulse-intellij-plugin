@@ -1,15 +1,14 @@
 package org.zhavoronkov.tokenpulse.startup
 
 import com.intellij.ide.BrowserUtil
-import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
+import org.zhavoronkov.tokenpulse.service.TokenPulsePluginService
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
 import org.zhavoronkov.tokenpulse.ui.TokenPulseConfigurable
 
@@ -23,9 +22,7 @@ class WhatsNewNotificationActivity : ProjectActivity {
         val settings = settingsService.state
         val lastSeenVersion = settings.lastSeenVersion
 
-        val pluginId = PluginId.getId("org.zhavoronkov.tokenpulse")
-        val pluginDescriptor = PluginManagerCore.getPlugin(pluginId)
-        val currentVersion = pluginDescriptor?.version ?: ""
+        val currentVersion = TokenPulsePluginService.getVersion()
 
         // Only show notification if this is a new version
         if (lastSeenVersion != currentVersion && lastSeenVersion.isNotEmpty()) {

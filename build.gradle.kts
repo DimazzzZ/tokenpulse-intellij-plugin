@@ -9,6 +9,12 @@ plugins {
 group = project.findProperty("pluginGroup") ?: "org.zhavoronkov.tokenpulse"
 version = project.findProperty("pluginVersion") ?: "0.1.0"
 
+tasks.processResources {
+    filesMatching("tokenpulse.properties") {
+        expand("pluginVersion" to version)
+    }
+}
+
 repositories {
     mavenCentral()
     // IntelliJ Platform Gradle Plugin 2.x repositories
