@@ -115,16 +115,42 @@ class ClinePassUsageRendererTest {
     }
 
     @Test
-    fun `buildRows renders reset text only when reset timestamp present`() {
+    fun `buildRows embeds reset timestamp when present and omits it when absent`() {
+        val resetTimestamp = "2026-07-06T16:12:41Z"
         val withReset = mapOf(
             ClineProviderClient.METADATA_FIVE_HOUR_USED to "50",
-            ClineProviderClient.METADATA_FIVE_HOUR_RESETS_AT to "2026-07-06T16:12:41Z"
+            ClineProviderClient.METADATA_FIVE_HOUR_RESETS_AT to resetTimestamp
         )
         val withoutReset = mapOf(
             ClineProviderClient.METADATA_FIVE_HOUR_USED to "50"
         )
-        assertTrue(ClinePassUsageRenderer.buildRows(withReset).contains("Resets:"))
-        assertFalse(ClinePassUsageRenderer.buildRows(withoutReset).contains("Resets:"))
+        val withResetHtml = ClinePassUsageRenderer.buildRows(withReset)
+        val withoutResetHtml = ClinePassUsageRenderer.buildRows(withoutReset)
+
+        // When the reset timestamp is present it should be embedded in the
+        // rendered usage row (the UI branch's buildUsageSection shows it
+        // inline as a small gray span next to the percentage).
+        assertTrue(
+            withResetHtml.contains(resetTimestamp),
+            "Expected reset timestamp to be present in rendered HTML, got: $withResetHtml"
+        )
+        assertFalse(
+            withoutResetHtml.contains(resetTimestamp),
+            "Reset timestamp should not appear when not provided, got: $withoutResetHtml"
+        )
+    }
+
+    @Test
+    fun `buildRows omits reset text when resets key is blank`() {
+        val withBlankReset = mapOf(
+            ClineProviderClient.METADATA_FIVE_HOUR_USED to "50",
+            ClineProviderClient.METADATA_FIVE_HOUR_RESETS_AT to "   "
+        )
+        val html = ClinePassUsageRenderer.buildRows(withBlankReset)
+        assertFalse(
+            html.contains("Resets:") || html.contains("2026") || html.contains("  "),
+            "Blank reset timestamp must not appear in rendered HTML, got: $html"
+        )
     }
 
     @Test
