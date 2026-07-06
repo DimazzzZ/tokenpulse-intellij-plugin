@@ -375,8 +375,7 @@ object TokenPulseStatusTooltipPanel {
      * no ClinePass plan), only the existing balance rows are shown.
      *
      * The ClinePass subsection is rendered as a visually distinct block:
-     *   - spacer row
-     *   - muted section header ("ClinePass")
+     *   - muted section header ("ClinePass") with top padding for spacing
      *   - one progress row per metric (label | bar + percent)
      *   - one subtle reset row per metric (colspan=2, indented timestamp)
      */
@@ -390,9 +389,7 @@ object TokenPulseStatusTooltipPanel {
         val metrics = ClinePassUsageRenderer.extractMetrics(metadata)
         if (metrics.isEmpty()) return
 
-        // Spacer before ClinePass subsection
-        rows.add(spacerRowHtml(4))
-        // Section header
+        // Section header with top padding for spacing (no separate spacer row)
         rows.add(sectionHeaderRowHtml(ClinePassUsageRenderer.SECTION_TITLE))
 
         // One progress row + one reset row per metric

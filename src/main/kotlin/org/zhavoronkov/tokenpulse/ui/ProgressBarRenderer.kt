@@ -109,20 +109,11 @@ object ProgressBarRenderer {
      * Returns a single `<tr>` that fits inside the per-account table.
      */
     fun buildUsageSection(label: String, percent: Int, resetAt: String? = null): String {
-        val color = getUsageColor(percent)
-        val bar = buildProgressBarHtml(percent, color)
+        val clamped = percent.coerceIn(0, 100)
         val resetText = resetAt?.takeIf { it.isNotBlank() }?.let {
             " <span style=\"color:#888888;font-size:11px;\">" + it.escapeHtml() + "</span>"
         } ?: ""
-        val safeLabel = label.escapeHtml()
-        val clamped = percent.coerceIn(0, 100)
-        return "<tr>" +
-            "<td style=\"padding:2px 8px 2px 0;color:#888888;white-space:nowrap;\">" + safeLabel + "</td>" +
-            "<td style=\"padding:2px 0;white-space:nowrap;\">" +
-            bar + " " +
-            "<span style=\"font-weight:bold;\">" + clamped + "%</span>" +
-            resetText +
-            "</td></tr>"
+        return buildUsageRow(label, clamped, resetText)
     }
 
     /**
@@ -134,15 +125,25 @@ object ProgressBarRenderer {
      * subtle row below instead of next to the percentage.
      */
     fun buildUsageSectionNoReset(label: String, percent: Int): String {
+        val clamped = percent.coerceIn(0, 100)
+        return buildUsageRow(label, clamped, "")
+    }
+
+    /**
+     * Internal helper that builds a single usage row HTML string.
+     * Shared by [buildUsageSection] and [buildUsageSectionNoReset] to avoid
+     * duplication and keep future layout changes in one place.
+     */
+    private fun buildUsageRow(label: String, percent: Int, resetText: String): String {
         val color = getUsageColor(percent)
         val bar = buildProgressBarHtml(percent, color)
         val safeLabel = label.escapeHtml()
-        val clamped = percent.coerceIn(0, 100)
         return "<tr>" +
             "<td style=\"padding:2px 8px 2px 0;color:#888888;white-space:nowrap;\">" + safeLabel + "</td>" +
             "<td style=\"padding:2px 0;white-space:nowrap;\">" +
             bar + " " +
-            "<span style=\"font-weight:bold;\">" + clamped + "%</span>" +
+            "<span style=\"font-weight:bold;\">" + percent + "%</span>" +
+            resetText +
             "</td></tr>"
     }
 
