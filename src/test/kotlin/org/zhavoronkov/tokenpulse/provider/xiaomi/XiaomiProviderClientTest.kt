@@ -219,6 +219,76 @@ class XiaomiProviderClientTest {
     }
 
     @Test
+    fun `fetchTokenPlanUsage handles null monthUsage gracefully`() {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """{"code":0,"message":"","data":{"monthUsage":null}}"""
+                )
+        )
+
+        val result = client.fetchBalance(
+            account(ConnectionType.XIAOMI_TOKEN_PLAN),
+            validSession
+        )
+
+        assertTrue(result is ProviderResult.Success)
+        val success = result as ProviderResult.Success
+        assertEquals(0L, success.snapshot.balance.tokens?.used)
+        assertEquals(0L, success.snapshot.balance.tokens?.total)
+        assertEquals(0L, success.snapshot.balance.tokens?.remaining)
+        // totalCredits=0 → sessionUsed=100 → UI shows "0% remaining"
+        assertEquals("100", success.snapshot.metadata["sessionUsed"])
+    }
+
+    @Test
+    fun `fetchTokenPlanUsage handles null items array gracefully`() {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """{"code":0,"message":"","data":{"monthUsage":{"percent":0.0,"items":null}}}"""
+                )
+        )
+
+        val result = client.fetchBalance(
+            account(ConnectionType.XIAOMI_TOKEN_PLAN),
+            validSession
+        )
+
+        assertTrue(result is ProviderResult.Success)
+        val success = result as ProviderResult.Success
+        assertEquals(0L, success.snapshot.balance.tokens?.used)
+        assertEquals(0L, success.snapshot.balance.tokens?.total)
+        assertEquals(0L, success.snapshot.balance.tokens?.remaining)
+        assertEquals("100", success.snapshot.metadata["sessionUsed"])
+    }
+
+    @Test
+    fun `fetchTokenPlanUsage handles null data gracefully`() {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """{"code":0,"message":"","data":null}"""
+                )
+        )
+
+        val result = client.fetchBalance(
+            account(ConnectionType.XIAOMI_TOKEN_PLAN),
+            validSession
+        )
+
+        assertTrue(result is ProviderResult.Success)
+        val success = result as ProviderResult.Success
+        assertEquals(0L, success.snapshot.balance.tokens?.used)
+        assertEquals(0L, success.snapshot.balance.tokens?.total)
+        assertEquals(0L, success.snapshot.balance.tokens?.remaining)
+        assertEquals("100", success.snapshot.metadata["sessionUsed"])
+    }
+
+    @Test
     fun `fetchApiBalance returns AuthError when code is not zero`() {
         server.enqueue(
             MockResponse()
