@@ -4,6 +4,8 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -432,5 +434,276 @@ class ClineProviderClientTest {
 
         assertTrue(result is ProviderResult.Failure.NetworkError)
         assertTrue(result !is ProviderResult.Failure.AuthError, "500 should not be classified as AuthError")
+    }
+
+    // ===== ClinePass plan-usage-limits tests =====
+
+    @Test
+    fun `test fetchBalance populates ClinePass metadata when endpoint returns all three limits`() {
+        // 1. /me
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"id":"user-123","organizations":[]}}""")
+        )
+        // 2. /balance
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"balance": 1000000.0}}""")
+        )
+        // 3. /usages
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"items":[]}}""")
+        )
+        // 4. /plan/usage-limits
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """{"success":true,"data":{"limits":[
+                        {"type":"five_hour","percentUsed":79,"resetsAt":"2026-07-06T16:12:41Z"},
+                        {"type":"weekly","percentUsed":31,"resetsAt":"2026-07-13T11:12:41Z"},
+                        {"type":"monthly","percentUsed":15,"resetsAt":"2026-08-05T11:12:41Z"}
+                    ]}}"""
+                )
+        )
+
+        val account = Account(connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+        val result = client.fetchBalance(account, "token")
+
+        assertTrue(result is ProviderResult.Success)
+        val success = result as ProviderResult.Success
+        val meta = success.snapshot.metadata
+        assertEquals("79", meta[ClineProviderClient.METADATA_FIVE_HOUR_USED])
+        assertEquals("31", meta[ClineProviderClient.METADATA_WEEKLY_USED])
+        assertEquals("15", meta[ClineProviderClient.METADATA_MONTHLY_USED])
+        assertEquals("2026-07-06T16:12:41Z", meta[ClineProviderClient.METADATA_FIVE_HOUR_RESETS_AT])
+        assertEquals("2026-07-13T11:12:41Z", meta[ClineProviderClient.METADATA_WEEKLY_RESETS_AT])
+        assertEquals("2026-08-05T11:12:41Z", meta[ClineProviderClient.METADATA_MONTHLY_RESETS_AT])
+    }
+
+    @Test
+    fun `test fetchBalance succeeds without ClinePass metadata when endpoint returns 500`() {
+        // 1. /me
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"id":"user-123","organizations":[]}}""")
+        )
+        // 2. /balance
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"balance": 5000000.0}}""")
+        )
+        // 3. /usages
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"items":[]}}""")
+        )
+        // 4. /plan/usage-limits returns 500
+        mockWebServer.enqueue(MockResponse().setResponseCode(500))
+
+        val account = Account(connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+        val result = client.fetchBalance(account, "token")
+
+        assertTrue(result is ProviderResult.Success)
+        val success = result as ProviderResult.Success
+        assertTrue(success.snapshot.metadata.isEmpty(), "Metadata should be empty on plan-usage-limits failure")
+        assertEquals(0, BigDecimal("5.00").compareTo(success.snapshot.balance.credits?.remaining))
+    }
+
+    @Test
+    fun `test fetchBalance succeeds without ClinePass metadata when endpoint returns 404`() {
+        // 1. /me
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"id":"user-123","organizations":[]}}""")
+        )
+        // 2. /balance
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"balance": 5000000.0}}""")
+        )
+        // 3. /usages
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"items":[]}}""")
+        )
+        // 4. /plan/usage-limits returns 404
+        mockWebServer.enqueue(MockResponse().setResponseCode(404))
+
+        val account = Account(connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+        val result = client.fetchBalance(account, "token")
+
+        assertTrue(result is ProviderResult.Success)
+        val success = result as ProviderResult.Success
+        assertTrue(success.snapshot.metadata.isEmpty())
+    }
+
+    @Test
+    fun `test fetchBalance produces no ClinePass metadata when response has success false`() {
+        // 1. /me
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"id":"user-123","organizations":[]}}""")
+        )
+        // 2. /balance
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"balance": 5000000.0}}""")
+        )
+        // 3. /usages
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"items":[]}}""")
+        )
+        // 4. /plan/usage-limits with success:false
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":false,"data":{}}""")
+        )
+
+        val account = Account(connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+        val result = client.fetchBalance(account, "token")
+
+        assertTrue(result is ProviderResult.Success)
+        val success = result as ProviderResult.Success
+        assertTrue(success.snapshot.metadata.isEmpty())
+    }
+
+    @Test
+    fun `test fetchBalance produces no ClinePass metadata when limits array is empty`() {
+        // 1. /me
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"id":"user-123","organizations":[]}}""")
+        )
+        // 2. /balance
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"balance": 5000000.0}}""")
+        )
+        // 3. /usages
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"items":[]}}""")
+        )
+        // 4. /plan/usage-limits with empty limits
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"limits":[]}}""")
+        )
+
+        val account = Account(connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+        val result = client.fetchBalance(account, "token")
+
+        assertTrue(result is ProviderResult.Success)
+        val success = result as ProviderResult.Success
+        assertTrue(success.snapshot.metadata.isEmpty())
+    }
+
+    @Test
+    fun `test fetchBalance ignores unknown limit types but keeps recognized ones`() {
+        // 1. /me
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"id":"user-123","organizations":[]}}""")
+        )
+        // 2. /balance
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"balance": 5000000.0}}""")
+        )
+        // 3. /usages
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"items":[]}}""")
+        )
+        // 4. /plan/usage-limits with mix of known/unknown types
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """{"success":true,"data":{"limits":[
+                        {"type":"five_hour","percentUsed":50,"resetsAt":"2026-07-06T16:12:41Z"},
+                        {"type":"daily","percentUsed":80,"resetsAt":"2026-07-07T00:00:00Z"},
+                        {"type":"weekly","percentUsed":25,"resetsAt":"2026-07-13T11:12:41Z"}
+                    ]}}"""
+                )
+        )
+
+        val account = Account(connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+        val result = client.fetchBalance(account, "token")
+
+        assertTrue(result is ProviderResult.Success)
+        val success = result as ProviderResult.Success
+        val meta = success.snapshot.metadata
+        assertEquals("50", meta[ClineProviderClient.METADATA_FIVE_HOUR_USED])
+        assertEquals("25", meta[ClineProviderClient.METADATA_WEEKLY_USED])
+        assertFalse(meta.keys.any { it.contains("daily", ignoreCase = true) })
+        assertNull(meta["clinePassMonthlyUsed"])
+    }
+
+    @Test
+    fun `test fetchBalance clamps percentUsed to 0-100 range`() {
+        // 1. /me
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"id":"user-123","organizations":[]}}""")
+        )
+        // 2. /balance
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"balance": 1000000.0}}""")
+        )
+        // 3. /usages
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"success":true,"data":{"items":[]}}""")
+        )
+        // 4. /plan/usage-limits with out-of-range values
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """{"success":true,"data":{"limits":[
+                        {"type":"five_hour","percentUsed":150,"resetsAt":null},
+                        {"type":"weekly","percentUsed":-25,"resetsAt":""}
+                    ]}}"""
+                )
+        )
+
+        val account = Account(connectionType = ConnectionType.CLINE_API, authType = AuthType.CLINE_API_KEY)
+        val result = client.fetchBalance(account, "token")
+
+        assertTrue(result is ProviderResult.Success)
+        val success = result as ProviderResult.Success
+        val meta = success.snapshot.metadata
+        assertEquals("100", meta[ClineProviderClient.METADATA_FIVE_HOUR_USED])
+        assertEquals("0", meta[ClineProviderClient.METADATA_WEEKLY_USED])
+        assertNull(meta[ClineProviderClient.METADATA_FIVE_HOUR_RESETS_AT])
+        assertNull(meta[ClineProviderClient.METADATA_WEEKLY_RESETS_AT])
     }
 }

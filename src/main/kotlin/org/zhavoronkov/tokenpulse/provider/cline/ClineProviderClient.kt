@@ -28,10 +28,19 @@ import java.time.Instant
  * - `GET /api/v1/users/{id}/usages` → Personal account usage
  * - `GET /api/v1/organizations/{id}/balance` → Organization balance
  * - `GET /api/v1/organizations/{id}/members/{memberId}/usages` → Member usage
+ * - `GET /api/v1/users/me/plan/usage-limits` → ClinePass usage windows (5-hour / weekly / monthly)
  *
  * ## Balance Representation
  * Cline API returns balance in credits where 1 credit = $0.000001 (micro-dollars).
  * This client converts credits to USD for display.
+ *
+ * ## ClinePass Usage Limits
+ * The plan-usage-limits endpoint is best-effort: it is not part of the documented
+ * public API. The client maps recognized `type` values (`five_hour`, `weekly`,
+ * `monthly`) into provider-specific metadata keys. Any failure (non-2xx, malformed
+ * body, `success:false`, missing `data`, or no recognized limits) is silently
+ * swallowed and the rest of the balance snapshot is returned as if the call was
+ * never made.
  *
  * ## Error Handling
  * - 401/403 → AuthError (invalid/expired token)
@@ -59,6 +68,9 @@ class ClineProviderClient(
             // Organization billing is managed separately and doesn't use API keys
             val (balanceVal, usages) = fetchUserData(me.id, secret)
 
+            // Best-effort ClinePass usage limits; failure must not break balance fetch.
+            val clinePassMetadata = fetchPlanUsageLimits(secret)
+
             ProviderResult.Success(
                 BalanceSnapshot(
                     accountId = account.id,
@@ -72,7 +84,8 @@ class ClineProviderClient(
                         tokens = Tokens(
                             used = usages.sumOf { it.totalTokens }
                         )
-                    )
+                    ),
+                    metadata = clinePassMetadata
                 )
             )
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
@@ -150,11 +163,83 @@ class ClineProviderClient(
     }
 
     /**
+     * Best-effort fetch of ClinePass usage limits.
+     * Returns an empty map on any failure or when no recognized limit is reported.
+     * Failures (HTTP errors, malformed bodies, `success:false`, parse errors) are
+     * intentionally swallowed so the balance fetch can still succeed.
+     */
+    private fun fetchPlanUsageLimits(secret: String): Map<String, String> {
+        val response: PlanUsageLimitsResponse? = try {
+            val request = buildRequest("$baseUrl/api/v1/users/me/plan/usage-limits", secret)
+            httpClient.newCall(request).execute().use { httpResponse ->
+                if (!httpResponse.isSuccessful) {
+                    null
+                } else {
+                    val body = httpResponse.body?.string()
+                    if (body == null) null else parsePlanUsageLimitsResponse(body)
+                }
+            }
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            null
+        }
+        return buildClinePassMetadata(response)
+    }
+
+    /**
+     * Parses a plan-usage-limits response body into a typed [PlanUsageLimitsResponse]
+     * or returns `null` if the body is malformed / `success:false` / missing `data`.
+     */
+    private fun parsePlanUsageLimitsResponse(body: String): PlanUsageLimitsResponse? {
+        return try {
+            val jsonObject = gson.fromJson(body, JsonObject::class.java)
+            if (jsonObject.get("success")?.asBoolean == true) {
+                gson.fromJson(jsonObject.get("data"), PlanUsageLimitsResponse::class.java)
+            } else {
+                null
+            }
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            null
+        }
+    }
+
+    /**
      * Converts Cline credits to USD.
      * Cline API returns balance in credits where 1 credit = $0.000001 (micro-dollars).
      */
     private fun creditsToUsd(credits: BigDecimal): BigDecimal =
         credits.divide(CREDITS_PER_DOLLAR, 2, RoundingMode.HALF_UP)
+
+    /**
+     * Normalize recognized plan-usage-limits entries into provider-specific metadata keys.
+     * Unknown limit types and missing fields are silently ignored. Returns an empty map
+     * when there are no recognized limits so callers can attach nothing to the snapshot.
+     */
+    private fun buildClinePassMetadata(response: PlanUsageLimitsResponse?): Map<String, String> {
+        if (response?.limits.isNullOrEmpty()) return emptyMap()
+
+        val result = LinkedHashMap<String, String>()
+        for (limit in response!!.limits) {
+            val type = limit.type ?: continue
+            val used = limit.percentUsed?.coerceIn(0, 100) ?: continue
+            val resetsAt = limit.resetsAt?.takeIf { it.isNotBlank() }
+            when (type) {
+                TYPE_FIVE_HOUR -> {
+                    result[METADATA_FIVE_HOUR_USED] = used.toString()
+                    resetsAt?.let { result[METADATA_FIVE_HOUR_RESETS_AT] = it }
+                }
+                TYPE_WEEKLY -> {
+                    result[METADATA_WEEKLY_USED] = used.toString()
+                    resetsAt?.let { result[METADATA_WEEKLY_RESETS_AT] = it }
+                }
+                TYPE_MONTHLY -> {
+                    result[METADATA_MONTHLY_USED] = used.toString()
+                    resetsAt?.let { result[METADATA_MONTHLY_RESETS_AT] = it }
+                }
+                // Unknown limit types are intentionally ignored.
+            }
+        }
+        return result
+    }
 
     private data class UserInfoWrapper(val data: UserResponse?)
 
@@ -169,6 +254,16 @@ class ClineProviderClient(
     private data class UsageTransaction(
         val creditsUsed: BigDecimal,
         val totalTokens: Long
+    )
+
+    private data class PlanUsageLimitsResponse(
+        val limits: List<PlanUsageLimit>?
+    )
+
+    private data class PlanUsageLimit(
+        val type: String?,
+        val percentUsed: Int?,
+        val resetsAt: String?
     )
 
     /**
@@ -193,5 +288,18 @@ class ClineProviderClient(
         private const val HTTP_FORBIDDEN = 403
         private const val HTTP_TOO_MANY_REQUESTS = 429
         private const val HTTP_INTERNAL_ERROR = 500
+
+        // ClinePass plan-usage-limits type values.
+        private const val TYPE_FIVE_HOUR = "five_hour"
+        private const val TYPE_WEEKLY = "weekly"
+        private const val TYPE_MONTHLY = "monthly"
+
+        // Normalized provider-specific metadata keys for the tooltip renderer.
+        const val METADATA_FIVE_HOUR_USED = "clinePassFiveHourUsed"
+        const val METADATA_FIVE_HOUR_RESETS_AT = "clinePassFiveHourResetsAt"
+        const val METADATA_WEEKLY_USED = "clinePassWeeklyUsed"
+        const val METADATA_WEEKLY_RESETS_AT = "clinePassWeeklyResetsAt"
+        const val METADATA_MONTHLY_USED = "clinePassMonthlyUsed"
+        const val METADATA_MONTHLY_RESETS_AT = "clinePassMonthlyResetsAt"
     }
 }

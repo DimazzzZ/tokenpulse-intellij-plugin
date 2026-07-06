@@ -253,6 +253,8 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
                             appendClaudeCodeRows(snapshot.metadata)
                         } else if (snapshot.connectionType == ConnectionType.XIAOMI_TOKEN_PLAN) {
                             appendXiaomiTokenPlanRows(snapshot.metadata, snapshot.balance.tokens)
+                        } else if (snapshot.connectionType == ConnectionType.CLINE_API) {
+                            appendClineRows(snapshot.balance.credits, snapshot.metadata)
                         } else {
                             appendCreditsRows(snapshot.balance.credits, snapshot.connectionType)
                         }
@@ -530,6 +532,22 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
             else -> {
                 append("<tr><td colspan='2'><i>No balance data</i></td></tr>")
             }
+        }
+    }
+
+    /**
+     * Render the Cline tooltip block: existing Cline balance rows, plus an
+     * optional ClinePass usage block when the provider client populated
+     * plan-usage metadata. If ClinePass metadata is absent (e.g. the user
+     * has no ClinePass plan), only the existing balance rows are shown.
+     */
+    private fun StringBuilder.appendClineRows(
+        credits: org.zhavoronkov.tokenpulse.model.Credits?,
+        metadata: Map<String, String>
+    ) {
+        appendCreditsRows(credits, ConnectionType.CLINE_API)
+        if (ClinePassUsageRenderer.hasUsage(metadata)) {
+            append(ClinePassUsageRenderer.buildRows(metadata))
         }
     }
 
