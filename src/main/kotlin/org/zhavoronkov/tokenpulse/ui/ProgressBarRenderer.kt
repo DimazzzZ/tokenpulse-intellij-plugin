@@ -133,17 +133,26 @@ object ProgressBarRenderer {
      * Internal helper that builds a single usage row HTML string.
      * Shared by [buildUsageSection] and [buildUsageSectionNoReset] to avoid
      * duplication and keep future layout changes in one place.
+     *
+     * The value cell uses a nested two-column table so that the progress bar
+     * and the percentage text are forced onto the same visual line — this
+     * prevents Swing's HTML renderer from dropping the percentage below the
+     * bar when the bar is wide.
      */
     private fun buildUsageRow(label: String, percent: Int, resetText: String): String {
         val color = getUsageColor(percent)
         val bar = buildProgressBarHtml(percent, color)
         val safeLabel = label.escapeHtml()
+        val safePercent = percent.toString()
         return "<tr>" +
             "<td style=\"padding:2px 8px 2px 0;color:#888888;white-space:nowrap;\">" + safeLabel + "</td>" +
             "<td style=\"padding:2px 0;white-space:nowrap;\">" +
-            bar + " " +
-            "<span style=\"font-weight:bold;\">" + percent + "%</span>" +
+            "<table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-collapse:collapse;vertical-align:middle;display:inline-table;\">" +
+            "<tr>" +
+            "<td style=\"vertical-align:middle;padding:0 4px 0 0;\">" + bar + "</td>" +
+            "<td style=\"vertical-align:middle;padding:0 0 0 4px;font-weight:bold;white-space:nowrap;\">" + safePercent + "%</td>" +
             resetText +
+            "</tr></table>" +
             "</td></tr>"
     }
 

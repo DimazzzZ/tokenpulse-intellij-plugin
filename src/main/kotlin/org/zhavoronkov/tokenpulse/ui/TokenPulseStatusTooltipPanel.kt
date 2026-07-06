@@ -11,6 +11,10 @@ import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
 import org.zhavoronkov.tokenpulse.utils.Constants
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * Builds the rich HTML tooltip for the TokenPulse status bar widget.
@@ -448,11 +452,34 @@ object TokenPulseStatusTooltipPanel {
     }
 
     /**
-     * A subtle reset-info row (colspan=2) that renders a timestamp beneath a
-     * progress row, avoiding the awkward inline wrapping that previously occurred.
+     * A subtle reset-info row (colspan=2) that renders a human-readable
+     * timestamp beneath a progress row, avoiding the awkward raw ISO string
+     * that previously dominated the tooltip.
      */
     private fun resetInfoRowHtml(resetAt: String): String {
-        return "<tr><td colspan=\"2\" style=\"padding:1px 0 1px 16px;color:#999999;font-size:10px;font-style:italic;word-wrap:break-word;\">${resetAt.escapeHtml()}</td></tr>"
+        val readable = formatResetTimestamp(resetAt)
+        return "<tr><td colspan=\"2\" style=\"padding:1px 0 1px 16px;color:#999999;font-size:10px;font-style:italic;word-wrap:break-word;\">Resets: ${readable.escapeHtml()}</td></tr>"
+    }
+
+    /**
+     * Formats an ISO-8601 timestamp into a short, tooltip-friendly string.
+     *
+     * Handles both full ISO strings (e.g. `2026-07-06T16:12:40.760369837Z`)
+     * and plain date strings (e.g. `2026-07-06`).
+     * Falls back to the raw string if parsing fails.
+     */
+    private fun formatResetTimestamp(resetAt: String): String {
+        return try {
+            val instant = Instant.parse(resetAt)
+            val zone = ZoneId.systemDefault()
+            "Today " + instant.atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT))
+        } catch (_: Exception) {
+            // Fallback: strip trailing Z and nanoseconds for a cleaner look
+            val cleaned = resetAt
+                .removeSuffix("Z")
+                .substringBefore(".")
+            if (cleaned.isNotBlank()) cleaned else resetAt
+        }
     }
 
     private fun getAuthErrorMessage(
