@@ -370,9 +370,15 @@ object TokenPulseStatusTooltipPanel {
 
     /**
      * Render the Cline tooltip block: existing Cline credit balance rows, plus an
-     * optional ClinePass usage block when the provider client populated
+     * optional ClinePass usage subsection when the provider client populated
      * plan-usage metadata. If ClinePass metadata is absent (e.g. the user has
      * no ClinePass plan), only the existing balance rows are shown.
+     *
+     * The ClinePass subsection is rendered as a visually distinct block:
+     *   - spacer row
+     *   - muted section header ("ClinePass")
+     *   - one progress row per metric (label | bar + percent)
+     *   - one subtle reset row per metric (colspan=2, indented timestamp)
      */
     private fun appendClineRows(
         rows: MutableList<String>,
@@ -380,11 +386,24 @@ object TokenPulseStatusTooltipPanel {
         metadata: Map<String, String>
     ) {
         appendCreditsRows(rows, credits, ConnectionType.CLINE_API)
-        if (ClinePassUsageRenderer.hasUsage(metadata)) {
-            // ClinePassUsageRenderer.buildRows already emits per-row HTML
-            // (`<tr><td>...</td>...</tr>`) and self-contained `Resets: ...`
-            // rows, so it can be appended directly to our row list.
-            rows.add(ClinePassUsageRenderer.buildRows(metadata))
+
+        val metrics = ClinePassUsageRenderer.extractMetrics(metadata)
+        if (metrics.isEmpty()) return
+
+        // Spacer before ClinePass subsection
+        rows.add(spacerRowHtml(4))
+        // Section header
+        rows.add(sectionHeaderRowHtml(ClinePassUsageRenderer.SECTION_TITLE))
+
+        // One progress row + one reset row per metric
+        for (metric in metrics) {
+            val clampedPercent = metric.percent.coerceIn(0, 100)
+            rows.add(
+                ProgressBarRenderer.buildUsageSectionNoReset(metric.label, clampedPercent)
+            )
+            if (metric.resetAt != null && metric.resetAt.isNotBlank()) {
+                rows.add(resetInfoRowHtml(metric.resetAt))
+            }
         }
     }
 
@@ -414,6 +433,29 @@ object TokenPulseStatusTooltipPanel {
 
     private fun infoRowHtml(message: String): String {
         return "<tr><td colspan=\"2\" style=\"padding:2px 0;color:#888888;font-size:11px;font-style:italic;word-wrap:break-word;\">${message.escapeHtml()}</td></tr>"
+    }
+
+    /**
+     * A thin spacer row (colspan=2) with the given padding in pixels.
+     */
+    private fun spacerRowHtml(paddingPx: Int): String {
+        return "<tr><td colspan=\"2\" style=\"padding:${paddingPx}px 0;\"></td></tr>"
+    }
+
+    /**
+     * A muted section-header row (colspan=2) used to separate logical subsections
+     * like ClinePass within the Cline account block.
+     */
+    private fun sectionHeaderRowHtml(title: String): String {
+        return "<tr><td colspan=\"2\" style=\"padding-top:4px;\"><font color=\"#BBBBBB\"><b>$title</b></font></td></tr>"
+    }
+
+    /**
+     * A subtle reset-info row (colspan=2) that renders a timestamp beneath a
+     * progress row, avoiding the awkward inline wrapping that previously occurred.
+     */
+    private fun resetInfoRowHtml(resetAt: String): String {
+        return "<tr><td colspan=\"2\" style=\"padding:1px 0 1px 16px;color:#999999;font-size:10px;font-style:italic;word-wrap:break-word;\">${resetAt.escapeHtml()}</td></tr>"
     }
 
     private fun getAuthErrorMessage(

@@ -176,4 +176,25 @@ class ProgressBarRendererTest {
         val greenHtml = ProgressBarRenderer.buildBalanceSection("Credits", 60)
         assertTrue(greenHtml.contains("bgcolor=\"#44aa44\""))
     }
+
+    @Test
+    fun `buildUsageSectionNoReset contains label and percentage without reset text`() {
+        val html = ProgressBarRenderer.buildUsageSectionNoReset("5-hour", 75)
+        assertTrue(html.contains("5-hour"))
+        assertTrue(html.contains("75%"))
+        assertTrue(html.contains("<tr>"))
+        assertTrue(html.contains("<table"))
+        // Should NOT contain any reset text
+        assertTrue(!html.contains("</span></span>"), "Should not have nested spans for reset")
+    }
+
+    @Test
+    fun `buildUsageSectionNoReset does not include resetAt parameter`() {
+        // buildUsageSectionNoReset has no resetAt parameter, so it should never include reset text
+        val html = ProgressBarRenderer.buildUsageSectionNoReset("Weekly", 40)
+        assertTrue(html.contains("Weekly"))
+        assertTrue(html.contains("40%"))
+        // The value cell should end with </span></td></tr> (no extra reset span)
+        assertTrue(html.endsWith("</td></tr>"))
+    }
 }

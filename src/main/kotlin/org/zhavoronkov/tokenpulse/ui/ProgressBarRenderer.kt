@@ -126,6 +126,27 @@ object ProgressBarRenderer {
     }
 
     /**
+     * Builds a usage section with a label, percentage, and progress bar,
+     * but does NOT include the reset timestamp inline.
+     *
+     * This variant is used by [TokenPulseStatusTooltipPanel] when rendering
+     * ClinePass metrics, because reset timestamps are placed on their own
+     * subtle row below instead of next to the percentage.
+     */
+    fun buildUsageSectionNoReset(label: String, percent: Int): String {
+        val color = getUsageColor(percent)
+        val bar = buildProgressBarHtml(percent, color)
+        val safeLabel = label.escapeHtml()
+        val clamped = percent.coerceIn(0, 100)
+        return "<tr>" +
+            "<td style=\"padding:2px 8px 2px 0;color:#888888;white-space:nowrap;\">" + safeLabel + "</td>" +
+            "<td style=\"padding:2px 0;white-space:nowrap;\">" +
+            bar + " " +
+            "<span style=\"font-weight:bold;\">" + clamped + "%</span>" +
+            "</td></tr>"
+    }
+
+    /**
      * Builds a balance section with a label, percentage, and progress bar.
      * Returns a single `<tr>` that fits inside the per-account table.
      */
