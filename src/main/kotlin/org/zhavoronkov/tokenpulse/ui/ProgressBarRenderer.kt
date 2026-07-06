@@ -107,13 +107,16 @@ object ProgressBarRenderer {
     /**
      * Builds a usage section with a label, percentage, and progress bar.
      * Returns a single `<tr>` that fits inside the per-account table.
+     *
+     * @param barWidthPx explicit width for the progress bar in pixels,
+     *   derived from the tooltip layout budget.
      */
-    fun buildUsageSection(label: String, percent: Int, resetAt: String? = null): String {
+    fun buildUsageSection(label: String, percent: Int, resetAt: String? = null, barWidthPx: Int = DEFAULT_BAR_WIDTH): String {
         val clamped = percent.coerceIn(0, 100)
         val resetText = resetAt?.takeIf { it.isNotBlank() }?.let {
             " <span style=\"color:#888888;font-size:11px;\">" + it.escapeHtml() + "</span>"
         } ?: ""
-        return buildUsageRow(label, clamped, resetText)
+        return buildUsageRow(label, clamped, resetText, barWidthPx)
     }
 
     /**
@@ -123,10 +126,13 @@ object ProgressBarRenderer {
      * This variant is used by [TokenPulseStatusTooltipPanel] when rendering
      * ClinePass metrics, because reset timestamps are placed on their own
      * subtle row below instead of next to the percentage.
+     *
+     * @param barWidthPx explicit width for the progress bar in pixels,
+     *   derived from the tooltip layout budget.
      */
-    fun buildUsageSectionNoReset(label: String, percent: Int): String {
+    fun buildUsageSectionNoReset(label: String, percent: Int, barWidthPx: Int = DEFAULT_BAR_WIDTH): String {
         val clamped = percent.coerceIn(0, 100)
-        return buildUsageRow(label, clamped, "")
+        return buildUsageRow(label, clamped, "", barWidthPx)
     }
 
     /**
@@ -134,20 +140,22 @@ object ProgressBarRenderer {
      * Shared by [buildUsageSection] and [buildUsageSectionNoReset] to avoid
      * duplication and keep future layout changes in one place.
      *
-     * The value cell uses `white-space:nowrap` to keep the bar and percent
-     * on the same visual line. The bar width is kept compact (80px) so the
-     * entire row fits within the tooltip's constrained width.
+     * Uses an explicit bar width so the row always fits within the tooltip's
+     * constrained width, regardless of available space.
      */
-    private fun buildUsageRow(label: String, percent: Int, resetText: String): String {
+    private fun buildUsageRow(label: String, percent: Int, resetText: String, barWidthPx: Int): String {
         val color = getUsageColor(percent)
-        val bar = buildProgressBarHtml(percent, color)
+        val bar = buildProgressBarHtml(percent, color, barWidthPx)
         val safeLabel = label.escapeHtml()
         val safePercent = percent.toString()
         return "<tr>" +
-            "<td style=\"padding:2px 8px 2px 0;color:#888888;white-space:nowrap;\">" + safeLabel + "</td>" +
-            "<td style=\"padding:2px 0;white-space:nowrap;\">" +
-            bar + " " +
-            "<span style=\"font-weight:bold;\">" + safePercent + "%</span>" +
+            "<td style=\"padding:2px 8px 2px 0;color:#888888;white-space:nowrap;vertical-align:middle;\">" + safeLabel + "</td>" +
+            "<td style=\"padding:2px 0;vertical-align:middle;\">" +
+            "<table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-collapse:collapse;\">" +
+            "<tr>" +
+            "<td style=\"vertical-align:middle;padding:0 4px 0 0;\">" + bar + "</td>" +
+            "<td style=\"vertical-align:middle;white-space:nowrap;font-weight:bold;\">" + safePercent + "%</td>" +
+            "</tr></table>" +
             resetText +
             "</td></tr>"
     }
@@ -155,20 +163,29 @@ object ProgressBarRenderer {
     /**
      * Builds a balance section with a label, percentage, and progress bar.
      * Returns a single `<tr>` that fits inside the per-account table.
+     *
+     * Uses the same explicit-width layout as [buildUsageSection] so the row
+     * always fits within the tooltip's constrained width.
+     *
+     * @param barWidthPx explicit width for the progress bar in pixels,
+     *   derived from the tooltip layout budget.
      */
-    fun buildBalanceSection(label: String, remainingPercent: Int, resetAt: String? = null): String {
+    fun buildBalanceSection(label: String, remainingPercent: Int, resetAt: String? = null, barWidthPx: Int = DEFAULT_BAR_WIDTH): String {
         val color = getBalanceColor(remainingPercent)
-        val bar = buildProgressBarHtml(remainingPercent, color)
+        val bar = buildProgressBarHtml(remainingPercent, color, barWidthPx)
         val resetText = resetAt?.takeIf { it.isNotBlank() }?.let {
             " <span style=\"color:#888888;font-size:11px;\">" + it.escapeHtml() + "</span>"
         } ?: ""
         val safeLabel = label.escapeHtml()
         val clamped = remainingPercent.coerceIn(0, 100)
         return "<tr>" +
-            "<td style=\"padding:2px 8px 2px 0;color:#888888;white-space:nowrap;\">" + safeLabel + "</td>" +
-            "<td style=\"padding:2px 0;white-space:nowrap;\">" +
-            bar + " " +
-            "<span style=\"font-weight:bold;\">" + clamped + "%</span>" +
+            "<td style=\"padding:2px 8px 2px 0;color:#888888;white-space:nowrap;vertical-align:middle;\">" + safeLabel + "</td>" +
+            "<td style=\"padding:2px 0;vertical-align:middle;\">" +
+            "<table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-collapse:collapse;\">" +
+            "<tr>" +
+            "<td style=\"vertical-align:middle;padding:0 4px 0 0;\">" + bar + "</td>" +
+            "<td style=\"vertical-align:middle;white-space:nowrap;font-weight:bold;\">" + clamped + "%</td>" +
+            "</tr></table>" +
             resetText +
             "</td></tr>"
     }

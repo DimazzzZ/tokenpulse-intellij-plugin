@@ -43,6 +43,22 @@ object TokenPulseStatusTooltipPanel {
     private const val LABEL_COL_WIDTH = 78
 
     /**
+     * Width reserved for the percent text in progress rows (e.g., "100%").
+     */
+    private const val PERCENT_COL_WIDTH = 36
+
+    /**
+     * Gap between the progress bar and the percent text.
+     */
+    private const val BAR_GAP = 4
+
+    /**
+     * Computed width for the progress bar, derived from the tooltip layout budget.
+     * This ensures the bar + percent always fit within the available space.
+     */
+    private val BAR_WIDTH: Int = TOOLTIP_MAX_WIDTH - LABEL_COL_WIDTH - PERCENT_COL_WIDTH - BAR_GAP - 16
+
+    /**
      * Builds the full HTML tooltip string.
      * Returns an empty string if there is no data to display.
      */
@@ -232,17 +248,17 @@ object TokenPulseStatusTooltipPanel {
         if (hasRateLimits) {
             fiveHourUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let { usedPct ->
                 val remainingPct = (100 - usedPct).coerceIn(0, 100)
-                rows.add(ProgressBarRenderer.buildBalanceSection("5-hour", remainingPct))
+                rows.add(ProgressBarRenderer.buildBalanceSection("5-hour", remainingPct, barWidthPx = BAR_WIDTH))
             }
 
             weeklyUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let { usedPct ->
                 val remainingPct = (100 - usedPct).coerceIn(0, 100)
-                rows.add(ProgressBarRenderer.buildBalanceSection("Weekly", remainingPct))
+                rows.add(ProgressBarRenderer.buildBalanceSection("Weekly", remainingPct, barWidthPx = BAR_WIDTH))
             }
 
             codeReviewUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let { usedPct ->
                 val remainingPct = (100 - usedPct).coerceIn(0, 100)
-                rows.add(ProgressBarRenderer.buildBalanceSection("Code Review", remainingPct))
+                rows.add(ProgressBarRenderer.buildBalanceSection("Code Review", remainingPct, barWidthPx = BAR_WIDTH))
             }
         } else {
             val codexEnabled = metadata["codexEnabled"]
@@ -282,13 +298,13 @@ object TokenPulseStatusTooltipPanel {
             if (fiveHourUtilization != null) {
                 val pct = fiveHourUtilization.toIntOrNull() ?: 0
                 val remaining = 100 - pct
-                rows.add(ProgressBarRenderer.buildUsageSection("5-hour", remaining, fiveHourResetsAt))
+                rows.add(ProgressBarRenderer.buildUsageSection("5-hour", remaining, fiveHourResetsAt, barWidthPx = BAR_WIDTH))
             }
 
             if (sevenDayUtilization != null) {
                 val pct = sevenDayUtilization.toIntOrNull() ?: 0
                 val remaining = 100 - pct
-                rows.add(ProgressBarRenderer.buildUsageSection("7-day", remaining, sevenDayResetsAt))
+                rows.add(ProgressBarRenderer.buildUsageSection("7-day", remaining, sevenDayResetsAt, barWidthPx = BAR_WIDTH))
             }
         } else {
             val sessionUsed = metadata["sessionUsed"]
@@ -299,13 +315,13 @@ object TokenPulseStatusTooltipPanel {
             if (sessionUsed != null) {
                 val sessionPct = sessionUsed.toIntOrNull() ?: 0
                 val remaining = 100 - sessionPct
-                rows.add(ProgressBarRenderer.buildUsageSection("5-hour", remaining, sessionResetsAt))
+                rows.add(ProgressBarRenderer.buildUsageSection("5-hour", remaining, sessionResetsAt, barWidthPx = BAR_WIDTH))
             }
 
             if (weekUsed != null) {
                 val weekPct = weekUsed.toIntOrNull() ?: 0
                 val remaining = 100 - weekPct
-                rows.add(ProgressBarRenderer.buildUsageSection("Weekly", remaining, weekResetsAt))
+                rows.add(ProgressBarRenderer.buildUsageSection("Weekly", remaining, weekResetsAt, barWidthPx = BAR_WIDTH))
             }
 
             if (sessionUsed == null && weekUsed == null) {
@@ -332,7 +348,7 @@ object TokenPulseStatusTooltipPanel {
         val usedPercent = metadata?.get("sessionUsed")?.toIntOrNull()
         if (usedPercent != null) {
             val remaining = 100 - usedPercent
-            rows.add(ProgressBarRenderer.buildBalanceSection("Credits", remaining))
+            rows.add(ProgressBarRenderer.buildBalanceSection("Credits", remaining, barWidthPx = BAR_WIDTH))
         }
 
         val planUsed = tokens?.used
@@ -400,7 +416,7 @@ object TokenPulseStatusTooltipPanel {
         for (metric in metrics) {
             val clampedPercent = metric.percent.coerceIn(0, 100)
             rows.add(
-                ProgressBarRenderer.buildUsageSectionNoReset(metric.label, clampedPercent)
+                ProgressBarRenderer.buildUsageSectionNoReset(metric.label, clampedPercent, barWidthPx = BAR_WIDTH)
             )
             if (metric.resetAt != null && metric.resetAt.isNotBlank()) {
                 rows.add(resetInfoRowHtml(metric.resetAt))
