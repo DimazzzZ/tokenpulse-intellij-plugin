@@ -17,10 +17,8 @@ import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.settings.StatusBarDisplayMode
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
 import java.awt.Component
-import java.awt.Point
-import java.awt.event.MouseEvent
 import java.math.BigDecimal
-import java.math.RoundingMode
+import javax.swing.SwingUtilities
 
 class TokenPulseStatusBarWidgetFactory : StatusBarWidgetFactory {
     override fun getId(): String = "TokenPulse"
@@ -31,7 +29,10 @@ class TokenPulseStatusBarWidgetFactory : StatusBarWidgetFactory {
 }
 
 /**
- * Status bar widget that shows a compact status text and a rich HTML tooltip on hover.
+ * Status bar widget that shows a compact status text and a rich tooltip on hover.
+ *
+ * Implements [StatusBarWidget.TextPresentation] so the IDE renders the text in the
+ * status bar. The tooltip is provided via [getTooltipText] which returns HTML content.
  */
 class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentation {
     private var myStatusBar: StatusBar? = null
@@ -40,7 +41,33 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
 
     override fun getPresentation(): StatusBarWidget.WidgetPresentation = this
 
-    override fun getTooltipText(): String {
+    override fun getTooltipText(): String = getTooltipContent()
+
+    override fun getClickConsumer(): Consumer<java.awt.event.MouseEvent> = Consumer { event ->
+        val component = event.component ?: return@Consumer
+        val project = ProjectManager.getInstance().openProjects.firstOrNull() ?: return@Consumer
+        val popup = createPopupMenu(project)
+        popup.show(RelativePoint(component, java.awt.Point(0, 0)))
+    }
+
+    override fun getAlignment(): Float = Component.CENTER_ALIGNMENT
+
+    override fun getText(): String = formatStatusBarText()
+
+    override fun install(statusBar: StatusBar) {
+        myStatusBar = statusBar
+        ApplicationManager.getApplication().messageBus.connect(this)
+            .subscribe(
+                BalanceUpdatedTopic.TOPIC,
+                object : BalanceUpdatedListener {
+                    override fun balanceUpdated(accountId: String, result: org.zhavoronkov.tokenpulse.model.ProviderResult) {
+                        statusBar.updateWidget(ID())
+                    }
+                }
+            )
+    }
+
+    private fun getTooltipContent(): String {
         val accounts = TokenPulseSettingsService.getInstance().state.accounts
         val activeAccounts = accounts.filter { it.isEnabled }
 
@@ -49,25 +76,12 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
         val results = BalanceRefreshService.getInstance().results.value
         val enabledAccountIds = activeAccounts.map { it.id }.toSet()
 
-        // If no results have loaded yet, show a "refreshing" message instead of
-        // incorrectly claiming no accounts are configured.
         if (results.isEmpty() || enabledAccountIds.none { it in results }) {
             return "TokenPulse: ${activeAccounts.size} account(s) configured — refreshing..."
         }
 
         return TokenPulseStatusTooltipPanel.buildTooltipHtml()
     }
-
-    override fun getClickConsumer(): Consumer<MouseEvent> = Consumer { event ->
-        val component = event.component ?: return@Consumer
-        val project = ProjectManager.getInstance().openProjects.firstOrNull() ?: return@Consumer
-        val popup = createPopupMenu(project)
-        popup.show(RelativePoint(component, Point(0, 0)))
-    }
-
-    override fun getAlignment(): Float = Component.CENTER_ALIGNMENT
-
-    override fun getText(): String = formatStatusBarText()
 
     /**
      * Formats the status bar text based on current settings and results.
@@ -231,19 +245,6 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
             JBPopupFactory.ActionSelectionAid.SPEEDSEARCH,
             false
         )
-    }
-
-    override fun install(statusBar: StatusBar) {
-        myStatusBar = statusBar
-        ApplicationManager.getApplication().messageBus.connect(this)
-            .subscribe(
-                BalanceUpdatedTopic.TOPIC,
-                object : BalanceUpdatedListener {
-                    override fun balanceUpdated(accountId: String, result: org.zhavoronkov.tokenpulse.model.ProviderResult) {
-                        statusBar.updateWidget(ID())
-                    }
-                }
-            )
     }
 
     override fun dispose() {
