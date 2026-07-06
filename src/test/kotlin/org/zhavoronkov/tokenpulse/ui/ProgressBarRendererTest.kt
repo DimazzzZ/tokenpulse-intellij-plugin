@@ -102,7 +102,7 @@ class ProgressBarRendererTest {
     fun `buildProgressBarHtml at zero percent draws empty bar`() {
         val html = ProgressBarRenderer.buildProgressBarHtml(0, Color.RED)
         // When percent is 0 the empty color should still occupy the full width.
-        assertTrue(html.contains("width=\"96\""), "Expected full-width empty cell at 0%")
+        assertTrue(html.contains("width=\"80\""), "Expected full-width empty cell at 0%")
         assertTrue(html.contains("bgcolor=\"#dddddd\""), "Expected empty bar color")
     }
 
@@ -110,16 +110,16 @@ class ProgressBarRendererTest {
     fun `buildProgressBarHtml at one hundred percent draws full bar`() {
         val html = ProgressBarRenderer.buildProgressBarHtml(100, Color.RED)
         // Filled cell should span the full bar width.
-        assertTrue(html.contains("width=\"96\""), "Expected full-width filled cell at 100%")
+        assertTrue(html.contains("width=\"80\""), "Expected full-width filled cell at 100%")
     }
 
     @Test
     fun `buildProgressBarHtml clamps out-of-range percent`() {
         val overHtml = ProgressBarRenderer.buildProgressBarHtml(150, Color.RED)
-        assertTrue(overHtml.contains("width=\"96\""), "Should clamp to 100% width")
+        assertTrue(overHtml.contains("width=\"80\""), "Should clamp to 100% width")
 
         val negHtml = ProgressBarRenderer.buildProgressBarHtml(-10, Color.RED)
-        assertTrue(negHtml.contains("width=\"96\""), "Should clamp to 0% (full empty)")
+        assertTrue(negHtml.contains("width=\"80\""), "Should clamp to 0% (full empty)")
     }
 
     @Test

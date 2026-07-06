@@ -23,7 +23,7 @@ object ProgressBarRenderer {
     private const val WARNING_THRESHOLD = 70
 
     /** Default bar width in pixels. Kept modest so the tooltip fits on screen. */
-    private const val DEFAULT_BAR_WIDTH = 96
+    private const val DEFAULT_BAR_WIDTH = 80
 
     /** Default bar height in pixels. */
     private const val DEFAULT_BAR_HEIGHT = 10
@@ -134,10 +134,9 @@ object ProgressBarRenderer {
      * Shared by [buildUsageSection] and [buildUsageSectionNoReset] to avoid
      * duplication and keep future layout changes in one place.
      *
-     * The value cell uses a nested two-column table so that the progress bar
-     * and the percentage text are forced onto the same visual line — this
-     * prevents Swing's HTML renderer from dropping the percentage below the
-     * bar when the bar is wide.
+     * The value cell uses `white-space:nowrap` to keep the bar and percent
+     * on the same visual line. The bar width is kept compact (80px) so the
+     * entire row fits within the tooltip's constrained width.
      */
     private fun buildUsageRow(label: String, percent: Int, resetText: String): String {
         val color = getUsageColor(percent)
@@ -147,12 +146,9 @@ object ProgressBarRenderer {
         return "<tr>" +
             "<td style=\"padding:2px 8px 2px 0;color:#888888;white-space:nowrap;\">" + safeLabel + "</td>" +
             "<td style=\"padding:2px 0;white-space:nowrap;\">" +
-            "<table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-collapse:collapse;vertical-align:middle;display:inline-table;\">" +
-            "<tr>" +
-            "<td style=\"vertical-align:middle;padding:0 4px 0 0;\">" + bar + "</td>" +
-            "<td style=\"vertical-align:middle;padding:0 0 0 4px;font-weight:bold;white-space:nowrap;\">" + safePercent + "%</td>" +
+            bar + " " +
+            "<span style=\"font-weight:bold;\">" + safePercent + "%</span>" +
             resetText +
-            "</tr></table>" +
             "</td></tr>"
     }
 
