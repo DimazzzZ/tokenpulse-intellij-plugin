@@ -215,30 +215,52 @@ class ClineProviderClient(
      * when there are no recognized limits so callers can attach nothing to the snapshot.
      */
     private fun buildClinePassMetadata(response: PlanUsageLimitsResponse?): Map<String, String> {
-        if (response?.limits.isNullOrEmpty()) return emptyMap()
+        val limits = response?.limits.orEmpty()
+        if (limits.isEmpty()) return emptyMap()
 
-        val result = LinkedHashMap<String, String>()
-        for (limit in response!!.limits) {
-            val type = limit.type ?: continue
-            val used = limit.percentUsed?.coerceIn(0, 100) ?: continue
-            val resetsAt = limit.resetsAt?.takeIf { it.isNotBlank() }
-            when (type) {
-                TYPE_FIVE_HOUR -> {
-                    result[METADATA_FIVE_HOUR_USED] = used.toString()
-                    resetsAt?.let { result[METADATA_FIVE_HOUR_RESETS_AT] = it }
-                }
-                TYPE_WEEKLY -> {
-                    result[METADATA_WEEKLY_USED] = used.toString()
-                    resetsAt?.let { result[METADATA_WEEKLY_RESETS_AT] = it }
-                }
-                TYPE_MONTHLY -> {
-                    result[METADATA_MONTHLY_USED] = used.toString()
-                    resetsAt?.let { result[METADATA_MONTHLY_RESETS_AT] = it }
-                }
-                // Unknown limit types are intentionally ignored.
+        // Map each recognized limit to its own small metadata contribution and merge.
+        // Returning `null` from the per-limit helper avoids the multiple `continue`
+        // statements that previously triggered detekt's LoopWithTooManyJumpStatements.
+        return limits
+            .mapNotNull { limit -> toClinePassEntries(limit) }
+            .fold(LinkedHashMap<String, String>()) { acc, entries -> acc.apply { putAll(entries) } }
+    }
+
+    /**
+     * Convert a single [PlanUsageLimit] into the metadata key/value pairs that
+     * should be exposed to the tooltip renderer, or `null` if the entry is invalid
+     * (missing required fields) or represents an unsupported limit type.
+     */
+    private fun toClinePassEntries(limit: PlanUsageLimit): Map<String, String>? {
+        val type = limit.type ?: return null
+        val used = limit.percentUsed?.coerceIn(0, 100) ?: return null
+        val resetsAt = limit.resetsAt?.takeIf { it.isNotBlank() }
+
+        val usedKey: String
+        val resetKey: String
+        when (type) {
+            TYPE_FIVE_HOUR -> {
+                usedKey = METADATA_FIVE_HOUR_USED
+                resetKey = METADATA_FIVE_HOUR_RESETS_AT
             }
+            TYPE_WEEKLY -> {
+                usedKey = METADATA_WEEKLY_USED
+                resetKey = METADATA_WEEKLY_RESETS_AT
+            }
+            TYPE_MONTHLY -> {
+                usedKey = METADATA_MONTHLY_USED
+                resetKey = METADATA_MONTHLY_RESETS_AT
+            }
+            // Unknown limit types are intentionally ignored.
+            else -> return null
         }
-        return result
+
+        val entries = LinkedHashMap<String, String>(2)
+        entries[usedKey] = used.toString()
+        if (resetsAt != null) {
+            entries[resetKey] = resetsAt
+        }
+        return entries
     }
 
     private data class UserInfoWrapper(val data: UserResponse?)
