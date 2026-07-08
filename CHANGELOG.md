@@ -5,6 +5,33 @@ All notable changes to the TokenPulse plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-07-08
+
+### Added
+- **ClinePass usage limits** for Cline API key accounts — optional 5-hour, weekly, and monthly
+  usage (percent + reset time) displayed in the tooltip when available
+- **TokenPulsePluginService** — centralized version retrieval and update-notification plumbing
+
+### Changed
+- **Claude CLI detection reliability** — version check now uses a bounded timeout (8 s) instead of
+  unbounded `waitFor`, preventing UI hangs when the Claude binary doesn't respond
+- **CLI connect dialog hardening** — `performDetection()` is wrapped in a `try/catch` so any
+  exception resolves the UI state instead of freezing on "Detecting…"
+- **Modal dialog UI fix** — `invokeLater` now uses `ModalityState.any()` so detection results
+  update the dialog's status label immediately while the modal is still open
+- **Invalid HTML sanitized** — `Row.comment()` calls no longer pass `html`-wrapped strings,
+  eliminating the `UiDslException` from `idea.log`
+- **Debug logging added** — info-level `TokenPulseLogger.UI` entries in `detectCli()` and
+  `performDetection()` for easier troubleshooting
+
+### Fixed
+- **CliConnectDialog NPE** (PR #16) — constructor-time access to subclass properties before
+  initialization completed, causing `NullPointerException` in `RowImpl.label(text)`
+- **Xiaomi token-plan `JsonNull` handling** (PR #14) — `ClassCastException` when the API returns
+  `null` for `data`, `monthUsage`, or `items` fields
+- **Tooltip loading state** — status-bar tooltip now shows "Refreshing balances…" during initial
+  refresh (e.g. Claude cold start) instead of the misleading "No accounts configured"
+
 ## [0.3.0] - 2026-06-22
 
 ### Added

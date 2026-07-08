@@ -42,11 +42,11 @@ class WhatsNewNotificationActivity : ProjectActivity {
                 """
                 <b>Thank you for using TokenPulse!</b><br/><br/>
                 <b>New in v$version:</b><br/>
-                • <b>Xiaomi MiMo provider</b> — API (pay-as-you-go) and Token Plan (subscription Credits)<br/>
-                • Session-based authentication with cURL capture flow<br/>
-                • Improved status bar format options (Percentage, Used/Remaining, Remaining only)<br/>
-                • Account persistence fix — accounts no longer revert to Cline on restart<br/>
-                • Code quality improvements and bug fixes
+                • <b>ClinePass usage limits</b> — Optional 5-hour, weekly & monthly usage for Cline API key accounts<br/>
+                • <b>Reliability improvements</b> — Fixed CLI connect dialog crash and Claude detection hangs<br/>
+                • <b>Smart refresh tooltip</b> — Shows "Refreshing balances…" instead of "No accounts configured"<br/>
+                • <b>Safe Xiaomi parsing</b> — Handles null responses from expired / stopped token plans<br/>
+                • <b>General hardening</b> — Timeouts, error handling, and debug logging throughout
                 """.trimIndent(),
                 NotificationType.INFORMATION
             )
