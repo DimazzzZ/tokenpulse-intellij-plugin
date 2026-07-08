@@ -2,18 +2,22 @@ package org.zhavoronkov.tokenpulse.ui
 
 import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCliExecutor
 
-class ClaudeConnectDialog : CliConnectDialog() {
-
-    override val cliName = "Claude CLI"
-    override val installUrl = "https://docs.anthropic.com/en/docs/claude-code/getting-started"
-    override val headerHtml = "<html><b>Claude Code (Claude CLI)</b></html>"
-    override val descriptionHtml =
-        "<html>Claude Code uses the Claude CLI for authentication.<br>" +
-            "No API key required - the CLI handles login automatically.</html>"
-    override val requirementsHtml =
-        "<html>1. Install Claude CLI: <code>npm install -g @anthropic-ai/claude-code</code><br>" +
+class ClaudeConnectDialog : CliConnectDialog(
+    CliDialogSpec(
+        cliName = "Claude CLI",
+        installUrl = "https://docs.anthropic.com/en/docs/claude-code/getting-started",
+        headerHtml = "<html><b>Claude Code (Claude CLI)</b></html>",
+        descriptionHtml = "<html>Claude Code uses the Claude CLI for authentication.<br>" +
+            "No API key required - the CLI handles login automatically.</html>",
+        requirementsHtml = "<html>1. Install Claude CLI: <code>npm install -g @anthropic-ai/claude-code</code><br>" +
             "2. Run <code>claude</code> in terminal once to log in<br>" +
-            "3. The plugin will use CLI to fetch usage data</html>"
+            "3. The plugin will use CLI to fetch usage data</html>",
+    )
+) {
+
+    init {
+        startDetection()
+    }
 
     override fun performDetection(): DetectionResult {
         val available = ClaudeCliExecutor.isClaudeCliAvailable()
