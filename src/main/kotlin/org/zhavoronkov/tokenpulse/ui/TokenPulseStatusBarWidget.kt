@@ -208,15 +208,18 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
     }
 
     override fun getTooltipText(): String {
-        val results = BalanceRefreshService.getInstance().results.value
-        if (results.isEmpty()) return buildSimpleTooltip("No accounts configured", null)
-
         val accounts = TokenPulseSettingsService.getInstance().state.accounts
+        if (accounts.isEmpty()) return buildSimpleTooltip("No accounts configured", null)
+
         val activeAccounts = accounts.filter { it.isEnabled }
         if (activeAccounts.isEmpty()) return buildSimpleTooltip("All accounts disabled", "Open settings to enable")
 
+        val results = BalanceRefreshService.getInstance().results.value
         val enabledAccountIds = activeAccounts.map { it.id }.toSet()
         val activeResults = results.filterKeys { it in enabledAccountIds }.values
+
+        // Still waiting for initial refresh results (e.g. Claude cold start).
+        if (activeResults.isEmpty()) return buildSimpleTooltip("Refreshing balances...", null)
 
         val successCount = activeResults.filterIsInstance<ProviderResult.Success>().count()
         val errorCount = activeResults.filterIsInstance<ProviderResult.Failure>().count()
