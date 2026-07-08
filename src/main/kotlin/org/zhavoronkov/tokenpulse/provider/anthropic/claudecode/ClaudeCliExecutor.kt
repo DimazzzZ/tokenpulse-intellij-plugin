@@ -3,6 +3,7 @@ package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 import org.zhavoronkov.tokenpulse.utils.CliLocator
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 /**
  * Platform-specific executor for Claude CLI.
@@ -149,7 +150,13 @@ object ClaudeCliExecutor {
     }
 
     /**
+     * Maximum time to wait for Claude CLI --version to complete.
+     */
+    private const val VERSION_TIMEOUT_SECONDS = 8L
+
+    /**
      * Verify that the Claude CLI is actually functional by running --version.
+     * Uses a bounded timeout to prevent the UI from hanging indefinitely.
      *
      * @return Pair of (success, version string or error message).
      */
@@ -161,8 +168,16 @@ object ClaudeCliExecutor {
                 .redirectErrorStream(true)
                 .start()
 
+            val finished = process.waitFor(VERSION_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+
+            if (!finished) {
+                process.destroyForcibly()
+                TokenPulseLogger.Provider.debug("Claude CLI version check timed out after ${VERSION_TIMEOUT_SECONDS}s")
+                return false to "Claude CLI version check timed out"
+            }
+
             val output = process.inputStream.bufferedReader().readText().trim()
-            val exitCode = process.waitFor()
+            val exitCode = process.exitValue()
 
             if (exitCode == 0 && output.isNotBlank()) {
                 TokenPulseLogger.Provider.debug("Claude CLI version: $output")

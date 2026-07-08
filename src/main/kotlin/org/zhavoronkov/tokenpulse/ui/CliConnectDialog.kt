@@ -2,9 +2,11 @@ package org.zhavoronkov.tokenpulse.ui
 
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.panel
+import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.awt.Font
 import javax.swing.JButton
 import javax.swing.JComponent
@@ -73,7 +75,7 @@ abstract class CliConnectDialog(
         }
 
         row {
-            comment(spec.descriptionHtml)
+            comment(stripHtmlWrapper(spec.descriptionHtml))
         }
 
         separator()
@@ -94,7 +96,7 @@ abstract class CliConnectDialog(
         }
 
         row {
-            comment(spec.requirementsHtml)
+            comment(stripHtmlWrapper(spec.requirementsHtml))
         }
 
         separator()
@@ -108,6 +110,21 @@ abstract class CliConnectDialog(
     override fun getPreferredFocusedComponent() = detectButton
 
     // ── HTML helpers ────────────────────────────────────────────────────────
+
+    /**
+     * Strips outer <html>...</html> wrapper if present.
+     * Needed because Row.comment() already wraps text in <html> internally.
+     */
+    private fun stripHtmlWrapper(text: String): String {
+        val trimmed = text.trim()
+        return if (trimmed.startsWith("<html>", ignoreCase = true) &&
+            trimmed.endsWith("</html>", ignoreCase = true)
+        ) {
+            trimmed.substring(6, trimmed.length - 7)
+        } else {
+            trimmed
+        }
+    }
 
     private fun detectingStatusHtml() =
         "<html><i>Detecting ${spec.cliName}...</i></html>"
@@ -127,15 +144,33 @@ abstract class CliConnectDialog(
     // ── Detection ───────────────────────────────────────────────────────────
 
     private fun detectCli() {
+        TokenPulseLogger.UI.info("Detection started for ${spec.cliName}")
         statusLabel.text = detectingStatusHtml()
         versionLabel.text = ""
         isOKActionEnabled = false
         detectButton.isEnabled = false
 
         ApplicationManager.getApplication().executeOnPooledThread {
-            val result = performDetection()
+            val result = try {
+                performDetection()
+            } catch (e: Exception) {
+                TokenPulseLogger.UI.info("Detection threw exception for ${spec.cliName}: ${e.message}")
+                DetectionResult(
+                    available = false,
+                    version = null,
+                    errorMessage = "Detection error: ${e.message ?: "unknown"}"
+                )
+            }
 
-            ApplicationManager.getApplication().invokeLater {
+            TokenPulseLogger.UI.info(
+                "Detection result for ${spec.cliName}: " +
+                    "available=${result.available} version=${result.version} error=${result.errorMessage}"
+            )
+
+            // Use ModalityState.any() so the UI updates apply while the modal dialog is open.
+            // Without this, invokeLater defers the callback until the dialog closes.
+            ApplicationManager.getApplication().invokeLater({
+                TokenPulseLogger.UI.info("Applying detection result for ${spec.cliName} on UI thread")
                 if (!result.available) {
                     statusLabel.text = notFoundStatusHtml()
                     versionLabel.text = errorMessageHtml(result.errorMessage)
@@ -155,7 +190,7 @@ abstract class CliConnectDialog(
                     cliVersion = null
                 }
                 detectButton.isEnabled = true
-            }
+            }, ModalityState.any())
         }
     }
 }

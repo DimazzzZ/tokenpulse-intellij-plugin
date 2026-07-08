@@ -1,6 +1,7 @@
 package org.zhavoronkov.tokenpulse.ui
 
 import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCliExecutor
+import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 
 class ClaudeConnectDialog : CliConnectDialog(
     CliDialogSpec(
@@ -21,17 +22,24 @@ class ClaudeConnectDialog : CliConnectDialog(
 
     override fun performDetection(): DetectionResult {
         val available = ClaudeCliExecutor.isClaudeCliAvailable()
-        val result = if (available) ClaudeCliExecutor.verifyClaudeCliWorks() else (false to null)
+        TokenPulseLogger.UI.info("Claude CLI available=$available")
+        if (!available) {
+            return DetectionResult(
+                available = false,
+                version = null,
+                errorMessage = "Install via: npm install -g @anthropic-ai/claude-code"
+            )
+        }
+        val claudePath = ClaudeCliExecutor.findClaudeCliPath()
+        TokenPulseLogger.UI.info("Claude CLI path=$claudePath")
+        val result = ClaudeCliExecutor.verifyClaudeCliWorks()
+        TokenPulseLogger.UI.info("Claude CLI verifyResult: success=${result.first} output=${result.second}")
         val works = result.first
         val version = result.second
         return DetectionResult(
             available = available,
             version = if (works) version else null,
-            errorMessage = if (!available) {
-                "Install via: npm install -g @anthropic-ai/claude-code"
-            } else {
-                "CLI found but not responding: ${version ?: "unknown error"}"
-            }
+            errorMessage = if (works) "" else "CLI found but not responding: ${version ?: "unknown error"}"
         )
     }
 }
