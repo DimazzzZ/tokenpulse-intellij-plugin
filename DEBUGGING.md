@@ -56,9 +56,16 @@ This adds `[HTTP-TRACE]` logs showing granular request lifecycles.
 
 The plugin uses the following logger categories:
 - `org.zhavoronkov.tokenpulse.service` - Balance refresh, coordinator, HTTP client
-- `org.zhavoronkov.tokenpulse.provider` - Provider clients (Nebius, OpenRouter, Cline)
+- `org.zhavoronkov.tokenpulse.provider` - Provider clients (Nebius, OpenRouter, Cline, Claude Code, Codex)
 - `org.zhavoronkov.tokenpulse.settings` - Settings persistence, credentials
 - `org.zhavoronkov.tokenpulse.ui` - UI dialogs, widgets, notifications
+
+> **Claude Code auth debugging:** credential reads log under
+> `org.zhavoronkov.tokenpulse.provider`. On macOS the reader shells out to
+> `security find-generic-password` for the entry
+> `Claude Code-credentials[-<hash8>]`; if you see "Auth Error" for a Claude
+> account, verify that entry exists (Keychain Access) and that `claude` is
+> still logged in for the corresponding config dir.
 
 ## 🔍 Monitoring Commands (macOS/Linux)
 

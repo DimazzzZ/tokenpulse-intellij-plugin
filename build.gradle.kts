@@ -204,10 +204,8 @@ kover {
                     "org.zhavoronkov.tokenpulse.provider.openai.chatgpt.ChatGptOAuthManager\$*",
                     "org.zhavoronkov.tokenpulse.provider.openai.chatgpt.CodexAppServerClient",
                     "org.zhavoronkov.tokenpulse.provider.openai.chatgpt.CodexAppServerClient\$*",
-                    "org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCliExecutor",
-                    "org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCliExecutor\$*",
-                    "org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCliUsageExtractor",
-                    "org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCliUsageExtractor\$*"
+                    "org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCliDetector",
+                    "org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCliDetector\$*"
                 )
                 // Startup activities
                 classes(

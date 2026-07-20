@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION") // Shares UsageData with the deprecated extractor.
-
 package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 
 import com.intellij.openapi.application.ApplicationManager
@@ -44,7 +42,7 @@ class ClaudeCodeProviderClient : ProviderClient {
         TokenPulseLogger.Provider.debug("[ClaudeCodeProviderClient] fetchBalance() called for account: ${account.id}")
 
         // Check if Claude CLI is installed
-        if (!ClaudeCliExecutor.isClaudeCliAvailable()) {
+        if (!ClaudeCliDetector.isInstalled()) {
             return ProviderResult.Failure.AuthError(
                 "Claude CLI not found. Please install it via: npm install -g @anthropic-ai/claude-code"
             )
@@ -77,7 +75,7 @@ class ClaudeCodeProviderClient : ProviderClient {
         return when (result) {
             is ClaudeOAuthUsageClient.OAuthUsageResult.Success -> {
                 TokenPulseLogger.Provider.debug("[ClaudeCodeProviderClient] OAuth API successful")
-                buildSuccessResult(account, result.usageData, source = "oauth_api")
+                buildSuccessResult(account, result.usageData)
             }
             is ClaudeOAuthUsageClient.OAuthUsageResult.Error -> {
                 TokenPulseLogger.Provider.warn("[ClaudeCodeProviderClient] OAuth API error: ${result.message}")
@@ -96,11 +94,10 @@ class ClaudeCodeProviderClient : ProviderClient {
 
     private fun buildSuccessResult(
         account: Account,
-        usageData: ClaudeCliUsageExtractor.UsageData,
-        source: String = "cli_extraction"
+        usageData: ClaudeUsageData,
     ): ProviderResult.Success {
         TokenPulseLogger.Provider.debug(
-            "[ClaudeCodeProviderClient] Extraction successful (source=$source): " +
+            "[ClaudeCodeProviderClient] Extraction successful (source=oauth_api): " +
                 "session=${usageData.sessionUsedPercent}%, week=${usageData.weekUsedPercent}%"
         )
 
@@ -109,7 +106,7 @@ class ClaudeCodeProviderClient : ProviderClient {
         // settings mutation is dispatched to the EDT.
         maybeEnrichAccountName(account)
 
-        val metadata = buildMetadata(usageData, source)
+        val metadata = buildMetadata(usageData)
         val (tokensUsed, tokensTotal) = calculateTokens(usageData)
 
         return ProviderResult.Success(
@@ -158,7 +155,7 @@ class ClaudeCodeProviderClient : ProviderClient {
 
     override fun testCredentials(account: Account, secret: String): ProviderResult {
         // Check if Claude CLI is installed
-        if (!ClaudeCliExecutor.isClaudeCliAvailable()) {
+        if (!ClaudeCliDetector.isInstalled()) {
             return ProviderResult.Failure.AuthError(
                 "Claude CLI not found. Please install it via: npm install -g @anthropic-ai/claude-code"
             )
@@ -210,23 +207,20 @@ class ClaudeCodeProviderClient : ProviderClient {
         }
     }
 
-    private fun buildMetadata(
-        usageData: ClaudeCliUsageExtractor.UsageData,
-        source: String = "oauth_api"
-    ): Map<String, String> {
+    private fun buildMetadata(usageData: ClaudeUsageData): Map<String, String> {
         val metadata = mutableMapOf<String, String>()
 
         usageData.sessionUsedPercent?.let { metadata["sessionUsed"] = it.toString() }
         usageData.sessionResetsAt?.let { metadata["sessionResetsAt"] = it }
         usageData.weekUsedPercent?.let { metadata["weekUsed"] = it.toString() }
         usageData.weekResetsAt?.let { metadata["weekResetsAt"] = it }
-        metadata["source"] = source
+        metadata["source"] = "oauth_api"
         metadata["status"] = "OAuth API successful"
 
         return metadata
     }
 
-    private fun calculateTokens(usageData: ClaudeCliUsageExtractor.UsageData): Pair<Long, Long> {
+    private fun calculateTokens(usageData: ClaudeUsageData): Pair<Long, Long> {
         val sessionPercent = usageData.sessionUsedPercent ?: 0
         val tokensUsed = (sessionPercent * TOKENS_PER_PERCENT).toLong()
         return tokensUsed to TOTAL_TOKENS

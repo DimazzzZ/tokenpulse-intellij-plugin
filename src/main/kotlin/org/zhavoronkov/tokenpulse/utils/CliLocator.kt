@@ -4,7 +4,7 @@ import java.io.File
 
 /**
  * Utility for locating CLI binaries on the system.
- * Shared between CodexCliExecutor and ClaudeCliExecutor.
+ * Shared between CodexCliExecutor and ClaudeCliDetector.
  */
 object CliLocator {
 

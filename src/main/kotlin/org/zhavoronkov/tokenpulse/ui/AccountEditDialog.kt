@@ -18,7 +18,7 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.layout.ComponentPredicate
 import org.zhavoronkov.tokenpulse.model.ConnectionType
 import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeAccountDiscovery
-import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCliExecutor
+import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCliDetector
 import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.DiscoveredClaudeAccount
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.settings.AuthType
@@ -168,7 +168,7 @@ class AccountEditDialog(
         addActionListener { openXiaomiConnectDialog() }
     }
 
-    private val enabledCheckBox = javax.swing.JCheckBox("Account enabled", account?.isEnabled ?: true)
+    private val enabledCheckBox = JCheckBox("Account enabled", account?.isEnabled ?: true)
 
     private val providerHintLabel = JBLabel("<html><small></small></html>")
 
@@ -412,9 +412,9 @@ class AccountEditDialog(
             var version: String? = null
             var discovered: List<DiscoveredClaudeAccount> = emptyList()
             try {
-                val available = ClaudeCliExecutor.isClaudeCliAvailable()
+                val available = ClaudeCliDetector.isInstalled()
                 if (available) {
-                    val v = ClaudeCliExecutor.verifyClaudeCliWorks()
+                    val v = ClaudeCliDetector.verifyVersion()
                     if (v.first) {
                         cliOk = true
                         version = v.second

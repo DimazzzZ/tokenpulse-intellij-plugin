@@ -6,8 +6,8 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
-import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCliExecutor
 import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCredentialReader
+import org.zhavoronkov.tokenpulse.utils.HostOs
 import java.io.File
 import java.nio.file.Path
 
@@ -27,7 +27,7 @@ class ClaudeCredentialReaderTest {
     }
 
     private fun reader(configDir: String) =
-        ClaudeCredentialReader(configDir, osType = ClaudeCliExecutor.OsType.LINUX)
+        ClaudeCredentialReader(configDir, osType = HostOs.LINUX)
 
     @Test
     fun `reads access, refresh, and expiresAt from valid credentials`(@TempDir dir: Path) {

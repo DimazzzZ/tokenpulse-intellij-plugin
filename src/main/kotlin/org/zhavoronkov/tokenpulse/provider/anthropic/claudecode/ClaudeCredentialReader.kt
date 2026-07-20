@@ -1,8 +1,9 @@
 package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 
-import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import org.zhavoronkov.tokenpulse.utils.HostOs
+import org.zhavoronkov.tokenpulse.utils.detectHostOs
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.io.File
 
@@ -35,10 +36,10 @@ class ClaudeCredentialReader(
     private val configDir: String? = null,
     /**
      * OS whose credential store is consulted. Defaults to the real host OS;
-     * tests override it (e.g. [ClaudeCliExecutor.OsType.LINUX]) to force the
+     * tests override it (e.g. [HostOs.LINUX]) to force the
      * file-mode path and avoid the macOS Keychain subprocess.
      */
-    private val osType: ClaudeCliExecutor.OsType = ClaudeCliExecutor.getOsType(),
+    private val osType: HostOs = detectHostOs(),
 ) {
 
     /**
@@ -119,7 +120,7 @@ class ClaudeCredentialReader(
         TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Reading credentials for OS: $osType")
 
         return when (osType) {
-            ClaudeCliExecutor.OsType.MACOS -> readFromKeychain()
+            HostOs.MACOS -> readFromKeychain()
             else -> readFromFile()
         }
     }
@@ -191,7 +192,7 @@ class ClaudeCredentialReader(
             }
 
             parseCredentialJson(output)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }

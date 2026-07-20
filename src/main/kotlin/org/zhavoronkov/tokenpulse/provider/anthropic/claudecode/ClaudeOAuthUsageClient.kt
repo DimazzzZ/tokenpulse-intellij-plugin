@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION") // Shares UsageData/ExtractionResult with the deprecated extractor.
-
 package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 
 import com.google.gson.Gson
@@ -61,7 +59,7 @@ class ClaudeOAuthUsageClient {
                 429 -> OAuthUsageResult.Error("Rate limited by Anthropic API", isRateLimited = true)
                 else -> OAuthUsageResult.Error("API returned ${response.statusCode()}: ${response.body().take(200)}")
             }
-        } catch (e: java.net.http.HttpTimeoutException) {
+        } catch (_: java.net.http.HttpTimeoutException) {
             TokenPulseLogger.Provider.warn("OAuth API request timed out")
             OAuthUsageResult.Error("API request timed out after $REQUEST_TIMEOUT_SECONDS seconds")
         } catch (e: java.net.ConnectException) {
@@ -93,8 +91,8 @@ class ClaudeOAuthUsageClient {
                 return OAuthUsageResult.Error("Empty response from API")
             }
 
-            // Convert API response to internal UsageData format
-            val usageData = ClaudeCliUsageExtractor.UsageData(
+            // Convert API response to internal usage-data format
+            val usageData = ClaudeUsageData(
                 sessionUsedPercent = response.fiveHour?.utilization?.let { normalizeUtilization(it) },
                 sessionResetsAt = response.fiveHour?.resetsAt,
                 weekUsedPercent = response.sevenDay?.utilization?.let { normalizeUtilization(it) },
@@ -130,7 +128,7 @@ class ClaudeOAuthUsageClient {
      * Result of an OAuth API call.
      */
     sealed class OAuthUsageResult {
-        data class Success(val usageData: ClaudeCliUsageExtractor.UsageData) : OAuthUsageResult()
+        data class Success(val usageData: ClaudeUsageData) : OAuthUsageResult()
         data class Error(
             val message: String,
             val isAuthError: Boolean = false,

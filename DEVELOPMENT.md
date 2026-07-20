@@ -72,7 +72,7 @@ token-pulse/
 ├── 📁 src/main/kotlin/org/zhavoronkov/tokenpulse/
 │   ├── 📁 actions/               # Action definitions (Dashboard, Refresh, Settings)
 │   ├── 📁 model/                 # Data models (Balance, Account)
-│   ├── 📁 provider/              # Provider implementations (Cline, OpenRouter)
+│   ├── 📁 provider/              # Provider implementations (Cline, OpenRouter, Claude Code, Codex, Nebius, OpenAI, Xiaomi)
 │   ├── 📁 service/               # Core services (Balance refresh, HTTP client)
 │   ├── 📁 startup/               # First-run & Update notifications
 │   ├── 📁 ui/                    # UI components (Settings, Dashboard, Status bar)
@@ -86,6 +86,9 @@ token-pulse/
 - **`HttpClientService`** — Shared service for OkHttp and Gson instances.
 - **`CredentialsStore`** — Secure storage for API keys using IntelliJ's `PasswordSafe`.
 - **`BalanceHistoryService`** — Persists balance snapshots for chart visualization.
+- **`provider/anthropic/claudecode/`** — Claude Code integration: OAuth usage/refresh clients,
+  credential reader (Keychain on macOS, plaintext file otherwise), multi-account discovery, and
+  config-dir/keychain-name derivation helpers.
 
 ## 📝 Version Management
 

@@ -64,9 +64,13 @@ src/test/kotlin/org/zhavoronkov/tokenpulse/
 │   ├── ProviderTest.kt                 # Unit: enum methods (10)
 │   └── ProviderResultTest.kt           # Unit: sealed class (18)
 ├── provider/
-│   ├── ClaudeCliOutputParserTest.kt    # Unit: parsing logic (27)
-│   ├── ClaudeCliFunctionalTest.kt      # Functional: real CLI (3)
-│   ├── ClaudeCodeProviderClientTest.kt # Unit: mocked
+│   ├── ClaudeAccountDiscoveryTest.kt      # Unit: multi-account discovery
+│   ├── ClaudeAccountIdentityReaderTest.kt # Unit: .claude.json oauthAccount reader
+│   ├── ClaudeCliDetectorTest.kt           # Unit: CLI install detection + version check
+│   ├── ClaudeCodeProviderClientTest.kt    # Unit: enrichedAccountLabel decision
+│   ├── ClaudeConfigLocatorTest.kt         # Unit: keychain/file/identity path derivation
+│   ├── ClaudeCredentialReaderTest.kt      # Unit: file-mode credential + expiry reads
+│   ├── ClaudeOAuthRefreshClientTest.kt    # Integration: MockWebServer OAuth refresh
 │   ├── ClineProviderClientTest.kt      # Integration: MockWebServer
 │   ├── NebiusProviderClientTest.kt     # Integration: MockWebServer
 │   ├── NebiusProviderClientLiveTest.kt # Live: real API
@@ -78,11 +82,15 @@ src/test/kotlin/org/zhavoronkov/tokenpulse/
 ├── settings/
 │   ├── AccountTest.kt                  # Unit: account logic (24)
 │   └── TokenPulseSettingsTest.kt       # Unit: settings data class (10)
-└── ui/
+├── ui/
+    ├── AccountTableColumnsTest.kt      # Unit: pure column-value helpers
     ├── BalanceFormatterTest.kt         # Unit: formatting (17)
     ├── NebiusCurlParserTest.kt         # Unit: parsing
+    ├── NormalizedConfigDirTest.kt      # Unit: Claude config-dir canonicalization
     ├── ProgressBarRendererTest.kt      # Unit: progress bars (17)
     └── SecretRedactorTest.kt           # Unit: redaction (16)
+└── utils/
+    └── HostOsTest.kt                   # Unit: detectHostOs + HostOs enum (3)
 ```
 
 ## 🛠️ Testing Tools
@@ -116,8 +124,12 @@ The following classes are excluded from coverage reports as they require Intelli
 |----------|------------------|
 | **UI Dialogs** | `*Dialog`, `TokenPulseConfigurable`, `TokenPulseStatusBarWidget`, `*TableModel` |
 | **Platform Services** | `BalanceRefreshService`, `HttpClientService`, `TokenPulseSettingsService`, `CredentialsStore` |
-| **OAuth/CLI** | `ChatGptOAuthManager`, `CodexAppServerClient`, `ClaudeCliExecutor`, `ClaudeCliUsageExtractor` |
+| **OAuth/CLI** | `ChatGptOAuthManager`, `CodexAppServerClient`, `ClaudeCliDetector` |
 | **Startup** | `WelcomeNotificationActivity`, `WhatsNewNotificationActivity` |
 | **Actions** | `TokenPulseActions` |
 
 These exclusions ensure the coverage report reflects testable business logic rather than platform-dependent code.
+
+> **Note:** `ClaudeCredentialReader` is NOT excluded — its file-mode path is unit-tested via
+> `osType` injection. The macOS-Keychain branch shells out to `security` and is intentionally
+> not exercised in unit tests.
