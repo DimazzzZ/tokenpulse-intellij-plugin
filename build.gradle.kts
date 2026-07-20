@@ -127,6 +127,16 @@ tasks {
         ignoreFailures = true  // Don't fail the build on Detekt issues during development
     }
 
+    // buildSearchableOptions launches a headless IDE (~23s) to index plugin
+    // searchable options. It is only needed for the shipped plugin ZIP, not for
+    // PR/push CI verification. `ci.yml` sets SKIP_SEARCHABLE_OPTIONS=true to skip
+    // it; the release workflow does NOT set it, so releases still generate it.
+    // (Note: GitHub Actions always sets CI=true, so we deliberately do NOT gate
+    // on CI here — that would also skip it during releases.)
+    named("buildSearchableOptions") {
+        enabled = System.getenv("SKIP_SEARCHABLE_OPTIONS") != "true"
+    }
+
     // Configure tests
     test {
         useJUnitPlatform {
@@ -135,14 +145,39 @@ tasks {
             if (!project.hasProperty("functional")) {
                 excludeTags("functional")
             }
+            // Skip the IntelliJ Platform smoke test here — it needs a serial,
+            // shared TestApplication fixture and runs in the `platformTest` task.
+            excludeTags("platform")
         }
         systemProperty("tokenpulse.testMode", "true")
 
-        // Parallel test execution disabled for IntelliJ Platform tests
-        // (Platform tests share state and don't parallelize well)
-        maxParallelForks = 1
+        // Pure-JVM unit tests (all but TokenPulseSmokeTest) parallelize safely.
+        // GH ubuntu-latest has 4 vCPUs / 16 GB; 4 forks * 1 GB heap is safe.
+        maxParallelForks = Runtime.getRuntime().availableProcessors().coerceAtMost(4)
+        forkEvery = 100  // Recycle fork JVMs to bound native memory growth
+        maxHeapSize = "1g"
 
         // Report test results even on failure
+        reports {
+            junitXml.required.set(true)
+            html.required.set(true)
+        }
+    }
+
+    // Serial task for IntelliJ Platform tests that need the shared TestApplication.
+    register<Test>("platformTest") {
+        description = "Runs IntelliJ Platform tests that need the shared TestApplication."
+        group = "verification"
+
+        testClassesDirs = sourceSets.test.get().output.classesDirs
+        classpath = sourceSets.test.get().runtimeClasspath
+
+        useJUnitPlatform {
+            includeTags("platform")
+        }
+        systemProperty("tokenpulse.testMode", "true")
+        maxParallelForks = 1
+
         reports {
             junitXml.required.set(true)
             html.required.set(true)
@@ -164,6 +199,11 @@ tasks {
             junitXml.required.set(true)
             html.required.set(true)
         }
+    }
+
+    // Ensure the platform smoke test still runs as part of `check` / `build`.
+    named("check") {
+        dependsOn("platformTest")
     }
 }
 
