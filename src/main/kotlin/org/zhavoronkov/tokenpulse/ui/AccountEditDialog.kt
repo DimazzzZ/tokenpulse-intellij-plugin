@@ -1,21 +1,35 @@
 package org.zhavoronkov.tokenpulse.ui
 
 import com.intellij.ide.BrowserUtil
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
+import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.layout.ComponentPredicate
 import org.zhavoronkov.tokenpulse.model.ConnectionType
+import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeAccountDiscovery
+import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCliDetector
+import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.DiscoveredClaudeAccount
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.settings.AuthType
 import org.zhavoronkov.tokenpulse.utils.Constants.TEXT_AREA_COLUMNS
+import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
+import javax.swing.Box
+import javax.swing.BoxLayout
 import javax.swing.JButton
+import javax.swing.JCheckBox
 import javax.swing.JComponent
+import javax.swing.JPanel
 
 /**
  * Dialog for adding or editing an AI provider account.
@@ -35,8 +49,10 @@ import javax.swing.JComponent
  *    which guides users through API key capture.
  *  - For Codex CLI: "Detect Codex CLI →" button opens [CodexConnectDialog]
  *    which verifies the CLI is installed.
- *  - For Claude Code: "Detect Claude CLI →" button opens [ClaudeConnectDialog]
- *    which verifies the CLI is installed.
+ *  - For Claude Code: an inline discovery checklist auto-detects config dirs
+ *    (~/.claude, ~/.claude-*, ~/.config/claude*), lets the user check which
+ *    accounts to add, and supports a manual "Add other config dir" row. No
+ *    second modal.
  *  - For other providers: "Get API Key →" button opens the exact provider page.
  */
 class AccountEditDialog(
@@ -105,19 +121,61 @@ class AccountEditDialog(
         addActionListener { openCodexConnectDialog() }
     }
 
-    // ── Claude Code connect button ────────────────────────────────────────
-    private val claudeCodeConnectButton = JButton("Detect Claude CLI →").apply {
-        addActionListener { openClaudeConnectDialog() }
+    // ── Claude Code inline discovery ──────────────────────────────────────
+    /** Status header: "Detecting…", "✓ Claude CLI vX", or "⚠ Claude CLI not found". */
+    private val claudeDiscoveryStatusLabel = JBLabel("<html><i>Detecting Claude CLI...</i></html>")
+
+    /** Non-blocking install-guide button, shown only when the CLI is missing. */
+    private val claudeInstallGuideButton = JButton("Installation Guide →").apply {
+        addActionListener {
+            BrowserUtil.browse("https://docs.anthropic.com/en/docs/claude-code/getting-started")
+        }
+        isVisible = false
     }
+
+    /** Re-run discovery from scratch. */
+    private val claudeRedetectButton = JButton("Re-detect").apply {
+        addActionListener {
+            claudeDiscovered = false
+            runClaudeDiscovery()
+        }
+    }
+
+    /** Container holding one checkbox row per discovered account. */
+    private val claudeAccountsPanel = JPanel().apply { layout = BoxLayout(this, BoxLayout.Y_AXIS) }
+
+    /** Live rows: checkbox + the account it represents. Add-mode source of truth. */
+    private val claudeRows = mutableListOf<Pair<JCheckBox, DiscoveredClaudeAccount>>()
+
+    private val claudeManualDirField = TextFieldWithBrowseButton().apply {
+        addBrowseFolderListener(
+            "Select Claude Config Dir",
+            "Choose a directory that contains a Claude credential store",
+            null,
+            FileChooserDescriptorFactory.createSingleFolderDescriptor()
+        )
+    }
+
+    private val claudeAddManualButton = JButton("Add config dir").apply {
+        addActionListener { addClaudeManualDir() }
+    }
+
+    /** Runs at most once; set true after the first successful discovery. */
+    private var claudeDiscovered = false
 
     // ── Xiaomi connect button ─────────────────────────────────────────────
     private val xiaomiConnectButton = JButton("Connect Xiaomi Account →").apply {
         addActionListener { openXiaomiConnectDialog() }
     }
 
-    private val enabledCheckBox = javax.swing.JCheckBox("Account enabled", account?.isEnabled ?: true)
+    private val enabledCheckBox = JCheckBox("Account enabled", account?.isEnabled ?: true)
 
     private val providerHintLabel = JBLabel("<html><small></small></html>")
+
+    // ── Claude Code name field (editable label; email/org or dir basename) ──
+    private val nameField = JBTextField(account?.name ?: "").apply {
+        columns = TEXT_AREA_COLUMNS
+    }
 
     // ── Status labels ──────────────────────────────────────────────────────
     private val nebiusStatusLabel = JBLabel(
@@ -144,14 +202,6 @@ class AccountEditDialog(
         }
     )
 
-    private val claudeCodeStatusLabel = JBLabel(
-        if (account?.connectionType == ConnectionType.CLAUDE_CODE && !existingSecret.isNullOrBlank()) {
-            "<html><font color='green'>✓ Connected</font></html>"
-        } else {
-            "<html><i>Not connected</i></html>"
-        }
-    )
-
     private val xiaomiStatusLabel = JBLabel(
         if (account?.connectionType in XIAOMI_TYPES && !existingSecret.isNullOrBlank()) {
             "<html><font color='green'>✓ Session connected</font></html>"
@@ -172,9 +222,17 @@ class AccountEditDialog(
     private var capturedCodexSecret: String? =
         if (account?.connectionType == ConnectionType.CODEX_CLI) existingSecret else null
 
-    /** Holds the captured Claude Code secret (CLI mode marker). */
+    /** Holds the captured Claude Code secret (CLI mode marker or OAuth token). */
     private var capturedClaudeSecret: String? =
         if (account?.connectionType == ConnectionType.CLAUDE_CODE) existingSecret else null
+
+    /** The selected auth type for Claude Code (CLI or OAuth). */
+    private var selectedClaudeAuthType: AuthType =
+        if (account?.connectionType == ConnectionType.CLAUDE_CODE) {
+            account.authType
+        } else {
+            AuthType.CLAUDE_CODE_LOCAL
+        }
 
     /** Holds the captured Xiaomi session JSON. */
     private var capturedXiaomiSession: String? =
@@ -216,8 +274,19 @@ class AccountEditDialog(
         codexConnectButton.isVisible = isCodex
         codexStatusLabel.isVisible = isCodex
 
-        claudeCodeConnectButton.isVisible = isClaudeCode
-        claudeCodeStatusLabel.isVisible = isClaudeCode
+        // Inline Claude discovery is visible in ADD mode only; edit mode shows
+        // just the rename field.
+        val showClaudeDiscovery = isClaudeCode && account == null
+        claudeDiscoveryStatusLabel.isVisible = showClaudeDiscovery
+        claudeInstallGuideButton.isVisible = showClaudeDiscovery && !cliDetectedInline
+        claudeRedetectButton.isVisible = showClaudeDiscovery
+        claudeAccountsPanel.isVisible = showClaudeDiscovery
+        claudeManualDirField.isVisible = showClaudeDiscovery
+        claudeAddManualButton.isVisible = showClaudeDiscovery
+
+        if (showClaudeDiscovery && !claudeDiscovered) {
+            runClaudeDiscovery()
+        }
 
         xiaomiConnectButton.isVisible = isXiaomi
         xiaomiStatusLabel.isVisible = isXiaomi
@@ -228,7 +297,10 @@ class AccountEditDialog(
     /**
      * Returns the [AuthType] for the currently selected connection type.
      */
-    fun getAuthType(): AuthType = getConnectionType().defaultAuthType
+    fun getAuthType(): AuthType = when (getConnectionType()) {
+        ConnectionType.CLAUDE_CODE -> selectedClaudeAuthType
+        else -> getConnectionType().defaultAuthType
+    }
 
     /**
      * Returns the secret to store:
@@ -251,6 +323,15 @@ class AccountEditDialog(
      * Returns whether the account should be enabled.
      */
     fun getIsEnabled(): Boolean = enabledCheckBox.isSelected
+
+    /** Editable display name (used for Claude Code rows). */
+    fun getName(): String = nameField.text.trim()
+
+    /** Claude accounts checked in the inline discovery list (add flow only). */
+    fun getClaudeSelections(): List<SelectedClaudeAccount> =
+        claudeRows.filter { it.first.isSelected }.map { (_, acct) ->
+            SelectedClaudeAccount(acct.configDir, acct.isDefault, acct.label)
+        }
 
     private fun openKeyGenerationPage() {
         val url = getProviderUrl()
@@ -310,18 +391,109 @@ class AccountEditDialog(
         }
     }
 
-    private fun openClaudeConnectDialog() {
-        val dialog = ClaudeConnectDialog()
-        if (dialog.showAndGet()) {
-            if (dialog.cliDetected) {
-                // Claude CLI doesn't need a secret - it handles auth itself
-                // We use a marker value to indicate CLI mode is enabled
-                capturedClaudeSecret = "cli-mode"
-                val version = dialog.cliVersion ?: "detected"
-                claudeCodeStatusLabel.text =
-                    "<html><font color='green'><b>✓ Claude CLI $version</b></font></html>"
+    // ── Inline Claude Code discovery ──────────────────────────────────────
+
+    /** True after the last completed discovery reported a working CLI. */
+    private var cliDetectedInline = false
+
+    /**
+     * Kick off CLI verification + config-dir discovery on a pooled thread and
+     * re-render the panel on the EDT. Idempotent: sets [claudeDiscovered]=true
+     * on completion so we don't rescan every time the combo re-fires.
+     */
+    private fun runClaudeDiscovery() {
+        TokenPulseLogger.UI.info("[AccountEditDialog] Starting inline Claude discovery")
+        claudeDiscoveryStatusLabel.text = "<html><i>Detecting Claude CLI...</i></html>"
+        claudeInstallGuideButton.isVisible = false
+        claudeRedetectButton.isEnabled = false
+
+        ApplicationManager.getApplication().executeOnPooledThread {
+            var cliOk = false
+            var version: String? = null
+            var discovered: List<DiscoveredClaudeAccount> = emptyList()
+            try {
+                val available = ClaudeCliDetector.isInstalled()
+                if (available) {
+                    val v = ClaudeCliDetector.verifyVersion()
+                    if (v.first) {
+                        cliOk = true
+                        version = v.second
+                    }
+                }
+                // Discovery is independent of the CLI — still scan config dirs.
+                discovered = ClaudeAccountDiscovery.discover()
+                TokenPulseLogger.UI.info(
+                    "[AccountEditDialog] Claude discovery: cliOk=$cliOk, accounts=${discovered.size}"
+                )
+            } catch (e: Exception) {
+                TokenPulseLogger.UI.error("[AccountEditDialog] Claude discovery failed", e)
             }
+
+            val cliOkFinal = cliOk
+            val versionFinal = version
+            val discoveredFinal = discovered
+            ApplicationManager.getApplication().invokeLater({
+                cliDetectedInline = cliOkFinal
+                claudeDiscovered = true
+                if (cliOkFinal) {
+                    claudeDiscoveryStatusLabel.text =
+                        "<html><font color='green'><b>✓ Claude CLI ${versionFinal ?: "detected"}</b></font></html>"
+                    claudeInstallGuideButton.isVisible = false
+                    // Also mark the captured secret so validation passes if the
+                    // user selects any account.
+                    if (capturedClaudeSecret.isNullOrBlank()) capturedClaudeSecret = "cli-mode"
+                    selectedClaudeAuthType = AuthType.CLAUDE_CODE_LOCAL
+                } else {
+                    claudeDiscoveryStatusLabel.text =
+                        "<html><font color='orange'><b>⚠ Claude CLI not found</b></font></html>" +
+                        " <font color='gray'>&nbsp;install: npm i -g @anthropic-ai/claude-code</font>"
+                    claudeInstallGuideButton.isVisible = true
+                    // Still allow adding accounts we found on disk.
+                    if (capturedClaudeSecret.isNullOrBlank()) capturedClaudeSecret = "cli-mode"
+                    selectedClaudeAuthType = AuthType.CLAUDE_CODE_LOCAL
+                }
+                populateClaudeAccounts(discoveredFinal)
+                claudeRedetectButton.isEnabled = true
+            }, ModalityState.any())
         }
+    }
+
+    /** Rebuild the checklist from discovery results, pre-checking valid ones. */
+    private fun populateClaudeAccounts(discovered: List<DiscoveredClaudeAccount>) {
+        claudeRows.clear()
+        claudeAccountsPanel.removeAll()
+        if (discovered.isEmpty()) {
+            claudeAccountsPanel.add(
+                JBLabel("<html><i>No Claude accounts found. Add a config dir below.</i></html>")
+            )
+        } else {
+            discovered.forEach { addClaudeRow(it) }
+        }
+        claudeAccountsPanel.revalidate()
+        claudeAccountsPanel.repaint()
+    }
+
+    private fun addClaudeManualDir() {
+        val dir = claudeManualDirField.text.trim()
+        if (dir.isEmpty()) return
+        if (claudeRows.any { it.second.configDir == dir }) return
+        val account = ClaudeAccountDiscovery.probe(dir)
+        addClaudeRow(account, preChecked = true)
+        claudeManualDirField.text = ""
+        claudeAccountsPanel.revalidate()
+        claudeAccountsPanel.repaint()
+    }
+
+    private fun addClaudeRow(account: DiscoveredClaudeAccount, preChecked: Boolean = account.hasValidCreds) {
+        val dirText = account.configDir ?: "~/.claude (default)"
+        val credsNote = if (account.hasValidCreds) "" else "  — no valid credentials"
+        val checkbox = JCheckBox(
+            "<html>${account.label}<br><font color='gray' size='-2'>$dirText$credsNote</font></html>",
+            preChecked
+        )
+        claudeRows.add(checkbox to account)
+        claudeAccountsPanel.add(checkbox)
+        claudeAccountsPanel.add(Box.createVerticalStrut(4))
     }
 
     private fun openXiaomiConnectDialog() {
@@ -338,7 +510,8 @@ class AccountEditDialog(
 
     private fun keyHintFor(connectionType: ConnectionType): String = when (connectionType) {
         ConnectionType.CLAUDE_CODE ->
-            "Claude Code uses the Claude CLI for authentication. Click \"Detect Claude CLI →\" to verify installation."
+            "Claude Code auto-discovers accounts from your CLAUDE_CONFIG_DIR(s). " +
+                "Pick the ones to add below, or paste a config dir path manually."
         ConnectionType.CLINE_API ->
             "Cline personal API key. <b>Note:</b> API key management is only available for Personal accounts, " +
                 "not Organization accounts."
@@ -408,11 +581,40 @@ class AccountEditDialog(
             cell(codexStatusLabel)
         }.visibleIf(connectionTypeCombo.selectedValueMatches { it == ConnectionType.CODEX_CLI })
 
-        // --- Claude Code Row ---
+        // --- Claude Code inline discovery (ADD mode only) ---
         row {
-            cell(claudeCodeConnectButton)
-            cell(claudeCodeStatusLabel)
-        }.visibleIf(connectionTypeCombo.selectedValueMatches { it == ConnectionType.CLAUDE_CODE })
+            cell(claudeDiscoveryStatusLabel)
+            cell(claudeRedetectButton)
+            cell(claudeInstallGuideButton)
+        }.visibleIf(
+            connectionTypeCombo.selectedValueMatches {
+                it == ConnectionType.CLAUDE_CODE && account == null
+            }
+        )
+        row("Discovered accounts:") {
+            cell(JBScrollPane(claudeAccountsPanel)).align(AlignX.FILL)
+        }.visibleIf(
+            connectionTypeCombo.selectedValueMatches {
+                it == ConnectionType.CLAUDE_CODE && account == null
+            }
+        )
+        row("Add other config dir:") {
+            cell(claudeManualDirField).align(AlignX.FILL)
+            cell(claudeAddManualButton)
+        }.visibleIf(
+            connectionTypeCombo.selectedValueMatches {
+                it == ConnectionType.CLAUDE_CODE && account == null
+            }
+        )
+
+        // --- Claude Code name (edit only: rename an existing Claude row) ---
+        row("Name:") {
+            cell(nameField).align(AlignX.FILL)
+        }.visibleIf(
+            connectionTypeCombo.selectedValueMatches {
+                it == ConnectionType.CLAUDE_CODE && account != null
+            }
+        )
 
         // --- Xiaomi Row ---
         row {
@@ -506,10 +708,21 @@ class AccountEditDialog(
     }
 
     private fun validateClaudeCode(): ValidationInfo? {
-        if (capturedClaudeSecret.isNullOrBlank()) {
+        // Edit mode: rename-only, credentials already captured for this account.
+        if (account != null) {
+            if (capturedClaudeSecret.isNullOrBlank()) {
+                return ValidationInfo(
+                    "This Claude account has no stored credentials. Re-add it from the accounts list.",
+                    nameField
+                )
+            }
+            return null
+        }
+        // Add mode: require at least one account checked in the inline list.
+        if (getClaudeSelections().isEmpty()) {
             return ValidationInfo(
-                "Please detect Claude CLI first. Install via: npm install -g @anthropic-ai/claude-code",
-                claudeCodeConnectButton
+                "Select at least one Claude account to add.",
+                claudeAccountsPanel
             )
         }
         return null

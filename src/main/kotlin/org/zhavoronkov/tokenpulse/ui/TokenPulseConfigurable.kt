@@ -21,6 +21,7 @@ import org.zhavoronkov.tokenpulse.settings.StatusBarDisplayMode
 import org.zhavoronkov.tokenpulse.settings.StatusBarDollarFormat
 import org.zhavoronkov.tokenpulse.settings.StatusBarFormat
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
+import org.zhavoronkov.tokenpulse.settings.claudeConfigDirLabel
 import org.zhavoronkov.tokenpulse.settings.generateKeyPreview
 import javax.swing.JComponent
 
@@ -356,8 +357,15 @@ class TokenPulseConfigurable : Configurable {
                 val secret = dialog.getSecret()
                 val connectionType = dialog.getConnectionType()
 
-                // Special handling for single-instance providers (only one account allowed)
-                if (connectionType == ConnectionType.CODEX_CLI || connectionType == ConnectionType.CLAUDE_CODE) {
+                // Claude Code has a bespoke multi-account discovery flow: the
+                // dialog exposes the selected accounts, add one row per pick.
+                if (connectionType == ConnectionType.CLAUDE_CODE) {
+                    addClaudeCodeAccounts(dialog.getClaudeSelections())
+                    return@setAddAction
+                }
+
+                // Single-instance guard: Codex CLI still only allows one account.
+                if (connectionType == ConnectionType.CODEX_CLI) {
                     val existingIdx = tableModel.items.indexOfFirst {
                         it.connectionType == connectionType
                     }
@@ -401,7 +409,14 @@ class TokenPulseConfigurable : Configurable {
                     connectionType = connectionType,
                     authType = dialog.getAuthType(),
                     isEnabled = dialog.getIsEnabled(),
-                    keyPreview = secretPreview(connectionType, secret)
+                    keyPreview = secretPreview(connectionType, secret),
+                    // Claude Code rows carry a user-editable name (email/org or
+                    // dir basename); other providers leave name untouched.
+                    name = if (connectionType == ConnectionType.CLAUDE_CODE) {
+                        dialog.getName().ifBlank { account.name }
+                    } else {
+                        account.name
+                    }
                 )
                 tableModel.setItem(modelIdx, updatedAccount)
                 CredentialsStore.getInstance().saveApiKey(updatedAccount.id, secret)
@@ -418,6 +433,46 @@ class TokenPulseConfigurable : Configurable {
             myModified = true
         }
         .disableUpDownActions()
+
+    /**
+     * Add one Claude Code account per discovered/selected config dir, dedup'd
+     * by config dir. Claude accounts carry their `CLAUDE_CONFIG_DIR` and a
+     * friendly name (email/org or dir basename); the stored secret is the
+     * `"cli-mode"` marker (tokens are read from Claude's own store per dir).
+     */
+    private fun addClaudeCodeAccounts(selections: List<SelectedClaudeAccount>) {
+        if (selections.isEmpty()) return
+        var added = 0
+        for (sel in selections) {
+            val existingIdx = tableModel.items.indexOfFirst {
+                it.connectionType == ConnectionType.CLAUDE_CODE &&
+                    normalizedConfigDir(it.claudeConfigDir) == normalizedConfigDir(sel.configDir)
+            }
+            if (existingIdx != -1) {
+                val existing = tableModel.getItem(existingIdx)
+                tableModel.setItem(existingIdx, existing.copy(isEnabled = true, name = sel.label))
+                continue
+            }
+            val account = Account(
+                name = sel.label,
+                connectionType = ConnectionType.CLAUDE_CODE,
+                authType = ConnectionType.CLAUDE_CODE.defaultAuthType,
+                isEnabled = true,
+                claudeConfigDir = sel.configDir,
+                keyPreview = claudeConfigDirLabel(sel.configDir)
+            )
+            tableModel.addRow(account)
+            CredentialsStore.getInstance().saveApiKey(account.id, "cli-mode")
+            added++
+        }
+        myModified = true
+        if (added == 0) {
+            Messages.showInfoMessage(
+                "The selected Claude Code account(s) were already configured and have been re-enabled.",
+                "Accounts Updated"
+            )
+        }
+    }
 
     override fun isModified(): Boolean = myModified
 
@@ -481,3 +536,12 @@ class TokenPulseConfigurable : Configurable {
             else -> generateKeyPreview(secret)
         }
 }
+
+/**
+ * Canonicalize a Claude config dir for dedup; null/blank (default account)
+ * stays null. On an IO error resolving the canonical path, the input is
+ * returned unchanged. Top-level + internal so it is unit-testable without the
+ * enclosing Configurable/IDE fixture.
+ */
+internal fun normalizedConfigDir(dir: String?): String? =
+    if (dir.isNullOrBlank()) null else runCatching { java.io.File(dir).canonicalPath }.getOrDefault(dir)

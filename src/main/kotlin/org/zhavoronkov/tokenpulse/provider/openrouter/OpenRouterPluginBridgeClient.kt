@@ -93,7 +93,6 @@ class OpenRouterPluginBridgeClient : ProviderClient {
                 null
             }
         }
-
     }
 
     override fun fetchBalance(account: Account, secret: String): ProviderResult {

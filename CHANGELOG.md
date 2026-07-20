@@ -5,6 +5,32 @@ All notable changes to the TokenPulse plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Claude Code multi-account support** — discovers and tracks every Claude account on disk
+  (default `~/.claude` plus any `CLAUDE_CONFIG_DIR` locations, including suffixed macOS Keychain
+  entries), adding one row per account with its own config dir.
+- **Per-account identity labels** — Claude account display names are enriched from the account's
+  `oauthAccount` (email • organization) on first successful refresh.
+
+### Changed
+- **Claude Code usage now uses the OAuth API exclusively** — reads the credentials `claude` already stored
+  (macOS Keychain / `~/.claude/.credentials.json`) and calls the usage endpoint directly, with
+  automatic token refresh on expiry, instead of scraping `claude` CLI output.
+  The legacy CLI-output parser (`ClaudeCliOutputParser` / `ClaudeCliUsageExtractor`) has been removed.
+- **Accounts table** — the "API Key" column shows the Claude config dir (`~/.claude`,
+  `~/.claude-work`) for Claude Code rows instead of a key preview.
+- **Claude helper renamed and split** — `ClaudeCliExecutor` is now `ClaudeCliDetector`
+  (its public surface is just `isInstalled()` + `verifyVersion()`), and OS detection moved to
+  a provider-agnostic `HostOs` enum + `detectHostOs()` in `utils`.
+
+### Removed
+- **`ClaudeConnectDialog`** — replaced by inline account discovery in the Add-Account dialog.
+- **Legacy Claude CLI usage-extraction** — `ClaudeCliOutputParser`, `ClaudeCliUsageExtractor`,
+  and their tests (`ClaudeCliOutputParserTest`, `ClaudeCliFunctionalTest`); pruned the unused
+  `getEnvironment()` and `getWorkingDirectory()` helpers on the CLI helper.
+
 ## [0.3.1] - 2026-07-08
 
 ### Added

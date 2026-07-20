@@ -29,8 +29,10 @@ class XiaomiResponseParserTest {
 
         @Test
         fun `parses full balance response`() {
+            val body =
+                """{"code":0,"data":{"balance":"55.48","giftBalance":"10.00","cashBalance":"45.48","currency":"USD"}}"""
             val result = XiaomiResponseParser.parseApiBalance(
-                json("""{"code":0,"data":{"balance":"55.48","giftBalance":"10.00","cashBalance":"45.48","currency":"USD"}}"""),
+                json(body),
                 account()
             )
 
@@ -186,8 +188,10 @@ class XiaomiResponseParserTest {
 
         @Test
         fun `parses full token plan response`() {
+            val body =
+                """{"code":0,"data":{"monthUsage":{"percent":0.248,"items":[{"used":2727524596,"limit":11000000000}]}}}"""
             val result = XiaomiResponseParser.parseTokenPlanUsage(
-                json("""{"code":0,"data":{"monthUsage":{"percent":0.248,"items":[{"used":2727524596,"limit":11000000000}]}}}"""),
+                json(body),
                 account()
             )
 
@@ -379,6 +383,5 @@ class XiaomiResponseParserTest {
                 (result as ProviderResult.Failure.UnknownError).message
             )
         }
-
     }
 }

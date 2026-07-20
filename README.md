@@ -22,7 +22,7 @@
   - **OpenAI Platform** — Admin API Key (`sk-admin-...`) for organization usage/cost data
   - **ChatGPT (Codex CLI)** — CLI-based usage tracking via Codex CLI
   - **Nebius AI Studio** — Cookie-based auth with trial/paid balance
-  - **Claude Code** — CLI-based usage extraction via `claude` command
+  - **Claude Code** — OAuth usage tracking that reads your existing `claude` login (multi-account)
   - **Xiaomi MiMo** — API (pay-as-you-go) and Token Plan (subscription Credits)
 - **🔄 Smart Refresh** — Configurable auto-refresh with TTL caching and single-flight coalescing to avoid rate limits.
 - **🔐 Secure Storage** — API keys are stored securely using IntelliJ's built-in `PasswordSafe`.
@@ -61,11 +61,13 @@
 | OpenAI Platform | **Admin API Key** (`sk-admin-...`) | https://platform.openai.com/settings/organization/admin-keys |
 | ChatGPT (Codex CLI) | **CLI** | Requires `codex` CLI installed and authenticated |
 | Nebius AI Studio | **Billing Session** | Click "Connect Billing Session →" and follow the 3-step guide |
-| Claude Code | **CLI** | Requires `claude` CLI installed and authenticated |
+| Claude Code | **CLI** | Requires `claude` CLI installed + logged in; auto-discovers all logged-in accounts |
 | Xiaomi MiMo | **Session Capture** | Click "Connect Xiaomi Account →" and follow the cURL capture guide |
 
 > **Tip:** If you add multiple accounts for the same provider, each entry shows a partial key preview
 > (e.g. `sk-or-…91bc`) so you can tell them apart at a glance.
+> Claude Code rows show the account's config directory instead (`~/.claude` for the default
+> login, `~/.claude-work` for a `CLAUDE_CONFIG_DIR` account, etc.).
 
 ## Status Bar Display
 
@@ -124,10 +126,18 @@ rate limit usage including 5-hour, weekly, and code review quotas.
 
 ### How does Claude Code tracking work?
 
-Claude Code integration uses the `claude` CLI tool. The plugin executes `claude` commands to
-extract usage information including 5-hour and weekly utilization percentages.
+TokenPulse reads the OAuth credentials that the `claude` CLI already stored for you (macOS
+Keychain, or `~/.claude/.credentials.json` on Linux/Windows) and calls Claude's usage API
+directly to fetch 5-hour and weekly utilization percentages. It no longer parses `claude` CLI
+output. When the stored token expires, the plugin refreshes it automatically using the refresh
+token — you should not have to re-login on the CLI just because your IDE was closed for a while.
 
-You need to have the Claude CLI installed and authenticated first:
+If you have multiple Claude accounts on the same machine (via `CLAUDE_CONFIG_DIR`), TokenPulse
+auto-discovers every one it finds — the default `~/.claude` login plus any custom
+config-dir logins — and shows one row per account, each with its own utilization.
+
+Setup remains the same as before: install and log in via the Claude CLI, then add the
+provider in TokenPulse — the plugin picks up your credentials automatically.
 ```bash
 npm install -g @anthropic-ai/claude-code
 claude login

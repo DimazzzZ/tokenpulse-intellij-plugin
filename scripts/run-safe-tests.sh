@@ -16,8 +16,8 @@ echo "🧪 Running safe unit tests only..."
   --tests "org.zhavoronkov.tokenpulse.provider.OpenRouterProviderClientTest" \
   --tests "org.zhavoronkov.tokenpulse.provider.OpenAiPlatformProviderClientTest" \
   --tests "org.zhavoronkov.tokenpulse.provider.ClaudeCodeProviderClientTest" \
-  --tests "org.zhavoronkov.tokenpulse.provider.ClaudeCliOutputParserTest" \
-  --tests "org.zhavoronkov.tokenpulse.provider.ClaudeCliExecutorTest" \
+  --tests "org.zhavoronkov.tokenpulse.provider.ClaudeCliDetectorTest" \
+  --tests "org.zhavoronkov.tokenpulse.utils.HostOsTest" \
   --tests "org.zhavoronkov.tokenpulse.provider.NebiusProviderClientTest" \
   --tests "org.zhavoronkov.tokenpulse.provider.ProviderRegistryTest" \
   --tests "org.zhavoronkov.tokenpulse.ui.NebiusCurlParserTest" \

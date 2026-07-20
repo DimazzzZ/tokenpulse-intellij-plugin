@@ -1,17 +1,18 @@
 package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 
 import org.zhavoronkov.tokenpulse.utils.CliLocator
+import org.zhavoronkov.tokenpulse.utils.HostOs
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
+import org.zhavoronkov.tokenpulse.utils.detectHostOs
 import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
- * Platform-specific executor for Claude CLI.
+ * Detects the Claude CLI (`claude`) on the host.
  *
  * Handles:
- * - OS detection (Windows, macOS, Linux)
- * - Claude CLI location detection
- * - Claude CLI availability checks
+ * - Locating the `claude` binary
+ * - Reporting whether it is installed and functional (`--version`)
  *
  * Claude CLI is typically installed via npm:
  * ```
@@ -22,43 +23,20 @@ import java.util.concurrent.TimeUnit
  * - macOS/Linux: /usr/local/bin/claude, ~/.npm-global/bin/claude, ~/.local/bin/claude
  * - Windows: %APPDATA%\npm\claude.cmd, %PROGRAMFILES%\nodejs\claude.cmd
  */
-object ClaudeCliExecutor {
-
-    /**
-     * Operating system type.
-     */
-    enum class OsType {
-        WINDOWS,
-        MACOS,
-        LINUX,
-        UNKNOWN
-    }
-
-    /**
-     * Get the current operating system type.
-     */
-    fun getOsType(): OsType {
-        val osName = System.getProperty("os.name").lowercase()
-        return when {
-            osName.contains("windows") -> OsType.WINDOWS
-            osName.contains("mac") || osName.contains("darwin") -> OsType.MACOS
-            osName.contains("linux") || osName.contains("unix") -> OsType.LINUX
-            else -> OsType.UNKNOWN
-        }
-    }
+object ClaudeCliDetector {
 
     /**
      * Check if Claude CLI is installed and available.
      */
-    fun isClaudeCliAvailable(): Boolean = findClaudeCliPath() != null
+    fun isInstalled(): Boolean = findClaudeCliPath() != null
 
     /**
      * Find the path to Claude CLI executable.
      *
      * @return Full path to claude executable, or null if not found.
      */
-    fun findClaudeCliPath(): String? {
-        val osType = getOsType()
+    private fun findClaudeCliPath(): String? {
+        val osType = detectHostOs()
 
         // First try using which/where command
         findClaudeViaCommand(osType)?.let { path ->
@@ -82,11 +60,11 @@ object ClaudeCliExecutor {
      * On Windows, we may need to invoke via cmd.exe or use .cmd extension.
      * On Unix-like systems, we can invoke directly.
      */
-    fun getClaudeCommand(): List<String>? {
+    private fun getClaudeCommand(): List<String>? {
         val claudePath = findClaudeCliPath() ?: return null
 
-        return when (getOsType()) {
-            OsType.WINDOWS -> {
+        return when (detectHostOs()) {
+            HostOs.WINDOWS -> {
                 if (claudePath.endsWith(".cmd") || claudePath.endsWith(".bat")) {
                     listOf("cmd.exe", "/c", claudePath)
                 } else {
@@ -95,58 +73,6 @@ object ClaudeCliExecutor {
             }
             else -> listOf(claudePath)
         }
-    }
-
-    /**
-     * Get environment variables for running Claude CLI.
-     *
-     * Ensures proper terminal emulation.
-     */
-    fun getEnvironment(): Map<String, String> {
-        val env = mutableMapOf<String, String>()
-
-        // Copy relevant environment variables
-        val relevantEnvVars = setOf(
-            "PATH", "HOME", "USER", "USERPROFILE", "APPDATA", "LOCALAPPDATA",
-            "PROGRAMFILES", "PROGRAMFILES(X86)", "HOMEDRIVE", "HOMEPATH",
-            "XDG_CONFIG_HOME", "XDG_DATA_HOME"
-        )
-
-        System.getenv().filterKeys { it in relevantEnvVars }.forEach { (key, value) ->
-            env[key] = value
-        }
-
-        // Set terminal type for proper TUI rendering
-        env["TERM"] = "xterm-256color"
-        env["COLORTERM"] = "truecolor"
-
-        // Disable any interactive prompts
-        env["CI"] = "false"
-
-        return env
-    }
-
-    /**
-     * Get a working directory that Claude CLI can trust.
-     *
-     * Claude CLI has workspace trust checking, so we need to use a directory
-     * that's either already trusted or the user's home directory.
-     */
-    fun getWorkingDirectory(): File {
-        // Try current working directory first
-        val cwd = File(System.getProperty("user.dir"))
-        if (cwd.exists() && cwd.canRead()) {
-            return cwd
-        }
-
-        // Fall back to home directory
-        val home = File(System.getProperty("user.home"))
-        if (home.exists() && home.canRead()) {
-            return home
-        }
-
-        // Last resort: temp directory
-        return File(System.getProperty("java.io.tmpdir"))
     }
 
     /**
@@ -160,7 +86,7 @@ object ClaudeCliExecutor {
      *
      * @return Pair of (success, version string or error message).
      */
-    fun verifyClaudeCliWorks(): Pair<Boolean, String?> {
+    fun verifyVersion(): Pair<Boolean, String?> {
         val command = getClaudeCommand() ?: return false to "Claude CLI not found"
 
         return try {
@@ -191,16 +117,16 @@ object ClaudeCliExecutor {
         }
     }
 
-    private fun findClaudeViaCommand(osType: OsType): String? {
+    private fun findClaudeViaCommand(osType: HostOs): String? {
         val locations = getKnownLocations(osType)
         return CliLocator.findBinary("claude", locations)
     }
 
-    private fun getKnownLocations(osType: OsType): List<String> {
+    private fun getKnownLocations(osType: HostOs): List<String> {
         val homeDir = System.getProperty("user.home")
 
         return when (osType) {
-            OsType.WINDOWS -> listOf(
+            HostOs.WINDOWS -> listOf(
                 "${System.getenv("APPDATA")}\\npm\\claude.cmd",
                 "${System.getenv("APPDATA")}\\npm\\claude",
                 "${System.getenv("LOCALAPPDATA")}\\npm\\claude.cmd",
@@ -208,7 +134,7 @@ object ClaudeCliExecutor {
                 "$homeDir\\AppData\\Roaming\\npm\\claude.cmd",
                 "$homeDir\\AppData\\Local\\npm\\claude.cmd"
             )
-            OsType.MACOS -> listOf(
+            HostOs.MACOS -> listOf(
                 "/usr/local/bin/claude",
                 "/opt/homebrew/bin/claude",
                 "$homeDir/.npm-global/bin/claude",
@@ -216,18 +142,18 @@ object ClaudeCliExecutor {
                 "$homeDir/bin/claude",
                 "/usr/bin/claude"
             )
-            OsType.LINUX -> listOf(
+            HostOs.LINUX -> listOf(
                 "/usr/local/bin/claude",
                 "/usr/bin/claude",
                 "$homeDir/.npm-global/bin/claude",
                 "$homeDir/.local/bin/claude",
                 "$homeDir/bin/claude"
             )
-            OsType.UNKNOWN -> emptyList()
+            HostOs.UNKNOWN -> emptyList()
         }
     }
 
-    private fun findClaudeInKnownLocations(osType: OsType): String? {
+    private fun findClaudeInKnownLocations(osType: HostOs): String? {
         val locations = getKnownLocations(osType)
 
         for (location in locations) {
@@ -238,7 +164,7 @@ object ClaudeCliExecutor {
         }
 
         // Handle NVM glob patterns on Linux
-        if (osType == OsType.LINUX) {
+        if (osType == HostOs.LINUX) {
             val homeDir = System.getProperty("user.home")
             findGlobMatch("$homeDir/.nvm/versions/node/*/bin/claude")?.let { return it }
         }

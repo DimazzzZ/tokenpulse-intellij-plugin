@@ -1,12 +1,14 @@
 package org.zhavoronkov.tokenpulse
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import org.junit.jupiter.api.Tag
 import org.zhavoronkov.tokenpulse.service.BalanceRefreshService
 import org.zhavoronkov.tokenpulse.service.HttpClientService
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
 import org.zhavoronkov.tokenpulse.ui.TokenPulseConfigurable
 import org.zhavoronkov.tokenpulse.ui.TokenPulseDashboardDialog
 
+@Tag("platform")
 class TokenPulseSmokeTest : BasePlatformTestCase() {
 
     fun testServicesAreRegistered() {
