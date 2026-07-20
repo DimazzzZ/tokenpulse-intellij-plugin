@@ -65,6 +65,42 @@ class AccountTest {
     }
 
     @Test
+    fun `displayLabel prefers name over keyPreview when name is set`() {
+        val account = Account(
+            connectionType = ConnectionType.CLAUDE_CODE,
+            name = "work@ex.com • Team",
+            keyPreview = "cli-mode"
+        )
+        assertTrue(account.displayLabel().contains("work@ex.com • Team"))
+        // keyPreview must not leak into the label once a name is set.
+        assertFalse(account.displayLabel().contains("cli-mode"))
+    }
+
+    @Test
+    fun `displayLabel falls back to keyPreview when name is blank`() {
+        val account = Account(
+            connectionType = ConnectionType.CLAUDE_CODE,
+            name = "   ",
+            keyPreview = "cli-mode"
+        )
+        assertTrue(account.displayLabel().contains("cli-mode"))
+    }
+
+    @Test
+    fun `claudeConfigDir defaults to null and survives copy`() {
+        val a = Account(connectionType = ConnectionType.CLAUDE_CODE)
+        assertEquals(null, a.claudeConfigDir)
+
+        val b = a.copy(claudeConfigDir = "/home/x/.claude-work")
+        assertEquals("/home/x/.claude-work", b.claudeConfigDir)
+
+        // copy without touching the field must preserve it (back-compat for
+        // sanitizeAccounts / normalizeConnectionAuthTypes).
+        val c = b.copy(isEnabled = false)
+        assertEquals("/home/x/.claude-work", c.claudeConfigDir)
+    }
+
+    @Test
     fun `Account fields are mutable (var not val) for XStream serialization`() {
         val account = Account(
             id = "test-id",
@@ -161,6 +197,27 @@ class GenerateKeyPreviewTest {
         val preview = generateKeyPreview(key)
 
         assertEquals("123456…7890", preview)
+    }
+}
+
+/**
+ * Tests for [claudeConfigDirLabel] — the config-dir display used in the
+ * accounts table and stored as keyPreview for Claude Code accounts.
+ */
+class ClaudeConfigDirLabelTest {
+
+    @Test
+    fun `null or blank config dir maps to default label`() {
+        assertEquals("~/.claude", claudeConfigDirLabel(null))
+        assertEquals("~/.claude", claudeConfigDirLabel(""))
+        assertEquals("~/.claude", claudeConfigDirLabel("   "))
+    }
+
+    @Test
+    fun `non-default config dir maps to tilde plus basename`() {
+        assertEquals("~/.claude-work", claudeConfigDirLabel("/Users/me/.claude-work"))
+        assertEquals("~/.claude", claudeConfigDirLabel("/Users/me/.claude"))
+        assertEquals("~/claude", claudeConfigDirLabel("/Users/me/.config/claude"))
     }
 }
 
@@ -317,6 +374,80 @@ class SanitizeAccountsTest {
         val sanitized = accounts.sanitizeAccounts()
 
         assertEquals(AuthType.OPENAI_OAUTH, sanitized[0].authType)
+    }
+
+    // ── Claude Code keyPreview backfill (auto-migration on load) ──────────
+
+    @Test
+    fun `sanitizeAccounts backfills blank keyPreview for default Claude account`() {
+        // Old account: no claudeConfigDir, no keyPreview (pre-multi-account state).
+        val accounts = listOf(
+            Account(
+                connectionType = ConnectionType.CLAUDE_CODE,
+                authType = AuthType.CLAUDE_CODE_LOCAL,
+                keyPreview = "",
+                claudeConfigDir = null
+            )
+        )
+        val sanitized = accounts.sanitizeAccounts()
+        assertEquals("~/.claude", sanitized[0].keyPreview)
+    }
+
+    @Test
+    fun `sanitizeAccounts backfills blank keyPreview for non-default Claude account`() {
+        val accounts = listOf(
+            Account(
+                connectionType = ConnectionType.CLAUDE_CODE,
+                authType = AuthType.CLAUDE_CODE_LOCAL,
+                keyPreview = "",
+                claudeConfigDir = "/Users/me/.claude-work"
+            )
+        )
+        val sanitized = accounts.sanitizeAccounts()
+        assertEquals("~/.claude-work", sanitized[0].keyPreview)
+    }
+
+    @Test
+    fun `sanitizeAccounts replaces legacy 'CLI' keyPreview with config dir label`() {
+        // Older single-account flow used to store "CLI" as the preview.
+        val accounts = listOf(
+            Account(
+                connectionType = ConnectionType.CLAUDE_CODE,
+                authType = AuthType.CLAUDE_CODE_LOCAL,
+                keyPreview = "CLI",
+                claudeConfigDir = null
+            )
+        )
+        val sanitized = accounts.sanitizeAccounts()
+        assertEquals("~/.claude", sanitized[0].keyPreview)
+    }
+
+    @Test
+    fun `sanitizeAccounts does not touch already-set Claude keyPreview`() {
+        val accounts = listOf(
+            Account(
+                connectionType = ConnectionType.CLAUDE_CODE,
+                authType = AuthType.CLAUDE_CODE_LOCAL,
+                keyPreview = "~/.claude-personal",
+                claudeConfigDir = "/Users/me/.claude-personal"
+            )
+        )
+        val sanitized = accounts.sanitizeAccounts()
+        assertEquals("~/.claude-personal", sanitized[0].keyPreview)
+    }
+
+    @Test
+    fun `sanitizeAccounts does not touch non-Claude keyPreview`() {
+        val accounts = listOf(
+            Account(
+                connectionType = ConnectionType.OPENROUTER_PROVISIONING,
+                authType = AuthType.OPENROUTER_PROVISIONING_KEY,
+                keyPreview = "",
+                claudeConfigDir = null
+            )
+        )
+        val sanitized = accounts.sanitizeAccounts()
+        assertEquals("", sanitized[0].keyPreview)
     }
 }
 

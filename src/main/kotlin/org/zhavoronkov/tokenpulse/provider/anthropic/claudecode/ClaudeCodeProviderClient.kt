@@ -2,6 +2,7 @@
 
 package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 
+import com.intellij.openapi.application.ApplicationManager
 import org.zhavoronkov.tokenpulse.model.Balance
 import org.zhavoronkov.tokenpulse.model.BalanceSnapshot
 import org.zhavoronkov.tokenpulse.model.ConnectionType
@@ -9,6 +10,7 @@ import org.zhavoronkov.tokenpulse.model.ProviderResult
 import org.zhavoronkov.tokenpulse.model.Tokens
 import org.zhavoronkov.tokenpulse.provider.ProviderClient
 import org.zhavoronkov.tokenpulse.settings.Account
+import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.time.Instant
 
@@ -35,7 +37,6 @@ import java.time.Instant
  */
 class ClaudeCodeProviderClient : ProviderClient {
 
-    private val credentialReader = ClaudeCredentialReader()
     private val oauthClient = ClaudeOAuthUsageClient()
     private val refreshClient = ClaudeOAuthRefreshClient()
 
@@ -49,8 +50,10 @@ class ClaudeCodeProviderClient : ProviderClient {
             )
         }
 
+        val credentialReader = ClaudeCredentialReader(account.claudeConfigDir)
+
         // Acquire an access token, refreshing proactively if the stored one has expired.
-        var accessToken = when (val t = acquireAccessToken()) {
+        var accessToken = when (val t = acquireAccessToken(credentialReader)) {
             is TokenAcquisition.Ok -> t.accessToken
             is TokenAcquisition.Failed -> return t.error
         }
@@ -62,7 +65,7 @@ class ClaudeCodeProviderClient : ProviderClient {
             TokenPulseLogger.Provider.info(
                 "[ClaudeCodeProviderClient] Usage API returned auth error; attempting single token refresh + retry"
             )
-            when (val r = refreshOnce()) {
+            when (val r = refreshOnce(credentialReader)) {
                 is TokenAcquisition.Ok -> {
                     accessToken = r.accessToken
                     result = oauthClient.fetchUsage(accessToken)
@@ -101,6 +104,11 @@ class ClaudeCodeProviderClient : ProviderClient {
                 "session=${usageData.sessionUsedPercent}%, week=${usageData.weekUsedPercent}%"
         )
 
+        // Lazy migration: enrich blank account names from the identity file
+        // (once per account, best-effort). Runs on the fetch's IO thread; the
+        // settings mutation is dispatched to the EDT.
+        maybeEnrichAccountName(account)
+
         val metadata = buildMetadata(usageData, source)
         val (tokensUsed, tokensTotal) = calculateTokens(usageData)
 
@@ -121,6 +129,33 @@ class ClaudeCodeProviderClient : ProviderClient {
         )
     }
 
+    /**
+     * Once a Claude Code account has been successfully refreshed, upgrade its
+     * blank display name to the account's real identity (email/org) read from
+     * `<configDir>/.claude.json`. Runs at most once per account: after the
+     * first success, `name` is non-blank and this becomes a no-op.
+     *
+     * Guarded by [ClaudeAccountIdentity.hasAny] so we never write the raw
+     * `.claude` basename fallback that [ClaudeAccountDiscovery.labelFor]
+     * produces for identity-less dirs.
+     */
+    internal fun maybeEnrichAccountName(account: Account) {
+        if (account.name.isNotBlank()) return
+        val identity = ClaudeAccountIdentityReader.read(account.claudeConfigDir)
+        val label = enrichedAccountLabel(identity, account.claudeConfigDir) ?: return
+
+        ApplicationManager.getApplication().invokeLater {
+            val target = TokenPulseSettingsService.getInstance().state.accounts
+                .find { it.id == account.id }
+            if (target != null && target.name.isBlank()) {
+                TokenPulseLogger.Provider.info(
+                    "[ClaudeCodeProviderClient] Enriching account ${account.id} name -> '$label'"
+                )
+                target.name = label
+            }
+        }
+    }
+
     override fun testCredentials(account: Account, secret: String): ProviderResult {
         // Check if Claude CLI is installed
         if (!ClaudeCliExecutor.isClaudeCliAvailable()) {
@@ -129,14 +164,16 @@ class ClaudeCodeProviderClient : ProviderClient {
             )
         }
 
-        var accessToken = when (val t = acquireAccessToken()) {
+        val credentialReader = ClaudeCredentialReader(account.claudeConfigDir)
+
+        var accessToken = when (val t = acquireAccessToken(credentialReader)) {
             is TokenAcquisition.Ok -> t.accessToken
             is TokenAcquisition.Failed -> return t.error
         }
 
         var result = oauthClient.fetchUsage(accessToken)
         if (result is ClaudeOAuthUsageClient.OAuthUsageResult.Error && result.isAuthError) {
-            when (val r = refreshOnce()) {
+            when (val r = refreshOnce(credentialReader)) {
                 is TokenAcquisition.Ok -> {
                     accessToken = r.accessToken
                     result = oauthClient.fetchUsage(accessToken)
@@ -218,7 +255,7 @@ class ClaudeCodeProviderClient : ProviderClient {
      * token; if it's known-expired, tries a single refresh before returning.
      * Missing credentials produce an `AuthError` pointing the user at `claude`.
      */
-    private fun acquireAccessToken(): TokenAcquisition {
+    private fun acquireAccessToken(credentialReader: ClaudeCredentialReader): TokenAcquisition {
         val stored = credentialReader.readAccessToken()
         if (stored == null) {
             return TokenAcquisition.Failed(
@@ -233,7 +270,7 @@ class ClaudeCodeProviderClient : ProviderClient {
         TokenPulseLogger.Provider.info(
             "[ClaudeCodeProviderClient] Stored token is expired; attempting refresh"
         )
-        return refreshOnce()
+        return refreshOnce(credentialReader)
     }
 
     /**
@@ -241,7 +278,7 @@ class ClaudeCodeProviderClient : ProviderClient {
      * token for in-memory use only — TokenPulse never writes back to Claude's
      * credential store (the `claude` CLI owns its own credential lifecycle).
      */
-    private fun refreshOnce(): TokenAcquisition {
+    private fun refreshOnce(credentialReader: ClaudeCredentialReader): TokenAcquisition {
         val rt = credentialReader.readRefreshToken()
         if (rt == null) {
             return TokenAcquisition.Failed(
@@ -274,4 +311,22 @@ class ClaudeCodeProviderClient : ProviderClient {
             }
         }
     }
+}
+
+/**
+ * Pure decision for the lazy name-enrichment migration: derive a display label
+ * from an account's identity + config dir, or null when there's nothing useful
+ * to write.
+ *
+ * Returns null when [identity] is null or has no identifying fields
+ * ([ClaudeAccountIdentity.hasAny] false) — this prevents writing the raw
+ * `.claude` basename that [ClaudeAccountDiscovery.labelFor] falls back to for
+ * identity-less dirs. Also returns null on a blank label.
+ */
+internal fun enrichedAccountLabel(
+    identity: ClaudeAccountIdentity?,
+    configDir: String?,
+): String? {
+    if (identity == null || !identity.hasAny()) return null
+    return ClaudeAccountDiscovery.labelFor(identity, configDir ?: "").takeIf { it.isNotBlank() }
 }

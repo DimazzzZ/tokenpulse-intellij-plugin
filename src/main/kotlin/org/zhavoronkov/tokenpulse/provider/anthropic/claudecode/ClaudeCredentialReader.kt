@@ -25,8 +25,21 @@ import java.io.File
  * credential store: when a token is expired we refresh it and hold the new
  * access token in memory for the current call only, leaving the `claude` CLI
  * to own its own credential lifecycle.
+ *
+ * @param configDir The `CLAUDE_CONFIG_DIR` this reader targets. `null`/blank
+ *   means the default dir (`~/.claude`, unsuffixed Keychain service). Each
+ *   Claude Code account carries its own config dir, so the plugin constructs
+ *   one reader per account rather than reading whatever is ambient.
  */
-class ClaudeCredentialReader {
+class ClaudeCredentialReader(
+    private val configDir: String? = null,
+    /**
+     * OS whose credential store is consulted. Defaults to the real host OS;
+     * tests override it (e.g. [ClaudeCliExecutor.OsType.LINUX]) to force the
+     * file-mode path and avoid the macOS Keychain subprocess.
+     */
+    private val osType: ClaudeCliExecutor.OsType = ClaudeCliExecutor.getOsType(),
+) {
 
     /**
      * Read the OAuth access token from Claude Code's credential store.
@@ -103,39 +116,44 @@ class ClaudeCredentialReader {
      * Read credentials from the appropriate platform-specific store.
      */
     private fun readCredentials(): JsonObject? {
-        val os = ClaudeCliExecutor.getOsType()
-        TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Reading credentials for OS: $os")
+        TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Reading credentials for OS: $osType")
 
-        return when (os) {
+        return when (osType) {
             ClaudeCliExecutor.OsType.MACOS -> readFromKeychain()
             else -> readFromFile()
         }
     }
 
     /**
-     * Read credentials from macOS Keychain.
+     * Read credentials from macOS Keychain for this reader's config dir.
      *
-     * Claude Code uses suffixed Keychain service names like "Claude Code-credentials-6592cac2"
-     * in addition to the base "Claude Code-credentials". This method tries the base name first,
-     * then searches for suffixed entries if the base has empty tokens.
+     * The service name is computed deterministically from the config dir
+     * ([ClaudeConfigLocator.keychainServiceName]) so each account resolves to
+     * its own entry. For the DEFAULT account only (`configDir` null/blank), if
+     * the base entry is missing/empty we fall back to scanning all suffixed
+     * `Claude Code-credentials-*` entries and taking the first valid one — this
+     * preserves a pre-existing account whose entry happened to be suffixed
+     * (e.g. an alias that set CLAUDE_CONFIG_DIR even for the primary login).
      */
     private fun readFromKeychain(): JsonObject? {
         return try {
-            TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Reading from Keychain")
             val username = getUsername()
+            val serviceName = ClaudeConfigLocator.keychainServiceName(configDir)
+            TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Reading Keychain service: $serviceName")
 
-            // Try base service name first
-            val baseResult = readKeychainEntry(KEYCHAIN_SERVICE_NAME, username)
-            if (baseResult != null && hasValidTokens(baseResult)) {
-                TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Found valid tokens in base Keychain entry")
-                return baseResult
+            val targeted = readKeychainEntry(serviceName, username)
+            if (targeted != null && hasValidTokens(targeted)) {
+                return targeted
             }
 
-            // Base entry has empty tokens or doesn't exist, search for suffixed entries
-            TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Searching for suffixed Keychain entries")
-            val suffixedEntries = findSuffixedKeychainEntries()
+            // Fallback scan is default-account-only; explicit dirs stay isolated.
+            if (!ClaudeConfigLocator.isDefault(configDir)) {
+                TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] No valid tokens for explicit dir entry: $serviceName")
+                return null
+            }
 
-            for (entryName in suffixedEntries) {
+            TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Base entry empty; scanning suffixed entries (default account)")
+            for (entryName in findSuffixedKeychainEntries()) {
                 val result = readKeychainEntry(entryName, username)
                 if (result != null && hasValidTokens(result)) {
                     TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Found valid tokens in suffixed entry: $entryName")
@@ -254,20 +272,11 @@ class ClaudeCredentialReader {
         }
     }
 
-    private fun credentialsFile(): File {
-        val configDir = System.getenv("CLAUDE_CONFIG_DIR")?.takeIf { it.isNotBlank() }
-            ?: "${System.getProperty("user.home")}/.claude"
-        return File(configDir, ".credentials.json")
-    }
+    private fun credentialsFile(): File = ClaudeConfigLocator.credentialsFile(configDir)
 
     private fun getUsername(): String {
         return System.getenv("USER")?.takeIf { it.isNotBlank() }
             ?: System.getProperty("user.name")?.takeIf { it.isNotBlank() }
             ?: "claude-code-user"
-    }
-
-    companion object {
-        /** macOS Keychain service name for Claude Code credentials. */
-        private const val KEYCHAIN_SERVICE_NAME = "Claude Code-credentials"
     }
 }

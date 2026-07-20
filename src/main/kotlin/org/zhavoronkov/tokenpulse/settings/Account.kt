@@ -1,6 +1,7 @@
 package org.zhavoronkov.tokenpulse.settings
 
 import org.zhavoronkov.tokenpulse.model.ConnectionType
+import java.io.File
 import java.util.UUID
 
 /**
@@ -71,6 +72,9 @@ enum class AuthType(val displayName: String) {
  * @property authType The specific authentication type (usually derived from connectionType).
  * @property isEnabled Whether this account is active for balance tracking.
  * @property keyPreview Masked preview of the API key for display purposes.
+ * @property claudeConfigDir Claude Code only: the CLAUDE_CONFIG_DIR this
+ *   account tracks. null/blank means the default dir (~/.claude, unsuffixed
+ *   keychain service). Ignored by all non-Claude connection types.
  */
 data class Account(
     var id: String = UUID.randomUUID().toString(),
@@ -79,14 +83,34 @@ data class Account(
     var authType: AuthType = AuthType.CLINE_API_KEY,
     var isEnabled: Boolean = true,
     /** Masked preview of the API key, e.g. "sk-or-…91bc". Stored for display only, not sensitive. */
-    var keyPreview: String = ""
+    var keyPreview: String = "",
+    /**
+     * Claude Code only: the CLAUDE_CONFIG_DIR this account tracks.
+     * null/blank => default (~/.claude). Persisted to tokenpulse.xml; absent
+     * in older state files, which deserialize to null (seamless migration).
+     */
+    var claudeConfigDir: String? = null
 ) {
     /** Human-readable label shown in the accounts table. */
     fun displayLabel(): String {
         val providerName = connectionType.fullDisplayName
-        return if (keyPreview.isNotEmpty()) "$providerName • $keyPreview" else providerName
+        val detail = when {
+            name.isNotBlank() -> name
+            keyPreview.isNotEmpty() -> keyPreview
+            else -> null
+        }
+        return if (detail != null) "$providerName • $detail" else providerName
     }
 }
+
+/**
+ * Display label for a Claude Code account's credential source: the config dir,
+ * shown as `~/.claude` for the default dir or `~/<basename>` (e.g.
+ * `~/.claude-work`) for a custom `CLAUDE_CONFIG_DIR`. Used in the accounts
+ * table's "API Key" column and stored as [Account.keyPreview].
+ */
+fun claudeConfigDirLabel(configDir: String?): String =
+    if (configDir.isNullOrBlank()) "~/.claude" else "~/${File(configDir).name}"
 
 /** Generates a short masked preview from a raw secret key. */
 fun generateKeyPreview(secret: String): String {
@@ -171,9 +195,21 @@ fun List<Account>.sanitizeAccounts(): List<Account> = map { account ->
         else -> validAuthType
     }
 
+    // Backfill keyPreview for Claude Code accounts migrated from older versions
+    // (they were stored with an empty or "CLI" preview). Show the config dir so
+    // the accounts table has a meaningful, per-account value.
+    val finalKeyPreview = if (validConnectionType == ConnectionType.CLAUDE_CODE &&
+        (account.keyPreview.isBlank() || account.keyPreview == "CLI")
+    ) {
+        claudeConfigDirLabel(account.claudeConfigDir)
+    } else {
+        account.keyPreview
+    }
+
     account.copy(
         connectionType = validConnectionType,
         authType = finalAuthType,
-        isEnabled = account.isEnabled
+        isEnabled = account.isEnabled,
+        keyPreview = finalKeyPreview
     )
 }
