@@ -9,6 +9,7 @@ build/
 out/
 target/
 bin/
+docs/
 
 # Gradle
 .gradle/
@@ -96,8 +97,10 @@ ml-llm/
 TOKENPULSE_PLAN.md
 openrouter-intellij-plugin
 
-# MimoCode
+# AI
 .mimocode/
+.research/
+CLAUDE.md
 
 # Plugin signing credentials (NEVER commit these!)
 *.pem

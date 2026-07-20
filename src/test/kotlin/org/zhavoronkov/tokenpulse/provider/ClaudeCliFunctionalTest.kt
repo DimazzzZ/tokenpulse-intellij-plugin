@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION") // ClaudeCliUsageExtractor is kept as a fallback; this test still exercises it.
+
 package org.zhavoronkov.tokenpulse.provider
 
 import org.junit.jupiter.api.Assertions.assertTimeoutPreemptively

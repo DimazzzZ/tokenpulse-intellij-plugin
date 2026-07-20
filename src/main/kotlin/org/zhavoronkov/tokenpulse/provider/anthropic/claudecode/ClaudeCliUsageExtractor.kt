@@ -20,6 +20,11 @@ import java.util.concurrent.TimeUnit
  * 7. Send Escape and /quit to close
  * 8. Parse output for usage percentages
  */
+@Deprecated(
+    message = "Superseded by ClaudeOAuthUsageClient. Kept to share UsageData and preserve " +
+        "the expect/PowerShell fallback path for future emergencies.",
+    level = DeprecationLevel.WARNING,
+)
 class ClaudeCliUsageExtractor {
 
     /**

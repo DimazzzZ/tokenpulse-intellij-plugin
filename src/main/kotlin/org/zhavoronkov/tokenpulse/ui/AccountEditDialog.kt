@@ -172,9 +172,17 @@ class AccountEditDialog(
     private var capturedCodexSecret: String? =
         if (account?.connectionType == ConnectionType.CODEX_CLI) existingSecret else null
 
-    /** Holds the captured Claude Code secret (CLI mode marker). */
+    /** Holds the captured Claude Code secret (CLI mode marker or OAuth token). */
     private var capturedClaudeSecret: String? =
         if (account?.connectionType == ConnectionType.CLAUDE_CODE) existingSecret else null
+
+    /** The selected auth type for Claude Code (CLI or OAuth). */
+    private var selectedClaudeAuthType: AuthType =
+        if (account?.connectionType == ConnectionType.CLAUDE_CODE) {
+            account.authType
+        } else {
+            AuthType.CLAUDE_CODE_LOCAL
+        }
 
     /** Holds the captured Xiaomi session JSON. */
     private var capturedXiaomiSession: String? =
@@ -228,7 +236,10 @@ class AccountEditDialog(
     /**
      * Returns the [AuthType] for the currently selected connection type.
      */
-    fun getAuthType(): AuthType = getConnectionType().defaultAuthType
+    fun getAuthType(): AuthType = when (getConnectionType()) {
+        ConnectionType.CLAUDE_CODE -> selectedClaudeAuthType
+        else -> getConnectionType().defaultAuthType
+    }
 
     /**
      * Returns the secret to store:
@@ -313,11 +324,13 @@ class AccountEditDialog(
     private fun openClaudeConnectDialog() {
         val dialog = ClaudeConnectDialog()
         if (dialog.showAndGet()) {
-            if (dialog.cliDetected) {
-                // Claude CLI doesn't need a secret - it handles auth itself
-                // We use a marker value to indicate CLI mode is enabled
+            val result = dialog.result ?: return
+
+            if (result.cliDetected) {
+                // Claude CLI detected - credentials will be read automatically from Keychain/file
                 capturedClaudeSecret = "cli-mode"
-                val version = dialog.cliVersion ?: "detected"
+                selectedClaudeAuthType = AuthType.CLAUDE_CODE_LOCAL
+                val version = result.cliVersion ?: "detected"
                 claudeCodeStatusLabel.text =
                     "<html><font color='green'><b>✓ Claude CLI $version</b></font></html>"
             }

@@ -119,10 +119,13 @@ fun List<Account>.normalizeConnectionAuthTypes(): List<Account> = map { account 
     val validOpenAiTypes = setOf(AuthType.OPENAI_API_KEY, AuthType.OPENAI_OAUTH)
     val isOpenAiPlatformWithValidAuth = account.connectionType == ConnectionType.OPENAI_PLATFORM &&
         account.authType in validOpenAiTypes
-    val authType = if (isOpenAiPlatformWithValidAuth) {
-        account.authType
-    } else {
-        expectedAuthType
+
+    // Claude Code has only CLAUDE_CODE_LOCAL now; the previous OAuth_TOKEN
+    // value is removed. Unknown values persisted in XML fall through to
+    // `expectedAuthType` (i.e., CLAUDE_CODE_LOCAL) via sanitizeAccounts.
+    val authType = when {
+        isOpenAiPlatformWithValidAuth -> account.authType
+        else -> expectedAuthType
     }
     account.copy(authType = authType)
 }
@@ -158,12 +161,14 @@ fun List<Account>.sanitizeAccounts(): List<Account> = map { account ->
     val validOpenAiTypes = setOf(AuthType.OPENAI_API_KEY, AuthType.OPENAI_OAUTH)
     val isOpenAiPlatformWithValidAuth = validConnectionType == ConnectionType.OPENAI_PLATFORM &&
         validAuthType in validOpenAiTypes
-    val finalAuthType = if (isOpenAiPlatformWithValidAuth) {
-        validAuthType
-    } else if (validAuthType != expectedAuthType) {
-        expectedAuthType
-    } else {
-        validAuthType
+
+    // Claude Code has only CLAUDE_CODE_LOCAL now; the previous OAuth_TOKEN
+    // value is removed. The `AuthType.entries.find { ... } ?: expectedAuthType`
+    // guard above already coerces the old string.
+    val finalAuthType = when {
+        isOpenAiPlatformWithValidAuth -> validAuthType
+        validAuthType != expectedAuthType -> expectedAuthType
+        else -> validAuthType
     }
 
     account.copy(

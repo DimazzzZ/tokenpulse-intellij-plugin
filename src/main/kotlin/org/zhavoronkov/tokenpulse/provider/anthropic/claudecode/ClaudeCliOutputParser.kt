@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION") // Produces UsageData defined on the deprecated extractor.
+
 package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 
 /**
