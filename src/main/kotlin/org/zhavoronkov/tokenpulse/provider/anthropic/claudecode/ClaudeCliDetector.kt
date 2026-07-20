@@ -2,8 +2,8 @@ package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 
 import org.zhavoronkov.tokenpulse.utils.CliLocator
 import org.zhavoronkov.tokenpulse.utils.HostOs
-import org.zhavoronkov.tokenpulse.utils.detectHostOs
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
+import org.zhavoronkov.tokenpulse.utils.detectHostOs
 import java.io.File
 import java.util.concurrent.TimeUnit
 

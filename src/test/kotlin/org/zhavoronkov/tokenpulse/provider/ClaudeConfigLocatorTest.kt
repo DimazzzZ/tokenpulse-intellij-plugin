@@ -58,12 +58,18 @@ class ClaudeConfigLocatorTest {
     fun `identityFile is HOME dot claude json for default, else dir dot claude json`() {
         assertEquals("$home/.claude.json", ClaudeConfigLocator.identityFile(null, home).path)
         assertEquals("$home/.claude.json", ClaudeConfigLocator.identityFile("$home/.claude", home).path)
-        assertEquals("$home/.claude-work/.claude.json", ClaudeConfigLocator.identityFile("$home/.claude-work", home).path)
+        assertEquals(
+            "$home/.claude-work/.claude.json",
+            ClaudeConfigLocator.identityFile("$home/.claude-work", home).path,
+        )
     }
 
     @Test
     fun `credentialsFile is dir dot credentials json falling back to ~ dot claude`() {
         assertEquals("$home/.claude/.credentials.json", ClaudeConfigLocator.credentialsFile(null, home).path)
-        assertEquals("$home/.claude-work/.credentials.json", ClaudeConfigLocator.credentialsFile("$home/.claude-work", home).path)
+        assertEquals(
+            "$home/.claude-work/.credentials.json",
+            ClaudeConfigLocator.credentialsFile("$home/.claude-work", home).path,
+        )
     }
 }

@@ -21,8 +21,8 @@ import org.zhavoronkov.tokenpulse.settings.StatusBarDisplayMode
 import org.zhavoronkov.tokenpulse.settings.StatusBarDollarFormat
 import org.zhavoronkov.tokenpulse.settings.StatusBarFormat
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
-import org.zhavoronkov.tokenpulse.settings.generateKeyPreview
 import org.zhavoronkov.tokenpulse.settings.claudeConfigDirLabel
+import org.zhavoronkov.tokenpulse.settings.generateKeyPreview
 import javax.swing.JComponent
 
 class TokenPulseConfigurable : Configurable {

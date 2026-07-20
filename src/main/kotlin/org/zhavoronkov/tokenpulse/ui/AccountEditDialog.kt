@@ -446,7 +446,7 @@ class AccountEditDialog(
                 } else {
                     claudeDiscoveryStatusLabel.text =
                         "<html><font color='orange'><b>⚠ Claude CLI not found</b></font></html>" +
-                            " <font color='gray'>&nbsp;install: npm i -g @anthropic-ai/claude-code</font>"
+                        " <font color='gray'>&nbsp;install: npm i -g @anthropic-ai/claude-code</font>"
                     claudeInstallGuideButton.isVisible = true
                     // Still allow adding accounts we found on disk.
                     if (capturedClaudeSecret.isNullOrBlank()) capturedClaudeSecret = "cli-mode"

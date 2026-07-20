@@ -18,7 +18,7 @@ class ClaudeAccountDiscoveryTest {
         File(home, ".claude").mkdirs()
         File(home, ".claude-work").mkdirs()
         File(home, ".claude-personal").mkdirs()
-        File(home, ".claudex").mkdirs()          // decoy (no dash)
+        File(home, ".claudex").mkdirs() // decoy (no dash)
         File(home, ".config/claude").mkdirs()
         File(home, ".config/notclaude").mkdirs() // decoy
         File(home, "regular.txt").writeText("x")
@@ -56,7 +56,10 @@ class ClaudeAccountDiscoveryTest {
     @Test
     fun `credProbe throwing yields hasValidCreds false and does not propagate`(@TempDir home: File) {
         File(home, ".claude").mkdirs()
-        val row = ClaudeAccountDiscovery.discover(home.absolutePath, credProbe = { throw RuntimeException("nope") }).single()
+        val row = ClaudeAccountDiscovery.discover(
+            home.absolutePath,
+            credProbe = { throw RuntimeException("nope") },
+        ).single()
         assertFalse(row.hasValidCreds)
     }
 
@@ -69,8 +72,10 @@ class ClaudeAccountDiscoveryTest {
         val dispOnly = ClaudeAccountIdentity(emailAddress = null, organizationName = null, displayName = "Al")
         assertEquals("Al", ClaudeAccountDiscovery.labelFor(dispOnly, "/x/.claude"))
         assertEquals(".claude-work", ClaudeAccountDiscovery.labelFor(null, "/x/.claude-work"))
-        assertEquals(".claude-work", ClaudeAccountDiscovery.labelFor(
-            ClaudeAccountIdentity(null, null, null), "/x/.claude-work"))
+        assertEquals(
+            ".claude-work",
+            ClaudeAccountDiscovery.labelFor(ClaudeAccountIdentity(null, null, null), "/x/.claude-work"),
+        )
     }
 
     @Test

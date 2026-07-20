@@ -3,8 +3,8 @@ package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import org.zhavoronkov.tokenpulse.utils.HostOs
-import org.zhavoronkov.tokenpulse.utils.detectHostOs
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
+import org.zhavoronkov.tokenpulse.utils.detectHostOs
 import java.io.File
 
 /**
@@ -54,14 +54,14 @@ class ClaudeCredentialReader(
             val token = oauthData.get("accessToken")?.asString
 
             if (token.isNullOrBlank()) {
-                TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] accessToken is null or blank")
+                logDebug("accessToken is null or blank")
                 null
             } else {
-                TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Successfully read accessToken (length=${token.length})")
+                logDebug("Successfully read accessToken (length=${token.length})")
                 token
             }
         } catch (e: Exception) {
-            TokenPulseLogger.Provider.warn("[ClaudeCredentialReader] Failed to read access token: ${e.message}")
+            logWarn("Failed to read access token: ${e.message}")
             null
         }
     }
@@ -77,7 +77,7 @@ class ClaudeCredentialReader(
             val oauthData = credentials.getAsJsonObject("claudeAiOauth") ?: return null
             oauthData.get("refreshToken")?.asString?.takeIf { it.isNotBlank() }
         } catch (e: Exception) {
-            TokenPulseLogger.Provider.warn("[ClaudeCredentialReader] Failed to read refresh token: ${e.message}")
+            logWarn("Failed to read refresh token: ${e.message}")
             null
         }
     }
@@ -93,7 +93,7 @@ class ClaudeCredentialReader(
             val oauthData = credentials.getAsJsonObject("claudeAiOauth") ?: return null
             oauthData.get("expiresAt")?.asLong
         } catch (e: Exception) {
-            TokenPulseLogger.Provider.warn("[ClaudeCredentialReader] Failed to read expiresAt: ${e.message}")
+            logWarn("Failed to read expiresAt: ${e.message}")
             null
         }
     }
@@ -108,7 +108,7 @@ class ClaudeCredentialReader(
         val now = System.currentTimeMillis()
         val expired = now >= expiresAt
         if (expired) {
-            TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Token expired (expiresAt=$expiresAt, now=$now)")
+            logDebug("Token expired (expiresAt=$expiresAt, now=$now)")
         }
         return expired
     }
@@ -117,7 +117,7 @@ class ClaudeCredentialReader(
      * Read credentials from the appropriate platform-specific store.
      */
     private fun readCredentials(): JsonObject? {
-        TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Reading credentials for OS: $osType")
+        logDebug("Reading credentials for OS: $osType")
 
         return when (osType) {
             HostOs.MACOS -> readFromKeychain()
@@ -140,7 +140,7 @@ class ClaudeCredentialReader(
         return try {
             val username = getUsername()
             val serviceName = ClaudeConfigLocator.keychainServiceName(configDir)
-            TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Reading Keychain service: $serviceName")
+            logDebug("Reading Keychain service: $serviceName")
 
             val targeted = readKeychainEntry(serviceName, username)
             if (targeted != null && hasValidTokens(targeted)) {
@@ -149,23 +149,23 @@ class ClaudeCredentialReader(
 
             // Fallback scan is default-account-only; explicit dirs stay isolated.
             if (!ClaudeConfigLocator.isDefault(configDir)) {
-                TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] No valid tokens for explicit dir entry: $serviceName")
+                logDebug("No valid tokens for explicit dir entry: $serviceName")
                 return null
             }
 
-            TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Base entry empty; scanning suffixed entries (default account)")
+            logDebug("Base entry empty; scanning suffixed entries (default account)")
             for (entryName in findSuffixedKeychainEntries()) {
                 val result = readKeychainEntry(entryName, username)
                 if (result != null && hasValidTokens(result)) {
-                    TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Found valid tokens in suffixed entry: $entryName")
+                    logDebug("Found valid tokens in suffixed entry: $entryName")
                     return result
                 }
             }
 
-            TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] No Keychain entry with valid tokens found")
+            logDebug("No Keychain entry with valid tokens found")
             null
         } catch (e: Exception) {
-            TokenPulseLogger.Provider.warn("[ClaudeCredentialReader] Keychain read failed: ${e.message}")
+            logWarn("Keychain read failed: ${e.message}")
             null
         }
     }
@@ -176,13 +176,14 @@ class ClaudeCredentialReader(
     private fun readKeychainEntry(serviceName: String, username: String): JsonObject? {
         return try {
             val process = ProcessBuilder(
-                "security", "find-generic-password",
-                "-a", username,
-                "-s", serviceName,
-                "-w"
-            )
-                .redirectErrorStream(true)
-                .start()
+                "security",
+                "find-generic-password",
+                "-a",
+                username,
+                "-s",
+                serviceName,
+                "-w",
+            ).redirectErrorStream(true).start()
 
             val output = process.inputStream.bufferedReader().readText().trim()
             val exitCode = process.waitFor()
@@ -202,9 +203,7 @@ class ClaudeCredentialReader(
      */
     private fun findSuffixedKeychainEntries(): List<String> {
         return try {
-            val process = ProcessBuilder(
-                "security", "dump-keychain"
-            )
+            val process = ProcessBuilder("security", "dump-keychain")
                 .redirectErrorStream(true)
                 .start()
 
@@ -218,7 +217,7 @@ class ClaudeCredentialReader(
                 .distinct()
                 .toList()
         } catch (e: Exception) {
-            TokenPulseLogger.Provider.warn("[ClaudeCredentialReader] Failed to search Keychain entries: ${e.message}")
+            logWarn("Failed to search Keychain entries: ${e.message}")
             emptyList()
         }
     }
@@ -241,15 +240,15 @@ class ClaudeCredentialReader(
             val credFile = credentialsFile()
 
             if (!credFile.exists()) {
-                TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Credentials file not found: ${credFile.absolutePath}")
+                logDebug("Credentials file not found: ${credFile.absolutePath}")
                 return null
             }
 
-            TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] Reading from file: ${credFile.absolutePath}")
+            logDebug("Reading from file: ${credFile.absolutePath}")
             val content = credFile.readText(Charsets.UTF_8)
             parseCredentialJson(content)
         } catch (e: Exception) {
-            TokenPulseLogger.Provider.warn("[ClaudeCredentialReader] File read failed: ${e.message}")
+            logWarn("File read failed: ${e.message}")
             null
         }
     }
@@ -263,12 +262,12 @@ class ClaudeCredentialReader(
             when {
                 element.isJsonObject -> element.asJsonObject
                 else -> {
-                    TokenPulseLogger.Provider.warn("[ClaudeCredentialReader] Unexpected JSON type: ${element.javaClass.simpleName}")
+                    logWarn("Unexpected JSON type: ${element.javaClass.simpleName}")
                     null
                 }
             }
         } catch (e: Exception) {
-            TokenPulseLogger.Provider.warn("[ClaudeCredentialReader] JSON parse failed: ${e.message}")
+            logWarn("JSON parse failed: ${e.message}")
             null
         }
     }
@@ -280,4 +279,7 @@ class ClaudeCredentialReader(
             ?: System.getProperty("user.name")?.takeIf { it.isNotBlank() }
             ?: "claude-code-user"
     }
+
+    private fun logDebug(msg: String) = TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] $msg")
+    private fun logWarn(msg: String) = TokenPulseLogger.Provider.warn("[ClaudeCredentialReader] $msg")
 }

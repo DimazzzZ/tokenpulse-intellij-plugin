@@ -77,8 +77,11 @@ object ClaudeConfigLocator {
         configDir: String?,
         home: String = System.getProperty("user.home"),
     ): File =
-        if (isDefault(configDir, home)) File(home, ".claude.json")
-        else File(configDir!!, ".claude.json")
+        if (isDefault(configDir, home)) {
+            File(home, ".claude.json")
+        } else {
+            File(configDir!!, ".claude.json")
+        }
 
     private fun resolvedConfigDir(configDir: String?, home: String): String =
         if (configDir.isNullOrBlank()) defaultConfigDir(home) else configDir
