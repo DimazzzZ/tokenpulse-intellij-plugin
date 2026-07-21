@@ -20,8 +20,8 @@ data class ClinePassMetric(
  *
  * The extractor consumes only the provider-specific metadata keys populated by
  * [ClineProviderClient] and produces structured [ClinePassMetric] objects.
- * The tooltip panel ([TokenPulseStatusTooltipPanel]) is responsible for
- * rendering these metrics as HTML rows.
+ * The tooltip panel ([TokenPulseTooltipPanel]) is responsible for rendering
+ * these metrics as Swing rows.
  *
  * When ClinePass metadata is absent, [extractMetrics] returns an empty list so
  * the caller renders no ClinePass-specific content.

@@ -3,13 +3,21 @@ package org.zhavoronkov.tokenpulse.ui
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
+import com.intellij.openapi.ui.popup.Balloon
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.ui.popup.ListPopup
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.StatusBarWidgetFactory
+import com.intellij.openapi.wm.CustomStatusBarWidget
+import com.intellij.openapi.wm.impl.status.TextPanel
+import com.intellij.ide.IdeTooltip
+import com.intellij.ide.IdeTooltipManager
+import com.intellij.ide.TooltipEvent
 import com.intellij.ui.awt.RelativePoint
-import com.intellij.util.Consumer
+import com.intellij.ui.components.JBLabel
+import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.UIUtil
 import org.zhavoronkov.tokenpulse.service.BalanceRefreshService
 import org.zhavoronkov.tokenpulse.service.BalanceUpdatedListener
 import org.zhavoronkov.tokenpulse.service.BalanceUpdatedTopic
@@ -17,7 +25,11 @@ import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.settings.StatusBarDisplayMode
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
 import java.awt.Component
+import java.awt.Point
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import java.math.BigDecimal
+import javax.swing.JComponent
 import javax.swing.SwingUtilities
 
 class TokenPulseStatusBarWidgetFactory : StatusBarWidgetFactory {
@@ -31,56 +43,135 @@ class TokenPulseStatusBarWidgetFactory : StatusBarWidgetFactory {
 /**
  * Status bar widget that shows a compact status text and a rich tooltip on hover.
  *
- * Implements [StatusBarWidget.TextPresentation] so the IDE renders the text in the
- * status bar. The tooltip is provided via [getTooltipText] which returns HTML content.
+ * The tooltip is a real Swing panel ([TokenPulseTooltipPanel]) attached via
+ * [IdeTooltipManager.setCustomTooltip]. IntelliJ's tooltip manager drives
+ * hover show/hide (mouse-enter shows, mouse-exit hides) and clamps the balloon
+ * to the screen, so bars and percentages never wrap. Implementing
+ * [CustomStatusBarWidget] lets the widget own its on-screen [JComponent] — the
+ * only reliable seam to attach a custom tooltip, since [StatusBar] in 2024.2
+ * has no `getWidgetComponent(id)`.
  */
-class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentation {
+class TokenPulseStatusBarWidget :
+    StatusBarWidget,
+    StatusBarWidget.TextPresentation,
+    CustomStatusBarWidget {
     private var myStatusBar: StatusBar? = null
+    private var myComponent: WidgetLabel? = null
 
     override fun ID(): String = "TokenPulse"
 
     override fun getPresentation(): StatusBarWidget.WidgetPresentation = this
 
-    override fun getTooltipText(): String = getTooltipContent()
+    // A plain-text fallback for accessibility; the rich hover tooltip is the
+    // custom Swing panel registered in install(). Returns null so the platform
+    // does not build its own HTML tooltip over our custom one.
+    override fun getTooltipText(): String? = null
 
-    override fun getClickConsumer(): Consumer<java.awt.event.MouseEvent> = Consumer { event ->
-        val component = event.component ?: return@Consumer
-        val project = ProjectManager.getInstance().openProjects.firstOrNull() ?: return@Consumer
-        val popup = createPopupMenu(project)
-        popup.show(RelativePoint(component, java.awt.Point(0, 0)))
-    }
+    // Note: for CustomStatusBarWidget implementations the platform does NOT
+    // auto-invoke TextPresentation.getClickConsumer() — input is routed to the
+    // widget's own component instead. The left-click popup is wired via a
+    // MouseListener attached to WidgetLabel in registerCustomTooltip().
 
     override fun getAlignment(): Float = Component.CENTER_ALIGNMENT
 
     override fun getText(): String = formatStatusBarText()
 
+    override fun getComponent(): JComponent {
+        val existing = myComponent
+        if (existing != null) return existing
+        val label = WidgetLabel(this)
+        myComponent = label
+        return label
+    }
+
     override fun install(statusBar: StatusBar) {
         myStatusBar = statusBar
+        registerCustomTooltip()
         ApplicationManager.getApplication().messageBus.connect(this)
             .subscribe(
                 BalanceUpdatedTopic.TOPIC,
                 object : BalanceUpdatedListener {
                     override fun balanceUpdated(accountId: String, result: org.zhavoronkov.tokenpulse.model.ProviderResult) {
                         statusBar.updateWidget(ID())
+                        myComponent?.refresh()
                     }
                 }
             )
     }
 
-    private fun getTooltipContent(): String {
+    /**
+     * Registers the rich hover tooltip on the widget's own component. The
+     * tooltip component is rebuilt with fresh data every time it is about to
+     * show (via [IdeTooltip.beforeShow]); when there is no data yet, it falls
+     * back to a short text message so a tooltip still appears.
+     */
+    private fun registerCustomTooltip() {
+        val comp = getComponent()
+        val tooltip = object : IdeTooltip(comp, Point(0, 0), fallbackTip()) {
+            override fun beforeShow(): Boolean {
+                setTipComponent(TokenPulseTooltipPanel.buildTooltip() ?: fallbackTip())
+                return true
+            }
+
+            // Show almost immediately on hover instead of the IDE-global
+            // ~1.2s default (registry key ide.tooltip.initialDelay). Scoped to
+            // this tooltip only; the global registry is untouched.
+            override fun getShowDelay(): Int = SHOW_DELAY_MS
+
+            override fun getInitialReshowDelay(): Int = SHOW_DELAY_MS
+
+            // Keep the tooltip open while the cursor is still over the widget
+            // or inside the balloon. IdeTooltipManager consults this on mouse
+            // events; the default (true) hides on movement, which made the
+            // tooltip vanish while hovering. We only allow auto-hide for real
+            // exits/clicks/keys — not for mouse-moves that remain on the widget.
+            override fun canAutohideOn(event: TooltipEvent): Boolean {
+                if (event.isIsEventInsideBalloon) return false
+                val input = event.inputEvent
+                if (input is MouseEvent && input.id == MouseEvent.MOUSE_MOVED) {
+                    val src = input.component ?: return true
+                    val pointOnWidget = SwingUtilities.convertPoint(src, input.point, comp)
+                    if (comp.isShowing && comp.contains(pointOnWidget)) return false
+                }
+                return true
+            }
+
+            // Disable the platform's timed auto-close (registry
+            // ide.tooltip.dismissDelay, ~3-5s), which fires independently of
+            // canAutohideOn. With this off, the tooltip stays open while
+            // hovered and only hides when the cursor leaves (via canAutohideOn).
+            override fun canBeDismissedOnTimeout(): Boolean = false
+        }
+            .setPreferredPosition(Balloon.Position.above)
+            .setHint(false)
+            .setLayer(Balloon.Layer.top)
+        // Left-click opens the actions popup (Dashboard / Refresh All /
+        // Settings). Since this widget is a CustomStatusBarWidget the platform
+        // ignores getClickConsumer(); we must wire the click ourselves.
+        comp.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (!SwingUtilities.isLeftMouseButton(e) || e.clickCount != 1) return
+                val project = ProjectManager.getInstance().openProjects.firstOrNull()
+                    ?: return
+                createPopupMenu(project).show(RelativePoint(e.component, Point(0, 0)))
+            }
+        })
+        IdeTooltipManager.getInstance().setCustomTooltip(comp, tooltip)
+    }
+
+    /** Short text shown when there is no per-account data to render yet. */
+    private fun fallbackTip(): JComponent {
         val accounts = TokenPulseSettingsService.getInstance().state.accounts
         val activeAccounts = accounts.filter { it.isEnabled }
-
-        if (activeAccounts.isEmpty()) return "TokenPulse: All accounts disabled"
-
-        val results = BalanceRefreshService.getInstance().results.value
-        val enabledAccountIds = activeAccounts.map { it.id }.toSet()
-
-        if (results.isEmpty() || enabledAccountIds.none { it in results }) {
-            return "TokenPulse: ${activeAccounts.size} account(s) configured — refreshing..."
+        val text = when {
+            activeAccounts.isEmpty() -> "TokenPulse: All accounts disabled"
+            else -> "TokenPulse: ${activeAccounts.size} account(s) configured \u2014 refreshing..."
         }
-
-        return TokenPulseStatusTooltipPanel.buildTooltipHtml()
+        return JBLabel(text).apply {
+            border = JBUI.Borders.empty(6, 8)
+            background = UIUtil.getToolTipBackground()
+            isOpaque = true
+        }
     }
 
     /**
@@ -248,6 +339,29 @@ class TokenPulseStatusBarWidget : StatusBarWidget, StatusBarWidget.TextPresentat
     }
 
     override fun dispose() {
+        myComponent?.let { IdeTooltipManager.getInstance().setCustomTooltip(it, null) }
+        myComponent = null
         myStatusBar = null
+    }
+
+    private companion object {
+        /** Near-instant hover show/reshow delay (ms) for the custom tooltip. */
+        const val SHOW_DELAY_MS = 50
+    }
+}
+
+/**
+ * The on-screen status-bar label. Extends the platform [TextPanel] so the text
+ * renders in the exact status-bar font/alignment/truncation, then refreshes
+ * from [TokenPulseStatusBarWidget.getText] when balance data changes.
+ */
+private class WidgetLabel(private val widget: TokenPulseStatusBarWidget) : TextPanel() {
+    init {
+        setTextAlignment(Component.CENTER_ALIGNMENT)
+        refresh()
+    }
+
+    fun refresh() {
+        text = widget.getText()
     }
 }
