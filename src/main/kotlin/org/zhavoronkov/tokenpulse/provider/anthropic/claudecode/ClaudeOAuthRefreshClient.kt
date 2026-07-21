@@ -53,7 +53,8 @@ class ClaudeOAuthRefreshClient internal constructor(
 
             when (response.statusCode()) {
                 200 -> parseSuccessResponse(response.body())
-                400, 401 -> RefreshResult.Error("Refresh token invalid or expired", isAuthError = true)
+                401 -> RefreshResult.Error("Refresh token invalid or expired", isAuthError = true)
+                400 -> classifyBadRequest(response.body())
                 else -> RefreshResult.Error(
                     "Token refresh failed (${response.statusCode()}): ${response.body().take(200)}"
                 )
@@ -110,6 +111,37 @@ class ClaudeOAuthRefreshClient internal constructor(
         }
     }
 
+    /**
+     * Classify a 400 response from the OAuth token endpoint.
+     *
+     * Per RFC 6749 §5.2 the body carries a JSON `error` code. Only
+     * `invalid_grant` means the refresh token itself is expired/revoked (a
+     * real auth error the user must fix by re-authenticating). Every other
+     * error code (`invalid_request`, `invalid_client`, `invalid_scope`,
+     * `unsupported_grant_type`, `unauthorized_client`, …) indicates a bug in
+     * *our* request — we surface it as a non-auth error so the user is not
+     * wrongly told their session expired.
+     *
+     * If the body isn't parseable JSON or has no `error` field, we cannot
+     * prove `invalid_grant`, so we also treat it as non-auth.
+     */
+    private fun classifyBadRequest(body: String): RefreshResult {
+        val errorCode = try {
+            gson.fromJson(body, OAuthErrorBody::class.java)?.error?.takeIf { it.isNotBlank() }
+        } catch (e: JsonSyntaxException) {
+            TokenPulseLogger.Provider.warn(
+                "[ClaudeOAuthRefreshClient] 400 body was not JSON: ${e.message}"
+            )
+            null
+        }
+        return if (errorCode == "invalid_grant") {
+            RefreshResult.Error("Refresh token invalid or expired", isAuthError = true)
+        } else {
+            val detail = errorCode ?: body.take(200)
+            RefreshResult.Error("Token refresh rejected (400): $detail")
+        }
+    }
+
     private fun clientId(): String {
         val override = System.getenv("CLAUDE_CODE_OAUTH_CLIENT_ID")
         return override?.takeIf { it.isNotBlank() } ?: DEFAULT_CLIENT_ID
@@ -135,6 +167,15 @@ class ClaudeOAuthRefreshClient internal constructor(
         @SerializedName("refresh_token") val refreshToken: String?,
         @SerializedName("expires_in") val expiresIn: Long?,
         @SerializedName("scope") val scope: String?,
+    )
+
+    /**
+     * Shape of an OAuth 2.0 error response body (RFC 6749 §5.2). We only need
+     * the `error` code; `error_description` is logged but not asserted on.
+     */
+    private data class OAuthErrorBody(
+        @SerializedName("error") val error: String?,
+        @SerializedName("error_description") val errorDescription: String?,
     )
 
     companion object {

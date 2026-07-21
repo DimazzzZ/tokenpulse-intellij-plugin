@@ -90,15 +90,39 @@ class ClaudeOAuthRefreshClientTest {
     }
 
     @Test
-    fun `400 returns auth error`() {
+    fun `400 invalid_grant returns auth error`() {
         status = 400
-        body = """{"error":"invalid_request"}"""
+        body = """{"error":"invalid_grant","error_description":"refresh token expired"}"""
 
         val result = client().refresh("bad-refresh")
 
         assertTrue(result is ClaudeOAuthRefreshClient.RefreshResult.Error)
         result as ClaudeOAuthRefreshClient.RefreshResult.Error
         assertTrue(result.isAuthError)
+    }
+
+    @Test
+    fun `400 invalid_request returns non-auth error (our bug, not user's session)`() {
+        status = 400
+        body = """{"error":"invalid_request"}"""
+
+        val result = client().refresh("some-refresh")
+
+        assertTrue(result is ClaudeOAuthRefreshClient.RefreshResult.Error)
+        result as ClaudeOAuthRefreshClient.RefreshResult.Error
+        assertTrue(!result.isAuthError)
+    }
+
+    @Test
+    fun `400 with unparseable body returns non-auth error`() {
+        status = 400
+        body = "not-json{"
+
+        val result = client().refresh("some-refresh")
+
+        assertTrue(result is ClaudeOAuthRefreshClient.RefreshResult.Error)
+        result as ClaudeOAuthRefreshClient.RefreshResult.Error
+        assertTrue(!result.isAuthError)
     }
 
     @Test

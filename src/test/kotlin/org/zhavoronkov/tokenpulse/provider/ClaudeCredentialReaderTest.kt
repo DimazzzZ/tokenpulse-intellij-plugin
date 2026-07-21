@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCredentialReader
+import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.CLAUDE_TOKEN_EXPIRY_SKEW_MS
+import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.isClaudeTokenExpired
 import org.zhavoronkov.tokenpulse.utils.HostOs
 import java.io.File
 import java.nio.file.Path
@@ -69,12 +71,15 @@ class ClaudeCredentialReaderTest {
     }
 
     @Test
-    fun `isTokenExpired true when expiresAt is missing`(@TempDir dir: Path) {
+    fun `isTokenExpired false when expiresAt is missing (unknown != expired)`(@TempDir dir: Path) {
+        // A missing/unparseable expiresAt must NOT force a "session expired":
+        // the access token may still be valid, and the usage API's real 401 is
+        // the authoritative signal.
         val configDir = writeCredentials(
             dir,
             """{ "claudeAiOauth": { "accessToken": "a" } }"""
         )
-        assertTrue(reader(configDir).isTokenExpired())
+        assertFalse(reader(configDir).isTokenExpired())
     }
 
     @Test
@@ -117,5 +122,38 @@ class ClaudeCredentialReaderTest {
     fun `missing claudeAiOauth object returns null`(@TempDir dir: Path) {
         val configDir = writeCredentials(dir, """{ "somethingElse": {} }""")
         assertNull(reader(configDir).readAccessToken())
+    }
+
+    // ── isClaudeTokenExpired: pure expiry decision ─────────────────────────
+
+    @Test
+    fun `isClaudeTokenExpired treats null expiresAt as NOT expired`() {
+        // Unknown/unparseable expiry must not force a "session expired" for a
+        // user whose access token is otherwise valid — let the usage API's
+        // real 401 be the authoritative signal.
+        assertFalse(isClaudeTokenExpired(expiresAt = null, now = 1_000_000L))
+    }
+
+    @Test
+    fun `isClaudeTokenExpired reports expired well past expiry`() {
+        val expiresAt = 1_000_000L
+        val now = expiresAt + 10 * CLAUDE_TOKEN_EXPIRY_SKEW_MS
+        assertTrue(isClaudeTokenExpired(expiresAt, now))
+    }
+
+    @Test
+    fun `isClaudeTokenExpired reports NOT expired well before expiry`() {
+        val expiresAt = 1_000_000_000L
+        val now = expiresAt - 10 * CLAUDE_TOKEN_EXPIRY_SKEW_MS
+        assertFalse(isClaudeTokenExpired(expiresAt, now))
+    }
+
+    @Test
+    fun `isClaudeTokenExpired trips exactly at the skew boundary`() {
+        val expiresAt = 1_000_000_000L
+        // now == expiresAt - skew  =>  expired (>= in the pure helper).
+        assertTrue(isClaudeTokenExpired(expiresAt, expiresAt - CLAUDE_TOKEN_EXPIRY_SKEW_MS))
+        // One millisecond earlier still counts as valid.
+        assertFalse(isClaudeTokenExpired(expiresAt, expiresAt - CLAUDE_TOKEN_EXPIRY_SKEW_MS - 1))
     }
 }
