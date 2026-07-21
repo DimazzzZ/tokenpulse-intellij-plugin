@@ -26,7 +26,13 @@ import java.time.Duration
  * Users generate a long-lived token via: `claude setup-token`
  * This is a documented Anthropic workflow for CI/scripts.
  */
-class ClaudeOAuthUsageClient {
+class ClaudeOAuthUsageClient(
+    /**
+     * Usage endpoint URL. Defaults to the production Anthropic endpoint;
+     * tests override it to point at a local HTTP stub server.
+     */
+    private val usageUrl: String = USAGE_API_URL,
+) {
 
     private val gson: Gson = GsonBuilder().create()
     private val httpClient: HttpClient = HttpClient.newBuilder()
@@ -55,7 +61,13 @@ class ClaudeOAuthUsageClient {
             when (response.statusCode()) {
                 200 -> parseSuccessResponse(response.body())
                 401 -> OAuthUsageResult.Error("OAuth token expired or invalid", isAuthError = true)
-                403 -> OAuthUsageResult.Error("OAuth token lacks required scopes", isAuthError = true)
+                // 403 is NOT an auth/session error: it typically means org/geo
+                // policy, a rejected beta header, or a WAF block — the OAuth
+                // token itself is still valid. Surfacing it as "session
+                // expired" would wrongly tell a logged-in user to re-auth.
+                403 -> OAuthUsageResult.Error(
+                    "Claude API access forbidden (403). Check your account/organization access."
+                )
                 429 -> OAuthUsageResult.Error("Rate limited by Anthropic API", isRateLimited = true)
                 else -> OAuthUsageResult.Error("API returned ${response.statusCode()}: ${response.body().take(200)}")
             }
@@ -73,9 +85,10 @@ class ClaudeOAuthUsageClient {
 
     private fun buildRequest(oauthToken: String): HttpRequest {
         return HttpRequest.newBuilder()
-            .uri(URI.create(USAGE_API_URL))
+            .uri(URI.create(usageUrl))
             .header("Authorization", "Bearer $oauthToken")
             .header("anthropic-beta", BETA_HEADER)
+            .header("anthropic-version", ANTHROPIC_VERSION)
             .header("Content-Type", "application/json")
             .header("User-Agent", USER_AGENT)
             .timeout(Duration.ofSeconds(REQUEST_TIMEOUT_SECONDS))
@@ -139,6 +152,7 @@ class ClaudeOAuthUsageClient {
     companion object {
         private const val USAGE_API_URL = "https://api.anthropic.com/api/oauth/usage"
         private const val BETA_HEADER = "oauth-2025-04-20"
+        private const val ANTHROPIC_VERSION = "2023-06-01"
         private const val USER_AGENT = "TokenPulse/1.0"
         private const val CONNECT_TIMEOUT_SECONDS = 5L
         private const val REQUEST_TIMEOUT_SECONDS = 5L

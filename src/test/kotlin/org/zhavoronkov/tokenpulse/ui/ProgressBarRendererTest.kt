@@ -1,133 +1,84 @@
 package org.zhavoronkov.tokenpulse.ui
 
+import com.intellij.ui.JBColor
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.awt.Color
 
 /**
- * Tests for [ProgressBarRenderer].
+ * Tests for [ProgressBarRenderer] color utilities.
  */
 class ProgressBarRendererTest {
 
     @Test
     fun `getUsageColor returns green for low usage`() {
-        assertEquals("#44AA44", ProgressBarRenderer.getUsageColor(0))
-        assertEquals("#44AA44", ProgressBarRenderer.getUsageColor(50))
-        assertEquals("#44AA44", ProgressBarRenderer.getUsageColor(69))
+        val green = ProgressBarRenderer.getUsageColor(0)
+        assertEquals(JBColor(Color(0x44AA44), Color(0x66DD66)), green)
+
+        val green50 = ProgressBarRenderer.getUsageColor(50)
+        assertEquals(JBColor(Color(0x44AA44), Color(0x66DD66)), green50)
+
+        val green69 = ProgressBarRenderer.getUsageColor(69)
+        assertEquals(JBColor(Color(0x44AA44), Color(0x66DD66)), green69)
     }
 
     @Test
     fun `getUsageColor returns orange for medium usage`() {
-        assertEquals("#CC8800", ProgressBarRenderer.getUsageColor(70))
-        assertEquals("#CC8800", ProgressBarRenderer.getUsageColor(80))
-        assertEquals("#CC8800", ProgressBarRenderer.getUsageColor(89))
+        val orange70 = ProgressBarRenderer.getUsageColor(70)
+        assertEquals(JBColor(Color(0xCC8800), Color(0xFFBB55)), orange70)
+
+        val orange80 = ProgressBarRenderer.getUsageColor(80)
+        assertEquals(JBColor(Color(0xCC8800), Color(0xFFBB55)), orange80)
+
+        val orange89 = ProgressBarRenderer.getUsageColor(89)
+        assertEquals(JBColor(Color(0xCC8800), Color(0xFFBB55)), orange89)
     }
 
     @Test
     fun `getUsageColor returns red for high usage`() {
-        assertEquals("#CC4444", ProgressBarRenderer.getUsageColor(90))
-        assertEquals("#CC4444", ProgressBarRenderer.getUsageColor(95))
-        assertEquals("#CC4444", ProgressBarRenderer.getUsageColor(100))
+        val red90 = ProgressBarRenderer.getUsageColor(90)
+        assertEquals(JBColor(Color(0xCC4444), Color(0xFF7777)), red90)
+
+        val red95 = ProgressBarRenderer.getUsageColor(95)
+        assertEquals(JBColor(Color(0xCC4444), Color(0xFF7777)), red95)
+
+        val red100 = ProgressBarRenderer.getUsageColor(100)
+        assertEquals(JBColor(Color(0xCC4444), Color(0xFF7777)), red100)
     }
 
     @Test
-    fun `buildProgressBarHtml contains filled blocks`() {
-        val html = ProgressBarRenderer.buildProgressBarHtml(50)
+    fun `getBalanceColor returns green for high remaining`() {
+        val green = ProgressBarRenderer.getBalanceColor(100)
+        assertEquals(JBColor(Color(0x44AA44), Color(0x66DD66)), green)
 
-        assertTrue(html.contains("█"))
-        assertTrue(html.contains("░"))
+        val green50 = ProgressBarRenderer.getBalanceColor(50)
+        assertEquals(JBColor(Color(0x44AA44), Color(0x66DD66)), green50)
+
+        val green31 = ProgressBarRenderer.getBalanceColor(31)
+        assertEquals(JBColor(Color(0x44AA44), Color(0x66DD66)), green31)
     }
 
     @Test
-    fun `buildProgressBarHtml shows percentage with label`() {
-        val html = ProgressBarRenderer.buildProgressBarHtml(75, showLabel = true)
+    fun `getBalanceColor returns orange for low remaining`() {
+        val orange30 = ProgressBarRenderer.getBalanceColor(30)
+        assertEquals(JBColor(Color(0xCC8800), Color(0xFFBB55)), orange30)
 
-        assertTrue(html.contains("75%"))
+        val orange20 = ProgressBarRenderer.getBalanceColor(20)
+        assertEquals(JBColor(Color(0xCC8800), Color(0xFFBB55)), orange20)
+
+        val orange11 = ProgressBarRenderer.getBalanceColor(11)
+        assertEquals(JBColor(Color(0xCC8800), Color(0xFFBB55)), orange11)
     }
 
     @Test
-    fun `buildProgressBarHtml hides percentage without label`() {
-        val html = ProgressBarRenderer.buildProgressBarHtml(75, showLabel = false)
+    fun `getBalanceColor returns red for critical remaining`() {
+        val red10 = ProgressBarRenderer.getBalanceColor(10)
+        assertEquals(JBColor(Color(0xCC4444), Color(0xFF7777)), red10)
 
-        assertFalse(html.contains("75%"))
-    }
+        val red5 = ProgressBarRenderer.getBalanceColor(5)
+        assertEquals(JBColor(Color(0xCC4444), Color(0xFF7777)), red5)
 
-    @Test
-    fun `buildProgressBarHtml uses correct color`() {
-        val html = ProgressBarRenderer.buildProgressBarHtml(50, color = "#00FF00")
-
-        assertTrue(html.contains("#00FF00"))
-    }
-
-    @Test
-    fun `buildProgressBarHtml coerces percent to 0-100`() {
-        val htmlNegative = ProgressBarRenderer.buildProgressBarHtml(-10)
-        val htmlOver = ProgressBarRenderer.buildProgressBarHtml(150)
-
-        assertTrue(htmlNegative.contains("0%"))
-        assertTrue(htmlOver.contains("100%"))
-    }
-
-    @Test
-    fun `buildProgressBarHtml has at least one filled block for non-zero percent`() {
-        val html = ProgressBarRenderer.buildProgressBarHtml(1, barWidth = 15)
-
-        assertTrue(html.contains("█"))
-    }
-
-    @Test
-    fun `buildProgressBarHtml is all empty for zero percent`() {
-        val html = ProgressBarRenderer.buildProgressBarHtml(0, barWidth = 5)
-
-        // Should have 5 empty blocks and 0 filled
-        assertTrue(html.contains("░░░░░"))
-        assertFalse(html.contains("█"))
-    }
-
-    @Test
-    fun `buildProgressBarHtml uses custom bar width`() {
-        val html = ProgressBarRenderer.buildProgressBarHtml(100, barWidth = 10)
-
-        // Should have 10 filled blocks
-        assertTrue(html.contains("██████████"))
-    }
-
-    @Test
-    fun `buildUsageSection contains label`() {
-        val html = ProgressBarRenderer.buildUsageSection("Session", 50)
-
-        assertTrue(html.contains("Session"))
-    }
-
-    @Test
-    fun `buildUsageSection includes progress bar`() {
-        val html = ProgressBarRenderer.buildUsageSection("Weekly", 75)
-
-        assertTrue(html.contains("█"))
-        assertTrue(html.contains("75%"))
-    }
-
-    @Test
-    fun `buildUsageSection shows reset time when provided`() {
-        val html = ProgressBarRenderer.buildUsageSection("Daily", 30, "Tomorrow at midnight")
-
-        assertTrue(html.contains("Resets:"))
-        assertTrue(html.contains("Tomorrow at midnight"))
-    }
-
-    @Test
-    fun `buildUsageSection omits reset row when not provided`() {
-        val html = ProgressBarRenderer.buildUsageSection("Session", 50, null)
-
-        assertFalse(html.contains("Resets:"))
-    }
-
-    @Test
-    fun `buildUsageSection has table rows`() {
-        val html = ProgressBarRenderer.buildUsageSection("Test", 25)
-
-        assertTrue(html.contains("<tr>"))
-        assertTrue(html.contains("<td"))
+        val red0 = ProgressBarRenderer.getBalanceColor(0)
+        assertEquals(JBColor(Color(0xCC4444), Color(0xFF7777)), red0)
     }
 }

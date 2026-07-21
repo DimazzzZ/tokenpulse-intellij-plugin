@@ -101,14 +101,18 @@ class ClaudeCredentialReader(
     /**
      * Check if the access token has expired.
      *
-     * @return true if expired or expiration unknown, false if still valid
+     * @return true only when we can prove the token is expired (a parseable
+     *   `expiresAt` in the past, minus a small skew buffer). When `expiresAt`
+     *   is missing or unparseable we return false ("unknown => assume usable")
+     *   and let the usage API's real 401 be the authoritative signal — this
+     *   avoids reporting a logged-in user as expired on a schema/parse hiccup.
      */
     fun isTokenExpired(): Boolean {
-        val expiresAt = readExpiresAt() ?: return true
+        val expiresAt = readExpiresAt()
         val now = System.currentTimeMillis()
-        val expired = now >= expiresAt
+        val expired = isClaudeTokenExpired(expiresAt, now)
         if (expired) {
-            logDebug("Token expired (expiresAt=$expiresAt, now=$now)")
+            logDebug("Token expired (expiresAt=$expiresAt, now=$now, skewMs=$CLAUDE_TOKEN_EXPIRY_SKEW_MS)")
         }
         return expired
     }
@@ -282,4 +286,27 @@ class ClaudeCredentialReader(
 
     private fun logDebug(msg: String) = TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] $msg")
     private fun logWarn(msg: String) = TokenPulseLogger.Provider.warn("[ClaudeCredentialReader] $msg")
+}
+
+/**
+ * Grace buffer applied before an access token's expiry. We proactively refresh
+ * up to this long before the real expiry to absorb minor clock skew between the
+ * host and Anthropic and to avoid using a token in its final moments.
+ */
+internal const val CLAUDE_TOKEN_EXPIRY_SKEW_MS = 60_000L
+
+/**
+ * Pure expiry decision, extracted so it can be unit-tested without a live
+ * credential store.
+ *
+ * - `expiresAt == null` (missing/unparseable) => `false`: we cannot prove the
+ *   token is expired, so treat it as usable and let the usage API's 401 be the
+ *   authoritative signal.
+ * - Otherwise expired when `now >= expiresAt - [CLAUDE_TOKEN_EXPIRY_SKEW_MS]`.
+ *
+ * Both timestamps are Unix epoch milliseconds.
+ */
+internal fun isClaudeTokenExpired(expiresAt: Long?, now: Long): Boolean {
+    if (expiresAt == null) return false
+    return now >= expiresAt - CLAUDE_TOKEN_EXPIRY_SKEW_MS
 }

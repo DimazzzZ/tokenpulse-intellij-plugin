@@ -3,92 +3,71 @@ package org.zhavoronkov.tokenpulse.ui
 import org.zhavoronkov.tokenpulse.provider.cline.ClineProviderClient
 
 /**
- * Renders optional ClinePass usage information for the Cline tooltip.
+ * Represents a single ClinePass usage metric extracted from provider metadata.
  *
- * The renderer consumes only the provider-specific metadata keys populated by
- * [ClineProviderClient] and produces HTML rows compatible with the existing
- * status bar tooltip table.
+ * @property label Human-readable label (e.g. "5-hour", "Weekly", "Monthly").
+ * @property percent Usage percentage (0–100).
+ * @property resetAt Optional reset timestamp string.
+ */
+data class ClinePassMetric(
+    val label: String,
+    val percent: Int,
+    val resetAt: String?
+)
+
+/**
+ * Extracts optional ClinePass usage information from provider metadata.
  *
- * When ClinePass metadata is absent, [buildRows] produces an empty string so
- * the caller renders no ClinePass-specific content. When ClinePass metadata
- * is available, the output is a self-contained "ClinePass" section with a
- * labeled header and usage rows (5-hour / Weekly / Monthly).
+ * The extractor consumes only the provider-specific metadata keys populated by
+ * [ClineProviderClient] and produces structured [ClinePassMetric] objects.
+ * The tooltip panel ([TokenPulseTooltipPanel]) is responsible for rendering
+ * these metrics as Swing rows.
+ *
+ * When ClinePass metadata is absent, [extractMetrics] returns an empty list so
+ * the caller renders no ClinePass-specific content.
  */
 object ClinePassUsageRenderer {
 
     /** Title used for the ClinePass subsection header row. */
     const val SECTION_TITLE: String = "ClinePass"
 
-    /** Color used for the ClinePass section header text. */
-    private const val SECTION_HEADER_COLOR: String = "#BBBBBB"
-
     /**
      * Returns `true` if at least one recognized ClinePass usage field is present
      * in [metadata]. Used to decide whether the tooltip should show ClinePass rows.
      */
     fun hasUsage(metadata: Map<String, String>?): Boolean {
-        if (metadata == null) return false
-        return metadata.any { (key, value) ->
-            key in USED_KEYS && !value.isNullOrBlank()
-        }
+        return extractMetrics(metadata).isNotEmpty()
     }
 
     /**
-     * Builds the ClinePass usage section of the tooltip as raw HTML rows.
+     * Extracts ClinePass usage metrics from [metadata] in a deterministic order:
+     * 5-hour → Weekly → Monthly.
      *
-     * Returns an empty string when no recognized ClinePass usage is available.
-     * Recognized usage entries are rendered in the order: 5-hour, Weekly, Monthly,
-     * each via [ProgressBarRenderer.buildUsageSection].
+     * Returns an empty list when no recognized ClinePass usage is available.
      */
-    fun buildRows(metadata: Map<String, String>?): String {
-        if (!hasUsage(metadata) || metadata == null) return ""
+    fun extractMetrics(metadata: Map<String, String>?): List<ClinePassMetric> {
+        if (metadata == null) return emptyList()
 
-        return buildString {
-            append(sectionHeaderRow())
-            val fiveHour = metadata[ClineProviderClient.METADATA_FIVE_HOUR_USED]?.toIntOrNull()
-            if (fiveHour != null) {
-                append(
-                    ProgressBarRenderer.buildUsageSection(
-                        "5-hour",
-                        fiveHour,
-                        metadata[ClineProviderClient.METADATA_FIVE_HOUR_RESETS_AT]
-                    )
-                )
-            }
-            val weekly = metadata[ClineProviderClient.METADATA_WEEKLY_USED]?.toIntOrNull()
-            if (weekly != null) {
-                append(
-                    ProgressBarRenderer.buildUsageSection(
-                        "Weekly",
-                        weekly,
-                        metadata[ClineProviderClient.METADATA_WEEKLY_RESETS_AT]
-                    )
-                )
-            }
-            val monthly = metadata[ClineProviderClient.METADATA_MONTHLY_USED]?.toIntOrNull()
-            if (monthly != null) {
-                append(
-                    ProgressBarRenderer.buildUsageSection(
-                        "Monthly",
-                        monthly,
-                        metadata[ClineProviderClient.METADATA_MONTHLY_RESETS_AT]
-                    )
-                )
-            }
+        val metrics = mutableListOf<ClinePassMetric>()
+        val fiveHour = metadata[ClineProviderClient.METADATA_FIVE_HOUR_USED]?.toIntOrNull()
+        if (fiveHour != null) {
+            metrics.add(ClinePassMetric("5-hour", fiveHour, metadata[ClineProviderClient.METADATA_FIVE_HOUR_RESETS_AT]))
         }
+        val weekly = metadata[ClineProviderClient.METADATA_WEEKLY_USED]?.toIntOrNull()
+        if (weekly != null) {
+            metrics.add(ClinePassMetric("Weekly", weekly, metadata[ClineProviderClient.METADATA_WEEKLY_RESETS_AT]))
+        }
+        val monthly = metadata[ClineProviderClient.METADATA_MONTHLY_USED]?.toIntOrNull()
+        if (monthly != null) {
+            metrics.add(ClinePassMetric("Monthly", monthly, metadata[ClineProviderClient.METADATA_MONTHLY_RESETS_AT]))
+        }
+        return metrics
     }
 
     /**
-     * Render the ClinePass subsection header row. Inlined (rather than reusing
-     * a shared progress-bar primitive) so this renderer stays self-contained
-     * and does not depend on optional progress-bar helper additions.
+     * Returns the set of recognized ClinePass usage metadata keys.
      */
-    private fun sectionHeaderRow(): String {
-        return "<tr><td colspan='2' style='padding-top: 4px;'>" +
-            "<font color='$SECTION_HEADER_COLOR'><b>$SECTION_TITLE</b></font></td></tr>"
-    }
-
-    private val USED_KEYS = setOf(
+    val USED_KEYS = setOf(
         ClineProviderClient.METADATA_FIVE_HOUR_USED,
         ClineProviderClient.METADATA_WEEKLY_USED,
         ClineProviderClient.METADATA_MONTHLY_USED

@@ -1,5 +1,6 @@
 package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 
+import org.zhavoronkov.tokenpulse.settings.isAutoNamedClaudeOrg
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.io.File
 
@@ -110,7 +111,10 @@ object ClaudeAccountDiscovery {
         val org = identity?.organizationName?.takeIf { it.isNotBlank() }
         val display = identity?.displayName?.takeIf { it.isNotBlank() }
         return when {
-            email != null && org != null -> "$email • $org"
+            // Anthropic auto-names a personal org "<email>'s Organization",
+            // which would repeat the email in the label. Drop the org in that
+            // case; keep it for real/custom org names.
+            email != null && org != null && !isAutoNamedClaudeOrg(email, org) -> "$email • $org"
             email != null -> email
             display != null -> display
             else -> File(dir).name.ifBlank { dir }

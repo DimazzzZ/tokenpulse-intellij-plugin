@@ -449,6 +449,84 @@ class SanitizeAccountsTest {
         val sanitized = accounts.sanitizeAccounts()
         assertEquals("", sanitized[0].keyPreview)
     }
+
+    @Test
+    fun `sanitizeAccounts collapses stale auto-org Claude name`() {
+        // Pre-fix persisted form: "email • email's Organization" (straight apostrophe).
+        val accounts = listOf(
+            Account(
+                connectionType = ConnectionType.CLAUDE_CODE,
+                authType = AuthType.CLAUDE_CODE_LOCAL,
+                name = "dimaz.lark@gmail.com • dimaz.lark@gmail.com's Organization",
+                keyPreview = "~/.claude",
+                claudeConfigDir = null
+            )
+        )
+        val sanitized = accounts.sanitizeAccounts()
+        assertEquals("dimaz.lark@gmail.com", sanitized[0].name)
+    }
+
+    @Test
+    fun `sanitizeAccounts collapses stale auto-org Claude name with curly apostrophe`() {
+        val accounts = listOf(
+            Account(
+                connectionType = ConnectionType.CLAUDE_CODE,
+                authType = AuthType.CLAUDE_CODE_LOCAL,
+                name = "a@b.com • a@b.com\u2019s Organization",
+                keyPreview = "~/.claude",
+                claudeConfigDir = null
+            )
+        )
+        val sanitized = accounts.sanitizeAccounts()
+        assertEquals("a@b.com", sanitized[0].name)
+    }
+
+    @Test
+    fun `sanitizeAccounts keeps real org name on Claude account`() {
+        val accounts = listOf(
+            Account(
+                connectionType = ConnectionType.CLAUDE_CODE,
+                authType = AuthType.CLAUDE_CODE_LOCAL,
+                name = "me@example.com • Acme",
+                keyPreview = "~/.claude",
+                claudeConfigDir = null
+            )
+        )
+        val sanitized = accounts.sanitizeAccounts()
+        assertEquals("me@example.com • Acme", sanitized[0].name)
+    }
+
+    @Test
+    fun `sanitizeAccounts leaves Claude name without separator untouched`() {
+        val accounts = listOf(
+            Account(
+                connectionType = ConnectionType.CLAUDE_CODE,
+                authType = AuthType.CLAUDE_CODE_LOCAL,
+                name = "a@b.com",
+                keyPreview = "~/.claude",
+                claudeConfigDir = null
+            )
+        )
+        val sanitized = accounts.sanitizeAccounts()
+        assertEquals("a@b.com", sanitized[0].name)
+    }
+
+    @Test
+    fun `sanitizeAccounts does not touch auto-org-shaped name on non-Claude account`() {
+        // A non-Claude account with a name that happens to have this shape
+        // must NOT be rewritten — the migration is Claude-only.
+        val accounts = listOf(
+            Account(
+                connectionType = ConnectionType.OPENROUTER_PROVISIONING,
+                authType = AuthType.OPENROUTER_PROVISIONING_KEY,
+                name = "user@ex.com • user@ex.com's Organization",
+                keyPreview = "",
+                claudeConfigDir = null
+            )
+        )
+        val sanitized = accounts.sanitizeAccounts()
+        assertEquals("user@ex.com • user@ex.com's Organization", sanitized[0].name)
+    }
 }
 
 /**

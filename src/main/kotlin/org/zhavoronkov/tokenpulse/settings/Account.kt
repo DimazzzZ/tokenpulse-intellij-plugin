@@ -206,10 +206,51 @@ fun List<Account>.sanitizeAccounts(): List<Account> = map { account ->
         account.keyPreview
     }
 
+    // Strip stale auto-org tail from persisted Claude names on load. Old runs
+    // stored `"$email • $email's Organization"` when Anthropic auto-named the
+    // personal org. `labelFor` now avoids producing that form for fresh
+    // labels, but existing tokenpulse.xml entries need this one-time collapse.
+    val finalName = if (validConnectionType == ConnectionType.CLAUDE_CODE) {
+        collapseAutoNamedClaudeOrg(account.name)
+    } else {
+        account.name
+    }
+
     account.copy(
         connectionType = validConnectionType,
         authType = finalAuthType,
         isEnabled = account.isEnabled,
-        keyPreview = finalKeyPreview
+        keyPreview = finalKeyPreview,
+        name = finalName
     )
+}
+
+/**
+ * True when [org] is Anthropic's auto-generated personal-org name for [email]
+ * (e.g. "user@example.com's Organization"), which just repeats the email.
+ * Accepts both straight (') and curly (\u2019) apostrophe variants.
+ *
+ * Shared by [ClaudeAccountDiscovery.labelFor] (fresh label derivation) and
+ * [collapseAutoNamedClaudeOrg] (migration of already-persisted names) so both
+ * stay in sync.
+ */
+internal fun isAutoNamedClaudeOrg(email: String, org: String): Boolean =
+    org.equals("$email's Organization", ignoreCase = true) ||
+        org.equals("$email\u2019s Organization", ignoreCase = true)
+
+/**
+ * Collapses a persisted Claude account [name] of the exact form
+ * `"<email> • <email>'s Organization"` down to just `"<email>"`. Any other
+ * value (real team-org labels, user-edited names, names without " • ", or a
+ * right side that isn't the auto-named org for the left) is returned unchanged.
+ */
+internal fun collapseAutoNamedClaudeOrg(name: String): String {
+    val separator = " • "
+    val idx = name.indexOf(separator)
+    if (idx < 0) return name
+    val left = name.substring(0, idx)
+    val right = name.substring(idx + separator.length)
+    // Only collapse the simple two-part form; leave anything more complex.
+    if (right.contains(separator)) return name
+    return if (left.isNotBlank() && isAutoNamedClaudeOrg(left, right)) left else name
 }

@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Rich status-bar tooltip** — hovering the status-bar widget now shows a native Swing popup
+  with real progress bars for each provider/account, replacing the old HTML tooltip; theme-aware
+  colors and screen-clamped positioning so it always fits on screen.
+- **Humanized reset times** — quota reset timestamps render as `Today 14:30`, `Tomorrow 09:00`,
+  `Wed 09:00`, or `Aug 3, 14:30` instead of raw ISO strings.
 - **Claude Code multi-account support** — discovers and tracks every Claude account on disk
   (default `~/.claude` plus any `CLAUDE_CONFIG_DIR` locations, including suffixed macOS Keychain
   entries), adding one row per account with its own config dir.
@@ -15,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `oauthAccount` (email • organization) on first successful refresh.
 
 ### Changed
+- **Progress-bar rendering** — the status-bar tooltip is now assembled as a Swing panel
+  (`TokenPulseTooltipPanel` + `TooltipModel`) instead of generated HTML, and `ProgressBarRenderer`
+  is now a theme-aware color helper (returns `JBColor`s rather than HTML strings).
+- **Claude account labels** — auto-named personal organizations (`"<email>'s Organization"`) are
+  collapsed so the label shows just the email; real organization names still display as
+  `email • Organization`. Existing persisted names are migrated on load.
+- **Refresh-failure notifications are auth-type aware** — API-key providers (Cline, OpenAI API key,
+  Xiaomi, OpenRouter provisioning) get a "re-enter your API key" hint on an auth error, while
+  CLI/OAuth/session providers (Claude Code, Codex CLI, OpenAI OAuth, Nebius session, OpenRouter
+  bridge) show only the provider's own (already actionable) message.
 - **Claude Code usage now uses the OAuth API exclusively** — reads the credentials `claude` already stored
   (macOS Keychain / `~/.claude/.credentials.json`) and calls the usage endpoint directly, with
   automatic token refresh on expiry, instead of scraping `claude` CLI output.
@@ -24,6 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Claude helper renamed and split** — `ClaudeCliExecutor` is now `ClaudeCliDetector`
   (its public surface is just `isInstalled()` + `verifyVersion()`), and OS detection moved to
   a provider-agnostic `HostOs` enum + `detectHostOs()` in `utils`.
+
+### Fixed
+- **Logged-in Claude users no longer shown as "session expired"** — a missing or unparseable token
+  expiry is treated as usable (with a small clock-skew buffer); only a genuine `invalid_grant`
+  refresh failure is treated as an auth error, and a usage `403` is reported as an
+  access/permission problem instead of a login prompt (now also sends `anthropic-version`).
 
 ### Removed
 - **`ClaudeConnectDialog`** — replaced by inline account discovery in the Add-Account dialog.
