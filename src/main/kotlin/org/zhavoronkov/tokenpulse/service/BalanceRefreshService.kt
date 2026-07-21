@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.zhavoronkov.tokenpulse.model.ProviderResult
+import org.zhavoronkov.tokenpulse.settings.AuthType
 import org.zhavoronkov.tokenpulse.settings.CredentialsStore
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
 import org.zhavoronkov.tokenpulse.ui.TokenPulseNotifier
@@ -97,7 +98,7 @@ class BalanceRefreshService : Disposable {
         coordinator.refreshAccount(account, force) { newResult ->
             publishBalanceUpdate(accountId, newResult)
             logRefreshResult(accountId, newResult)
-            handleNotifications(account.displayLabel(), oldResult, newResult)
+            handleNotifications(account.displayLabel(), account.authType, oldResult, newResult)
         }
     }
 
@@ -150,9 +151,14 @@ class BalanceRefreshService : Disposable {
         )
     }
 
-    private fun handleNotifications(accountLabel: String, old: ProviderResult?, new: ProviderResult) {
+    private fun handleNotifications(
+        accountLabel: String,
+        authType: AuthType,
+        old: ProviderResult?,
+        new: ProviderResult
+    ) {
         when {
-            new is ProviderResult.Failure -> handleFailureNotification(accountLabel, old, new)
+            new is ProviderResult.Failure -> handleFailureNotification(accountLabel, authType, old, new)
             new is ProviderResult.Success && old is ProviderResult.Failure ->
                 TokenPulseNotifier.notifyInfo(null, "Account $accountLabel is back online.")
         }
@@ -160,6 +166,7 @@ class BalanceRefreshService : Disposable {
 
     private fun handleFailureNotification(
         accountLabel: String,
+        authType: AuthType,
         old: ProviderResult?,
         new: ProviderResult.Failure
     ) {
@@ -182,7 +189,7 @@ class BalanceRefreshService : Disposable {
         }
 
         if (shouldNotify) {
-            val message = buildErrorMessage(accountLabel, new)
+            val message = composeNotificationMessage(accountLabel, new, authType)
             TokenPulseNotifier.notifyError(null, message)
             notificationTracker[fingerprint] = now
         }
@@ -198,19 +205,6 @@ class BalanceRefreshService : Disposable {
             .trim()
     }
 
-    /**
-     * Builds a more actionable error message for credential-related failures.
-     */
-    private fun buildErrorMessage(accountLabel: String, failure: ProviderResult.Failure): String {
-        val baseMessage = "Failed to refresh $accountLabel: ${failure.message}"
-
-        // Add actionable hint for credential issues
-        if (isCredentialRelatedFailure(failure)) {
-            return "$baseMessage Please re-enter your API key in TokenPulse Settings."
-        }
-
-        return baseMessage
-    }
 
     override fun dispose() {
         scope.cancel()
@@ -223,4 +217,48 @@ class BalanceRefreshService : Disposable {
     companion object {
         fun getInstance(): BalanceRefreshService = service()
     }
+}
+
+/**
+ * Composes the final user-facing notification message for a failed refresh.
+ *
+ * Appends "Please re-enter your API key in TokenPulse Settings." ONLY for auth
+ * types where the user actually manages an API key in Settings. OAuth / CLI /
+ * session-backed auth types have provider messages that are already actionable
+ * (e.g. "run `claude` to re-authenticate"), so no generic hint is appended —
+ * otherwise the two CTAs would contradict each other.
+ *
+ * Top-level pure function so it is unit-testable without instantiating the
+ * `@Service` (whose init block needs a live IDE application).
+ */
+internal fun composeNotificationMessage(
+    accountLabel: String,
+    failure: ProviderResult.Failure,
+    authType: AuthType
+): String {
+    val baseMessage = "Failed to refresh $accountLabel: ${failure.message}"
+    return if (failure is ProviderResult.Failure.AuthError && isApiKeyAuth(authType)) {
+        "$baseMessage Please re-enter your API key in TokenPulse Settings."
+    } else {
+        baseMessage
+    }
+}
+
+/**
+ * Allowlist of auth types where the user directly enters/pastes an API key in
+ * TokenPulse Settings. Anything else (OAuth flows, CLI-local sessions, browser
+ * session capture, plugin bridges) is handled outside Settings and must NOT
+ * trigger the "re-enter your API key" hint.
+ */
+internal fun isApiKeyAuth(authType: AuthType): Boolean = when (authType) {
+    AuthType.CLINE_API_KEY,
+    AuthType.OPENAI_API_KEY,
+    AuthType.XIAOMI_API_KEY,
+    AuthType.XIAOMI_TOKEN_PLAN_KEY,
+    AuthType.OPENROUTER_PROVISIONING_KEY -> true
+    AuthType.CLAUDE_CODE_LOCAL,
+    AuthType.CODEX_CLI_LOCAL,
+    AuthType.OPENAI_OAUTH,
+    AuthType.NEBIUS_BILLING_SESSION,
+    AuthType.OPENROUTER_PLUGIN_BRIDGE -> false
 }
