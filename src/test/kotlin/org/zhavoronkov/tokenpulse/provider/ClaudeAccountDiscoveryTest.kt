@@ -79,6 +79,35 @@ class ClaudeAccountDiscoveryTest {
     }
 
     @Test
+    fun `labelFor drops auto-named personal org that just repeats the email`() {
+        val email = "dimaz.lark@gmail.com"
+        val straight = ClaudeAccountIdentity(
+            emailAddress = email,
+            organizationName = "$email's Organization",
+            displayName = null,
+        )
+        assertEquals(email, ClaudeAccountDiscovery.labelFor(straight, "/x/.claude"))
+
+        // Curly-apostrophe variant should also be treated as auto-named.
+        val curly = ClaudeAccountIdentity(
+            emailAddress = email,
+            organizationName = "$email\u2019s Organization",
+            displayName = null,
+        )
+        assertEquals(email, ClaudeAccountDiscovery.labelFor(curly, "/x/.claude"))
+    }
+
+    @Test
+    fun `labelFor keeps a real custom org name`() {
+        val identity = ClaudeAccountIdentity(
+            emailAddress = "me@example.com",
+            organizationName = "Acme",
+            displayName = null,
+        )
+        assertEquals("me@example.com • Acme", ClaudeAccountDiscovery.labelFor(identity, "/x/.claude"))
+    }
+
+    @Test
     fun `probe reads identity from configDir and stores raw dir for non-default`(@TempDir home: File) {
         val workDir = File(home, ".claude-work").apply { mkdirs() }
         File(workDir, ".claude.json").writeText(
