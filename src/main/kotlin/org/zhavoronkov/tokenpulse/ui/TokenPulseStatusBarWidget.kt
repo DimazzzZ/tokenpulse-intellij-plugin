@@ -1,19 +1,19 @@
 package org.zhavoronkov.tokenpulse.ui
 
+import com.intellij.ide.IdeTooltip
+import com.intellij.ide.IdeTooltipManager
+import com.intellij.ide.TooltipEvent
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.popup.Balloon
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.ui.popup.ListPopup
+import com.intellij.openapi.wm.CustomStatusBarWidget
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.StatusBarWidgetFactory
-import com.intellij.openapi.wm.CustomStatusBarWidget
 import com.intellij.openapi.wm.impl.status.TextPanel
-import com.intellij.ide.IdeTooltip
-import com.intellij.ide.IdeTooltipManager
-import com.intellij.ide.TooltipEvent
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
@@ -91,7 +91,10 @@ class TokenPulseStatusBarWidget :
             .subscribe(
                 BalanceUpdatedTopic.TOPIC,
                 object : BalanceUpdatedListener {
-                    override fun balanceUpdated(accountId: String, result: org.zhavoronkov.tokenpulse.model.ProviderResult) {
+                    override fun balanceUpdated(
+                        accountId: String,
+                        result: org.zhavoronkov.tokenpulse.model.ProviderResult
+                    ) {
                         statusBar.updateWidget(ID())
                         myComponent?.refresh()
                     }

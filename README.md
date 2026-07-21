@@ -27,6 +27,7 @@
 - **🔄 Smart Refresh** — Configurable auto-refresh with TTL caching and single-flight coalescing to avoid rate limits.
 - **🔐 Secure Storage** — API keys are stored securely using IntelliJ's built-in `PasswordSafe`.
 - **📈 Dashboard Overview** — Detailed table view showing per-account provider, key preview, status, last refresh time, and credits.
+- **🛈 Rich Hover Tooltip** — Hover the status-bar widget for a per-account breakdown with live progress bars, theme-aware colors, and humanized quota reset times (`Today 14:30`, `Wed 09:00`, …).
 - **📉 Balance History Chart** — Visual chart showing balance trends over time (24h, 7d, 30d, all time).
 - **🚀 Onboarding & Updates** — Friendly welcome notification for new users and "What's New" highlights after updates.
 
@@ -150,7 +151,7 @@ on Linux). They are never written to plain-text settings files.
 
 ### The status bar shows "—" or "Error"
 
-- **Auth Error** — the key is invalid or has been revoked. Re-generate it from the provider's dashboard.
+- **Auth Error** — for API-key providers (Cline, OpenRouter, OpenAI, Xiaomi) the key is invalid or revoked; re-generate it from the provider's dashboard and re-enter it in TokenPulse. For CLI/OAuth providers (Claude Code, ChatGPT/Codex, Nebius) the login expired; re-run the CLI login (e.g. `claude login`) or reconnect the session — the notification tells you which action applies.
 - **Rate Limited** — too many requests. Increase the refresh interval in Settings → TokenPulse.
 - **Error** — a network or API error. Check your internet connection and try "Refresh All" from the dashboard.
 - **$X.XX used** — OpenAI account showing usage data (not a balance).

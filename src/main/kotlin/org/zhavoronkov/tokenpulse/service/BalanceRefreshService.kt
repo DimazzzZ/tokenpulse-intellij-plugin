@@ -205,7 +205,6 @@ class BalanceRefreshService : Disposable {
             .trim()
     }
 
-
     override fun dispose() {
         scope.cancel()
     }

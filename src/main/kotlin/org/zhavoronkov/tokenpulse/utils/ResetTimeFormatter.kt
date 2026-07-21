@@ -1,7 +1,6 @@
 package org.zhavoronkov.tokenpulse.utils
 
 import java.time.Instant
-import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZonedDateTime

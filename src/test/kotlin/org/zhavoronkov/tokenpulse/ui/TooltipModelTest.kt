@@ -127,7 +127,10 @@ class TooltipModelTest {
             ConnectionType.NEBIUS_BILLING,
             breakdown = NebiusBalanceBreakdown(paidRemaining = BigDecimal("7.00")),
         )
-        assertEquals(TooltipRow.LabelValue("Paid:", "$7.00", bold = true), rows(ConnectionType.NEBIUS_BILLING, r).last())
+        assertEquals(
+            TooltipRow.LabelValue("Paid:", "$7.00", bold = true),
+            rows(ConnectionType.NEBIUS_BILLING, r).last()
+        )
     }
 
     @Test
@@ -201,7 +204,10 @@ class TooltipModelTest {
                 "codexErrorDetail" to "brew missing",
             ),
         )
-        assertEquals(listOf(TooltipRow.Info("Codex CLI not installed: brew missing")), rows(ConnectionType.CODEX_CLI, r))
+        assertEquals(
+            listOf(TooltipRow.Info("Codex CLI not installed: brew missing")),
+            rows(ConnectionType.CODEX_CLI, r)
+        )
     }
 
     @Test
@@ -358,7 +364,10 @@ class TooltipModelTest {
     @Test
     fun `rate limited is a warning error`() {
         val r = ProviderResult.Failure.RateLimited("slow down")
-        assertEquals(listOf(TooltipRow.Error("Rate limited (retry later)", warning = true)), rows(ConnectionType.CLINE_API, r))
+        assertEquals(
+            listOf(TooltipRow.Error("Rate limited (retry later)", warning = true)),
+            rows(ConnectionType.CLINE_API, r)
+        )
     }
 
     @Test
@@ -369,8 +378,14 @@ class TooltipModelTest {
 
     @Test
     fun `parse and unknown errors map to connection error`() {
-        assertEquals(listOf(TooltipRow.Error("Connection error")), rows(ConnectionType.CLINE_API, ProviderResult.Failure.ParseError("x")))
-        assertEquals(listOf(TooltipRow.Error("Connection error")), rows(ConnectionType.CLINE_API, ProviderResult.Failure.UnknownError("y")))
+        assertEquals(
+            listOf(TooltipRow.Error("Connection error")),
+            rows(ConnectionType.CLINE_API, ProviderResult.Failure.ParseError("x"))
+        )
+        assertEquals(
+            listOf(TooltipRow.Error("Connection error")),
+            rows(ConnectionType.CLINE_API, ProviderResult.Failure.UnknownError("y"))
+        )
     }
 
     @Test

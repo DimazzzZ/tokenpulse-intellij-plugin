@@ -25,7 +25,11 @@ internal object TooltipModel {
     internal sealed interface TooltipRow {
         data class LabelValue(val label: String, val value: String, val bold: Boolean = false) : TooltipRow
         data class UsageBar(val label: String, val percent: Int, val resetInline: String?) : TooltipRow
-        data class BalanceBar(val label: String, val remainingPercent: Int, val resetInline: String? = null) : TooltipRow
+        data class BalanceBar(
+            val label: String,
+            val remainingPercent: Int,
+            val resetInline: String? = null
+        ) : TooltipRow
         data class Info(val message: String) : TooltipRow
         data class Error(val message: String, val warning: Boolean = false) : TooltipRow
         data class SectionHeader(val title: String) : TooltipRow
@@ -116,31 +120,49 @@ internal object TooltipModel {
         val email = metadata["email"]
         if (email != null && email != "unknown") rows.add(TooltipRow.LabelValue("Account:", email))
 
+        if (tryAppendCodexRateLimits(rows, metadata)) return
+
+        codexStatusMessage(metadata, planType)?.let { rows.add(TooltipRow.Info(it)) }
+    }
+
+    /**
+     * Emit the three optional rate-limit bars ("5-hour", "Weekly", "Code
+     * Review") when the payload carries any of them. Returns true when at
+     * least one raw value was present (i.e. the caller should short-circuit
+     * the error/enable-hint branch).
+     */
+    private fun tryAppendCodexRateLimits(
+        rows: MutableList<TooltipRow>,
+        metadata: Map<String, String>,
+    ): Boolean {
         val fiveHourUsed = metadata["fiveHourUsed"]
         val weeklyUsed = metadata["weeklyUsed"]
         val codeReviewUsed = metadata["codeReviewUsed"]
         val hasRateLimits = (fiveHourUsed != null && fiveHourUsed != "N/A") ||
             (weeklyUsed != null && weeklyUsed != "N/A") ||
             (codeReviewUsed != null && codeReviewUsed != "N/A")
-
-        if (hasRateLimits) {
-            fiveHourUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let {
-                rows.add(TooltipRow.BalanceBar("5-hour", (100 - it).coerceIn(0, 100)))
-            }
-            weeklyUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let {
-                rows.add(TooltipRow.BalanceBar("Weekly", (100 - it).coerceIn(0, 100)))
-            }
-            codeReviewUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let {
-                rows.add(TooltipRow.BalanceBar("Code Review", (100 - it).coerceIn(0, 100)))
-            }
-            return
+        if (!hasRateLimits) return false
+        fiveHourUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let {
+            rows.add(TooltipRow.BalanceBar("5-hour", (100 - it).coerceIn(0, 100)))
         }
+        weeklyUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let {
+            rows.add(TooltipRow.BalanceBar("Weekly", (100 - it).coerceIn(0, 100)))
+        }
+        codeReviewUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let {
+            rows.add(TooltipRow.BalanceBar("Code Review", (100 - it).coerceIn(0, 100)))
+        }
+        return true
+    }
 
+    /**
+     * Produce the single-line status/error message for a Codex payload that
+     * has no rate-limit data. Returns null when there is nothing to say
+     * (free plan without codex enabled).
+     */
+    private fun codexStatusMessage(metadata: Map<String, String>, planType: String?): String? {
         val codexEnabled = metadata["codexEnabled"]
-        val codexError = metadata["codexError"]
-        val codexErrorDetail = metadata["codexErrorDetail"]
         if (codexEnabled == "true") {
-            val errorMsg = when (codexError) {
+            val errorMsg = when (metadata["codexError"]) {
                 "not_installed" -> "Codex CLI not installed"
                 "not_authenticated" -> "Codex not logged in"
                 "app_server_start_failed" -> "Codex app-server failed"
@@ -148,12 +170,10 @@ internal object TooltipModel {
                 "token_expired" -> "Codex session expired"
                 else -> "Usage data unavailable"
             }
-            val detail = codexErrorDetail?.takeIf { it.isNotBlank() }
-            val fullMsg = if (detail != null) "$errorMsg: ${truncate(detail, 60)}" else errorMsg
-            rows.add(TooltipRow.Info(fullMsg))
-        } else if (planType?.lowercase() != "free") {
-            rows.add(TooltipRow.Info("Enable Codex for usage tracking"))
+            val detail = metadata["codexErrorDetail"]?.takeIf { it.isNotBlank() }
+            return if (detail != null) "$errorMsg: ${truncate(detail, 60)}" else errorMsg
         }
+        return if (planType?.lowercase() != "free") "Enable Codex for usage tracking" else null
     }
 
     private fun appendClaudeCodeRows(rows: MutableList<TooltipRow>, metadata: Map<String, String>?) {

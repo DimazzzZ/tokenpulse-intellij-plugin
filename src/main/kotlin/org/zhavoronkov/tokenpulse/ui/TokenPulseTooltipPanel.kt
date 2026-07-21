@@ -10,8 +10,8 @@ import org.zhavoronkov.tokenpulse.model.ProviderResult
 import org.zhavoronkov.tokenpulse.service.BalanceRefreshService
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
-import org.zhavoronkov.tokenpulse.utils.Constants
 import org.zhavoronkov.tokenpulse.ui.TooltipModel.TooltipRow
+import org.zhavoronkov.tokenpulse.utils.Constants
 import java.awt.Color
 import java.awt.Component
 import java.awt.Dimension
@@ -52,12 +52,18 @@ object TokenPulseTooltipPanel {
     /** Left indent (dip) of data rows under their connection label. */
     private const val INDENT_ROW = 20
 
+    /** Top gap (dip) above every bar row; bars are never section headers. */
+    private const val BAR_ROW_TOP_GAP = 2
+
     /** Empty/unfilled portion of a bar (matches ProgressBarRenderer). */
     private val COLOR_EMPTY = JBColor(Color(0xDDDDDD), Color(0x555555))
 
     private val COLOR_ERROR = JBColor(Color(0xCC4444), Color(0xFF7777))
     private val COLOR_WARNING = JBColor(Color(0xCC8800), Color(0xFFBB55))
     private val COLOR_OK = JBColor(Color(0x44AA44), Color(0x66DD66))
+
+    /** Thin gray divider between account blocks. Same tone in light and dark. */
+    private val COLOR_SEPARATOR = JBColor(Color(0x888888), Color(0x888888))
 
     /**
      * Builds a fresh tooltip component from the current settings and results.
@@ -132,7 +138,7 @@ object TokenPulseTooltipPanel {
     private fun addSeparator(panel: JPanel, gbc: GridBagConstraints) {
         panel.add(
             JPanel().apply {
-                background = JBColor(Color(0x88, 0x88, 0x88), Color(0x88, 0x88, 0x88))
+                background = COLOR_SEPARATOR
                 isOpaque = true
                 preferredSize = Dimension(1, JBUI.scale(1))
                 minimumSize = Dimension(1, JBUI.scale(1))
@@ -215,8 +221,14 @@ object TokenPulseTooltipPanel {
         }
         when (row) {
             is TooltipRow.LabelValue -> {
-                cell(panel, gridx = 0, gridy = nextGridy(gbc), topGap = topGap, leftInset = INDENT_ROW,
-                    anchor = GridBagConstraints.LINE_START) {
+                cell(
+                    panel,
+                    gridx = 0,
+                    gridy = nextGridy(gbc),
+                    topGap = topGap,
+                    leftInset = INDENT_ROW,
+                    anchor = GridBagConstraints.LINE_START
+                ) {
                     JBLabel(row.label).apply {
                         foreground = UIUtil.getContextHelpForeground()
                         border = JBUI.Borders.emptyRight(8)
@@ -225,22 +237,36 @@ object TokenPulseTooltipPanel {
                 // Value spans cols 1..3 so long text (emails, tenant names)
                 // uses the bar+percent+filler space; keep weightx=1 so this
                 // row still gives the grid a trailing filler.
-                cell(panel, gridx = 1, gridy = gbc.gridy, topGap = topGap, gridwidth = 3, weightx = 1.0,
-                    anchor = GridBagConstraints.LINE_START, fill = GridBagConstraints.HORIZONTAL) {
+                cell(
+                    panel,
+                    gridx = 1,
+                    gridy = gbc.gridy,
+                    topGap = topGap,
+                    gridwidth = 3,
+                    weightx = 1.0,
+                    anchor = GridBagConstraints.LINE_START,
+                    fill = GridBagConstraints.HORIZONTAL
+                ) {
                     JBLabel(row.value).apply {
                         if (row.bold) font = font.deriveFont(java.awt.Font.BOLD)
                     }
                 }
             }
             is TooltipRow.UsageBar -> addBarRow(
-                panel, gbc, row.label, row.percent,
+                panel,
+                gbc,
+                row.label,
+                row.percent,
                 ProgressBarRenderer.getUsageColor(row.percent),
-                row.resetInline, topGap
+                row.resetInline
             )
             is TooltipRow.BalanceBar -> addBarRow(
-                panel, gbc, row.label, row.remainingPercent,
+                panel,
+                gbc,
+                row.label,
+                row.remainingPercent,
                 ProgressBarRenderer.getBalanceColor(row.remainingPercent),
-                row.resetInline, topGap
+                row.resetInline
             )
             is TooltipRow.Info -> panel.add(
                 JBLabel(row.message).apply {
@@ -278,19 +304,31 @@ object TokenPulseTooltipPanel {
         label: String,
         percent: Int,
         color: Color,
-        resetInline: String?,
-        topGap: Int
+        resetInline: String?
     ) {
+        val topGap = BAR_ROW_TOP_GAP
         val row = nextGridy(gbc)
-        cell(panel, gridx = 0, gridy = row, topGap = topGap, leftInset = INDENT_ROW,
-            anchor = GridBagConstraints.LINE_START) {
+        cell(
+            panel,
+            gridx = 0,
+            gridy = row,
+            topGap = topGap,
+            leftInset = INDENT_ROW,
+            anchor = GridBagConstraints.LINE_START
+        ) {
             JBLabel(label).apply {
                 foreground = UIUtil.getContextHelpForeground()
                 border = JBUI.Borders.emptyRight(8)
             }
         }
-        cell(panel, gridx = 1, gridy = row, topGap = topGap, anchor = GridBagConstraints.LINE_START,
-            rightInset = 4) {
+        cell(
+            panel,
+            gridx = 1,
+            gridy = row,
+            topGap = topGap,
+            anchor = GridBagConstraints.LINE_START,
+            rightInset = 4
+        ) {
             UsageBar(percent, color)
         }
         cell(panel, gridx = 2, gridy = row, topGap = topGap, anchor = GridBagConstraints.LINE_END) {
@@ -299,9 +337,16 @@ object TokenPulseTooltipPanel {
             }
         }
         if (!resetInline.isNullOrBlank()) {
-            cell(panel, gridx = 3, gridy = row, topGap = topGap, weightx = 1.0,
-                anchor = GridBagConstraints.LINE_START, fill = GridBagConstraints.HORIZONTAL,
-                leftInset = 6) {
+            cell(
+                panel,
+                gridx = 3,
+                gridy = row,
+                topGap = topGap,
+                weightx = 1.0,
+                anchor = GridBagConstraints.LINE_START,
+                fill = GridBagConstraints.HORIZONTAL,
+                leftInset = 6
+            ) {
                 JBLabel(resetInline).apply {
                     font = JBFont.smallOrNewUiMedium()
                     foreground = UIUtil.getContextHelpForeground()
@@ -310,8 +355,14 @@ object TokenPulseTooltipPanel {
         } else {
             // Empty filler in col 3 so the grid stays left-packed and cols 0-2
             // hug their content.
-            cell(panel, gridx = 3, gridy = row, topGap = topGap, weightx = 1.0,
-                fill = GridBagConstraints.HORIZONTAL) { Box.createHorizontalGlue() }
+            cell(
+                panel,
+                gridx = 3,
+                gridy = row,
+                topGap = topGap,
+                weightx = 1.0,
+                fill = GridBagConstraints.HORIZONTAL
+            ) { Box.createHorizontalGlue() }
         }
     }
 

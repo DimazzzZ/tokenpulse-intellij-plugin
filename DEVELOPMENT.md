@@ -89,6 +89,11 @@ token-pulse/
 - **`provider/anthropic/claudecode/`** — Claude Code integration: OAuth usage/refresh clients,
   credential reader (Keychain on macOS, plaintext file otherwise), multi-account discovery, and
   config-dir/keychain-name derivation helpers.
+- **`ui/TokenPulseTooltipPanel` + `ui/TooltipModel`** — the status-bar hover tooltip.
+  `TooltipModel` turns each provider's `ProviderResult` into a sealed list of `TooltipRow`s
+  (no Swing dependencies, unit-tested); `TokenPulseTooltipPanel` renders those rows as a Swing
+  `GridBagLayout` popup with custom `UsageBar` components. `ProgressBarRenderer` supplies
+  theme-aware bar colors and `utils/ResetTimeFormatter` humanizes quota reset timestamps.
 
 ## 📝 Version Management
 

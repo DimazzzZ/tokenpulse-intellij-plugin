@@ -6,8 +6,8 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
-import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCredentialReader
 import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.CLAUDE_TOKEN_EXPIRY_SKEW_MS
+import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCredentialReader
 import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.isClaudeTokenExpired
 import org.zhavoronkov.tokenpulse.utils.HostOs
 import java.io.File

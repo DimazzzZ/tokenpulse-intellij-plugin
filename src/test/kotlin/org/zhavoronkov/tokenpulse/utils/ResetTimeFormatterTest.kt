@@ -15,6 +15,7 @@ import java.time.ZoneId
 class ResetTimeFormatterTest {
 
     private val zone = ZoneId.of("UTC")
+
     // 2026-01-01T12:00:00Z — a Thursday.
     private val now = Instant.parse("2026-01-01T12:00:00Z")
 

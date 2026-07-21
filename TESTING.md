@@ -71,6 +71,7 @@ src/test/kotlin/org/zhavoronkov/tokenpulse/
 │   ├── ClaudeConfigLocatorTest.kt         # Unit: keychain/file/identity path derivation
 │   ├── ClaudeCredentialReaderTest.kt      # Unit: file-mode credential + expiry reads
 │   ├── ClaudeOAuthRefreshClientTest.kt    # Integration: MockWebServer OAuth refresh
+│   ├── ClaudeOAuthUsageClientTest.kt      # Unit: usage status classification (403 not auth; anthropic-version header)
 │   ├── ClineProviderClientTest.kt      # Integration: MockWebServer
 │   ├── NebiusProviderClientTest.kt     # Integration: MockWebServer
 │   ├── NebiusProviderClientLiveTest.kt # Live: real API
@@ -78,6 +79,7 @@ src/test/kotlin/org/zhavoronkov/tokenpulse/
 │   ├── OpenRouterProviderClientTest.kt
 │   └── ProviderRegistryTest.kt         # Unit: registry logic (9)
 ├── service/
+│   ├── BalanceRefreshServiceNotificationTest.kt # Unit: auth-type-aware notification composition
 │   └── RefreshCoordinatorTest.kt       # Unit: clock injection
 ├── settings/
 │   ├── AccountTest.kt                  # Unit: account logic (24)
@@ -88,9 +90,11 @@ src/test/kotlin/org/zhavoronkov/tokenpulse/
     ├── NebiusCurlParserTest.kt         # Unit: parsing
     ├── NormalizedConfigDirTest.kt      # Unit: Claude config-dir canonicalization
     ├── ProgressBarRendererTest.kt      # Unit: progress bars (17)
-    └── SecretRedactorTest.kt           # Unit: redaction (16)
+    ├── SecretRedactorTest.kt           # Unit: redaction (16)
+    └── TooltipModelTest.kt             # Unit: tooltip row grouping/construction per provider
 └── utils/
-    └── HostOsTest.kt                   # Unit: detectHostOs + HostOs enum (3)
+    ├── HostOsTest.kt                   # Unit: detectHostOs + HostOs enum (3)
+    └── ResetTimeFormatterTest.kt       # Unit: relative reset-time formatting (fixed clock, UTC)
 ```
 
 ## 🛠️ Testing Tools

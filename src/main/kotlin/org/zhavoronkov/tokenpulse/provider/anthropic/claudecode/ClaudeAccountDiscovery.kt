@@ -1,7 +1,7 @@
 package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 
-import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import org.zhavoronkov.tokenpulse.settings.isAutoNamedClaudeOrg
+import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.io.File
 
 /**

@@ -66,6 +66,13 @@ The plugin uses the following logger categories:
 > `Claude Code-credentials[-<hash8>]`; if you see "Auth Error" for a Claude
 > account, verify that entry exists (Keychain Access) and that `claude` is
 > still logged in for the corresponding config dir.
+>
+> A Claude "Auth Error" now specifically means a genuine `invalid_grant`
+> refresh failure — re-run `claude login` for that config dir. A `403` from the
+> usage API is reported as an access/permission problem (check your
+> account/organization access), not a login prompt, and a token whose
+> `expiresAt` is missing or unparseable is used as-is rather than treated as
+> expired.
 
 ## 🔍 Monitoring Commands (macOS/Linux)
 
