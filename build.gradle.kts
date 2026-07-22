@@ -225,7 +225,9 @@ kover {
                     "org.zhavoronkov.tokenpulse.ui.*TableModel",
                     "org.zhavoronkov.tokenpulse.ui.*TableModel\$*",
                     "org.zhavoronkov.tokenpulse.ui.ProgressBarRenderer",
-                    "org.zhavoronkov.tokenpulse.ui.ProgressBarRenderer\$*"
+                    "org.zhavoronkov.tokenpulse.ui.ProgressBarRenderer\$*",
+                    "org.zhavoronkov.tokenpulse.ui.TokenPulseTooltipPanel",
+                    "org.zhavoronkov.tokenpulse.ui.TokenPulseTooltipPanel\$*"
                 )
                 // Platform services with IntelliJ dependencies
                 classes(
@@ -242,8 +244,6 @@ kover {
                 classes(
                     "org.zhavoronkov.tokenpulse.provider.openai.chatgpt.ChatGptOAuthManager",
                     "org.zhavoronkov.tokenpulse.provider.openai.chatgpt.ChatGptOAuthManager\$*",
-                    "org.zhavoronkov.tokenpulse.provider.openai.chatgpt.CodexAppServerClient",
-                    "org.zhavoronkov.tokenpulse.provider.openai.chatgpt.CodexAppServerClient\$*",
                     "org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCliDetector",
                     "org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCliDetector\$*"
                 )
