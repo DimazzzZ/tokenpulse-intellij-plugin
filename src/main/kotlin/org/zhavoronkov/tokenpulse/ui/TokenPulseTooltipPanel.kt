@@ -255,20 +255,24 @@ object TokenPulseTooltipPanel {
             is TooltipRow.UsageBar -> addBarRow(
                 panel,
                 gbc,
-                row.label,
-                row.fillPercent,
-                row.labelText,
-                ProgressBarRenderer.getUsageColor(row.fillPercent),
-                row.resetInline
+                BarRowContent(
+                    label = row.label,
+                    fillPercent = row.fillPercent,
+                    labelText = row.labelText,
+                    color = ProgressBarRenderer.getUsageColor(row.fillPercent),
+                    resetInline = row.resetInline,
+                ),
             )
             is TooltipRow.BalanceBar -> addBarRow(
                 panel,
                 gbc,
-                row.label,
-                row.remainingPercent,
-                "${row.remainingPercent.coerceIn(0, 100)}%",
-                ProgressBarRenderer.getBalanceColor(row.remainingPercent),
-                row.resetInline
+                BarRowContent(
+                    label = row.label,
+                    fillPercent = row.remainingPercent,
+                    labelText = "${row.remainingPercent.coerceIn(0, 100)}%",
+                    color = ProgressBarRenderer.getBalanceColor(row.remainingPercent),
+                    resetInline = row.resetInline,
+                ),
             )
             is TooltipRow.Info -> panel.add(
                 JBLabel(row.message).apply {
@@ -295,6 +299,20 @@ object TokenPulseTooltipPanel {
     }
 
     /**
+     * The per-row content of a usage/balance bar, bundled so [addBarRow] stays
+     * under the parameter-count limit. [fillPercent] drives the bar fill and
+     * [color]; [labelText] is the pre-formatted right-column text; [resetInline]
+     * (when non-blank) is the col-3 reset hint.
+     */
+    private data class BarRowContent(
+        val label: String,
+        val fillPercent: Int,
+        val labelText: String,
+        val color: Color,
+        val resetInline: String?,
+    )
+
+    /**
      * Adds a bar row into the shared grid so label/bar/percent columns line
      * up with every other bar and LabelValue row. When [resetInline] is
      * present it occupies col 3; otherwise col 3 is an empty filler that
@@ -303,12 +321,13 @@ object TokenPulseTooltipPanel {
     private fun addBarRow(
         panel: JPanel,
         gbc: GridBagConstraints,
-        label: String,
-        fillPercent: Int,
-        labelText: String,
-        color: Color,
-        resetInline: String?
+        content: BarRowContent,
     ) {
+        val label = content.label
+        val fillPercent = content.fillPercent
+        val labelText = content.labelText
+        val color = content.color
+        val resetInline = content.resetInline
         val topGap = BAR_ROW_TOP_GAP
         val row = nextGridy(gbc)
         cell(

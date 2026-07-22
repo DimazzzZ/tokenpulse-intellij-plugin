@@ -3,11 +3,12 @@ package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonSyntaxException
+import org.zhavoronkov.tokenpulse.provider.oauth.AbstractOAuthUsageClient
+import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_BODY_PREVIEW
+import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_USER_AGENT
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.net.URI
-import java.net.http.HttpClient
 import java.net.http.HttpRequest
-import java.net.http.HttpResponse
 import java.time.Duration
 
 /**
@@ -32,12 +33,12 @@ class ClaudeOAuthUsageClient(
      * tests override it to point at a local HTTP stub server.
      */
     private val usageUrl: String = USAGE_API_URL,
+) : AbstractOAuthUsageClient<ClaudeOAuthUsageClient.OAuthUsageResult>(
+    connectSeconds = CONNECT_TIMEOUT_SECONDS,
+    logTag = "ClaudeOAuthUsageClient",
 ) {
 
     private val gson: Gson = GsonBuilder().create()
-    private val httpClient: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS))
-        .build()
 
     /**
      * Fetch usage data from the OAuth API.
@@ -46,41 +47,24 @@ class ClaudeOAuthUsageClient(
      * @return Usage data or null if the request fails
      */
     fun fetchUsage(oauthToken: String): OAuthUsageResult {
-        if (oauthToken.isBlank()) {
-            return OAuthUsageResult.Error("OAuth token is empty")
-        }
+        if (oauthToken.isBlank()) return OAuthUsageResult.Error("OAuth token is empty")
+        return execute(buildRequest(oauthToken))
+    }
 
-        TokenPulseLogger.Provider.debug("Fetching usage from OAuth API")
+    override fun transient(message: String): OAuthUsageResult = OAuthUsageResult.Error(message)
 
-        return try {
-            val request = buildRequest(oauthToken)
-            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-
-            TokenPulseLogger.Provider.debug("OAuth API response: ${response.statusCode()}")
-
-            when (response.statusCode()) {
-                200 -> parseSuccessResponse(response.body())
-                401 -> OAuthUsageResult.Error("OAuth token expired or invalid", isAuthError = true)
-                // 403 is NOT an auth/session error: it typically means org/geo
-                // policy, a rejected beta header, or a WAF block — the OAuth
-                // token itself is still valid. Surfacing it as "session
-                // expired" would wrongly tell a logged-in user to re-auth.
-                403 -> OAuthUsageResult.Error(
-                    "Claude API access forbidden (403). Check your account/organization access."
-                )
-                429 -> OAuthUsageResult.Error("Rate limited by Anthropic API", isRateLimited = true)
-                else -> OAuthUsageResult.Error("API returned ${response.statusCode()}: ${response.body().take(200)}")
-            }
-        } catch (_: java.net.http.HttpTimeoutException) {
-            TokenPulseLogger.Provider.warn("OAuth API request timed out")
-            OAuthUsageResult.Error("API request timed out after $REQUEST_TIMEOUT_SECONDS seconds")
-        } catch (e: java.net.ConnectException) {
-            TokenPulseLogger.Provider.warn("OAuth API connection failed: ${e.message}")
-            OAuthUsageResult.Error("Cannot connect to Anthropic API: ${e.message}")
-        } catch (e: Exception) {
-            TokenPulseLogger.Provider.error("OAuth API request failed", e)
-            OAuthUsageResult.Error("API request failed: ${e.message}")
-        }
+    override fun mapStatus(status: Int, body: String): OAuthUsageResult = when (status) {
+        200 -> parseSuccessResponse(body)
+        401 -> OAuthUsageResult.Error("OAuth token expired or invalid", isAuthError = true)
+        // 403 is NOT an auth/session error: it typically means org/geo
+        // policy, a rejected beta header, or a WAF block — the OAuth
+        // token itself is still valid. Surfacing it as "session
+        // expired" would wrongly tell a logged-in user to re-auth.
+        403 -> OAuthUsageResult.Error(
+            "Claude API access forbidden (403). Check your account/organization access."
+        )
+        429 -> OAuthUsageResult.Error("Rate limited by Anthropic API", isRateLimited = true)
+        else -> OAuthUsageResult.Error("API returned $status: ${body.take(OAUTH_BODY_PREVIEW)}")
     }
 
     private fun buildRequest(oauthToken: String): HttpRequest {
@@ -90,7 +74,7 @@ class ClaudeOAuthUsageClient(
             .header("anthropic-beta", BETA_HEADER)
             .header("anthropic-version", ANTHROPIC_VERSION)
             .header("Content-Type", "application/json")
-            .header("User-Agent", USER_AGENT)
+            .header("User-Agent", OAUTH_USER_AGENT)
             .timeout(Duration.ofSeconds(REQUEST_TIMEOUT_SECONDS))
             .GET()
             .build()
@@ -153,7 +137,6 @@ class ClaudeOAuthUsageClient(
         private const val USAGE_API_URL = "https://api.anthropic.com/api/oauth/usage"
         private const val BETA_HEADER = "oauth-2025-04-20"
         private const val ANTHROPIC_VERSION = "2023-06-01"
-        private const val USER_AGENT = "TokenPulse/1.0"
         private const val CONNECT_TIMEOUT_SECONDS = 5L
         private const val REQUEST_TIMEOUT_SECONDS = 5L
     }

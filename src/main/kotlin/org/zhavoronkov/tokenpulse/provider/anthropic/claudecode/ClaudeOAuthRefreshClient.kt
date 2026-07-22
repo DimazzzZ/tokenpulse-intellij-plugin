@@ -4,11 +4,12 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonSyntaxException
 import com.google.gson.annotations.SerializedName
+import org.zhavoronkov.tokenpulse.provider.oauth.AbstractOAuthRefreshClient
+import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_BODY_PREVIEW
+import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_USER_AGENT
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.net.URI
-import java.net.http.HttpClient
 import java.net.http.HttpRequest
-import java.net.http.HttpResponse
 import java.time.Duration
 
 /**
@@ -25,53 +26,28 @@ import java.time.Duration
  */
 class ClaudeOAuthRefreshClient internal constructor(
     private val tokenUrl: String = TOKEN_URL,
+) : AbstractOAuthRefreshClient<ClaudeOAuthRefreshClient.RefreshResult>(
+    connectSeconds = CONNECT_TIMEOUT_SECONDS,
+    logTag = "ClaudeOAuthRefreshClient",
 ) {
 
     private val gson: Gson = GsonBuilder().create()
-    private val httpClient: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS))
-        .build()
 
-    /**
-     * Refresh the OAuth token.
-     *
-     * @param refreshToken The stored refresh token
-     * @return [RefreshResult] describing the outcome
-     */
-    fun refresh(refreshToken: String): RefreshResult {
-        if (refreshToken.isBlank()) {
-            return RefreshResult.Error("Refresh token is empty", isAuthError = true)
-        }
+    override fun emptyTokenResult(): RefreshResult =
+        RefreshResult.Error("Refresh token is empty", isAuthError = true)
 
-        TokenPulseLogger.Provider.debug("[ClaudeOAuthRefreshClient] Refreshing OAuth token")
+    override fun transient(message: String): RefreshResult = RefreshResult.NetworkError(message)
 
-        return try {
-            val request = buildRequest(refreshToken)
-            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-
-            TokenPulseLogger.Provider.debug("[ClaudeOAuthRefreshClient] Refresh response: ${response.statusCode()}")
-
-            when (response.statusCode()) {
-                200 -> parseSuccessResponse(response.body())
-                401 -> RefreshResult.Error("Refresh token invalid or expired", isAuthError = true)
-                400 -> classifyBadRequest(response.body())
-                else -> RefreshResult.Error(
-                    "Token refresh failed (${response.statusCode()}): ${response.body().take(200)}"
-                )
-            }
-        } catch (e: java.net.http.HttpTimeoutException) {
-            TokenPulseLogger.Provider.warn("[ClaudeOAuthRefreshClient] Refresh request timed out")
-            RefreshResult.NetworkError("Token refresh timed out after $REQUEST_TIMEOUT_SECONDS seconds")
-        } catch (e: java.net.ConnectException) {
-            TokenPulseLogger.Provider.warn("[ClaudeOAuthRefreshClient] Refresh connection failed: ${e.message}")
-            RefreshResult.NetworkError("Cannot connect to token endpoint: ${e.message}")
-        } catch (e: Exception) {
-            TokenPulseLogger.Provider.error("[ClaudeOAuthRefreshClient] Refresh request failed", e)
-            RefreshResult.NetworkError("Token refresh failed: ${e.message}")
-        }
+    override fun mapStatus(status: Int, body: String): RefreshResult = when (status) {
+        200 -> parseSuccessResponse(body)
+        401 -> RefreshResult.Error("Refresh token invalid or expired", isAuthError = true)
+        400 -> classifyBadRequest(body)
+        else -> RefreshResult.Error(
+            "Token refresh failed ($status): ${body.take(OAUTH_BODY_PREVIEW)}"
+        )
     }
 
-    private fun buildRequest(refreshToken: String): HttpRequest {
+    override fun buildRequest(refreshToken: String): HttpRequest {
         val body = mapOf(
             "grant_type" to "refresh_token",
             "refresh_token" to refreshToken,
@@ -81,7 +57,7 @@ class ClaudeOAuthRefreshClient internal constructor(
         return HttpRequest.newBuilder()
             .uri(URI.create(tokenUrl))
             .header("Content-Type", "application/json")
-            .header("User-Agent", USER_AGENT)
+            .header("User-Agent", OAUTH_USER_AGENT)
             .timeout(Duration.ofSeconds(REQUEST_TIMEOUT_SECONDS))
             .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(body)))
             .build()
@@ -137,15 +113,12 @@ class ClaudeOAuthRefreshClient internal constructor(
         return if (errorCode == "invalid_grant") {
             RefreshResult.Error("Refresh token invalid or expired", isAuthError = true)
         } else {
-            val detail = errorCode ?: body.take(200)
+            val detail = errorCode ?: body.take(OAUTH_BODY_PREVIEW)
             RefreshResult.Error("Token refresh rejected (400): $detail")
         }
     }
 
-    private fun clientId(): String {
-        val override = System.getenv("CLAUDE_CODE_OAUTH_CLIENT_ID")
-        return override?.takeIf { it.isNotBlank() } ?: DEFAULT_CLIENT_ID
-    }
+    private fun clientId(): String = clientId("CLAUDE_CODE_OAUTH_CLIENT_ID", DEFAULT_CLIENT_ID)
 
     /**
      * Result of a token refresh attempt.
@@ -183,7 +156,6 @@ class ClaudeOAuthRefreshClient internal constructor(
         private const val DEFAULT_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
         private const val DEFAULT_SCOPES =
             "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
-        private const val USER_AGENT = "TokenPulse/1.0"
         private const val CONNECT_TIMEOUT_SECONDS = 15L
         private const val REQUEST_TIMEOUT_SECONDS = 15L
         private const val MILLIS_PER_SECOND = 1000L

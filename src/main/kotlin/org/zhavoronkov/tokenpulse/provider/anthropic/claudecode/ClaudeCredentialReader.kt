@@ -2,13 +2,12 @@ package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import org.zhavoronkov.tokenpulse.provider.oauth.OAuthCredentialStore
+import org.zhavoronkov.tokenpulse.provider.oauth.isTokenExpired
 import org.zhavoronkov.tokenpulse.utils.HostOs
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import org.zhavoronkov.tokenpulse.utils.detectHostOs
 import java.io.File
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
-import java.nio.file.attribute.PosixFilePermission
 
 /**
  * Reads existing Claude Code credentials from local storage.
@@ -203,36 +202,8 @@ class ClaudeCredentialReader(
      */
     private fun writeToFile(json: String) {
         val target = credentialsFile()
-        val dir = target.parentFile ?: File(".")
-        dir.mkdirs()
-        val tmp = File.createTempFile(".credentials", ".json.tmp", dir)
-        try {
-            tmp.writeText(json, Charsets.UTF_8)
-            setOwnerOnlyPermissions(tmp)
-            val src = tmp.toPath()
-            val dst = target.toPath()
-            try {
-                Files.move(src, dst, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-            } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
-                Files.move(src, dst, StandardCopyOption.REPLACE_EXISTING)
-            }
-            logDebug("Persisted refreshed tokens to ${target.absolutePath}")
-        } finally {
-            if (tmp.exists()) tmp.delete()
-        }
-    }
-
-    private fun setOwnerOnlyPermissions(file: File) {
-        try {
-            Files.setPosixFilePermissions(
-                file.toPath(),
-                setOf(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE),
-            )
-        } catch (_: UnsupportedOperationException) {
-            // Non-POSIX filesystem (e.g. Windows): nothing to tighten.
-        } catch (e: Exception) {
-            logDebug("Could not set 0600 on temp file: ${e.message}")
-        }
+        OAuthCredentialStore.writeAtomic(target, json, tmpPrefix = ".credentials")
+        logDebug("Persisted refreshed tokens to ${target.absolutePath}")
     }
 
     /**
@@ -443,6 +414,5 @@ internal const val CLAUDE_TOKEN_EXPIRY_SKEW_MS = 60_000L
  * Both timestamps are Unix epoch milliseconds.
  */
 internal fun isClaudeTokenExpired(expiresAt: Long?, now: Long): Boolean {
-    if (expiresAt == null) return false
-    return now >= expiresAt - CLAUDE_TOKEN_EXPIRY_SKEW_MS
+    return isTokenExpired(expiresAt, now, CLAUDE_TOKEN_EXPIRY_SKEW_MS)
 }

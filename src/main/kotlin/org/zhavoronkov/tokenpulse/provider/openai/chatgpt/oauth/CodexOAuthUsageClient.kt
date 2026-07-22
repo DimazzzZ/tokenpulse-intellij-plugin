@@ -3,11 +3,12 @@ package org.zhavoronkov.tokenpulse.provider.openai.chatgpt.oauth
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.google.gson.annotations.SerializedName
+import org.zhavoronkov.tokenpulse.provider.oauth.AbstractOAuthUsageClient
+import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_BODY_PREVIEW
+import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_USER_AGENT
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.net.URI
-import java.net.http.HttpClient
 import java.net.http.HttpRequest
-import java.net.http.HttpResponse
 import java.time.Duration
 
 /**
@@ -22,48 +23,32 @@ import java.time.Duration
  */
 class CodexOAuthUsageClient(
     private val usageUrl: String = USAGE_URL,
+) : AbstractOAuthUsageClient<CodexOAuthUsageClient.UsageResult>(
+    connectSeconds = TIMEOUT_SECONDS,
+    logTag = "CodexOAuthUsageClient",
 ) {
 
     private val gson: Gson = Gson()
-    private val httpClient: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(TIMEOUT_SECONDS))
-        .build()
 
     fun fetch(accessToken: String, accountId: String, fedramp: Boolean = false): UsageResult {
-        if (accessToken.isBlank()) {
-            return UsageResult.AuthError
-        }
+        if (accessToken.isBlank()) return UsageResult.AuthError
+        return execute(buildRequest(accessToken, accountId, fedramp))
+    }
 
-        TokenPulseLogger.Provider.debug("[CodexOAuthUsageClient] Fetching usage from wham/usage")
+    override fun transient(message: String): UsageResult = UsageResult.Transient(message)
 
-        return try {
-            val response = httpClient.send(
-                buildRequest(accessToken, accountId, fedramp),
-                HttpResponse.BodyHandlers.ofString(),
-            )
-            TokenPulseLogger.Provider.debug("[CodexOAuthUsageClient] Usage response: ${response.statusCode()}")
-
-            when (response.statusCode()) {
-                200 -> parseSuccess(response.body())
-                401 -> UsageResult.AuthError
-                // 403 is not an auth error: org/geo policy, WAF, etc. The token
-                // is still valid; surfacing "session expired" would be wrong.
-                403 -> UsageResult.Forbidden(
-                    "Codex API access forbidden (403). Check your account/organization access."
-                )
-                429 -> UsageResult.RateLimited
-                else -> UsageResult.Transient(
-                    "Usage API returned ${response.statusCode()}: ${response.body().take(BODY_PREVIEW)}"
-                )
-            }
-        } catch (_: java.net.http.HttpTimeoutException) {
-            UsageResult.Transient("Usage API request timed out after $TIMEOUT_SECONDS seconds")
-        } catch (e: java.net.ConnectException) {
-            UsageResult.Transient("Cannot connect to ChatGPT API: ${e.message}")
-        } catch (e: Exception) {
-            TokenPulseLogger.Provider.error("[CodexOAuthUsageClient] Usage request failed", e)
-            UsageResult.Transient("Usage API request failed: ${e.message}")
-        }
+    override fun mapStatus(status: Int, body: String): UsageResult = when (status) {
+        200 -> parseSuccess(body)
+        401 -> UsageResult.AuthError
+        // 403 is not an auth error: org/geo policy, WAF, etc. The token
+        // is still valid; surfacing "session expired" would be wrong.
+        403 -> UsageResult.Forbidden(
+            "Codex API access forbidden (403). Check your account/organization access."
+        )
+        429 -> UsageResult.RateLimited
+        else -> UsageResult.Transient(
+            "Usage API returned $status: ${body.take(OAUTH_BODY_PREVIEW)}"
+        )
     }
 
     private fun buildRequest(accessToken: String, accountId: String, fedramp: Boolean): HttpRequest {
@@ -71,7 +56,7 @@ class CodexOAuthUsageClient(
             .uri(URI.create(usageUrl))
             .header("Authorization", "Bearer $accessToken")
             .header("ChatGPT-Account-Id", accountId)
-            .header("User-Agent", USER_AGENT)
+            .header("User-Agent", OAUTH_USER_AGENT)
             .timeout(Duration.ofSeconds(TIMEOUT_SECONDS))
             .GET()
         if (fedramp) {
@@ -205,9 +190,7 @@ class CodexOAuthUsageClient(
 
     companion object {
         private const val USAGE_URL = "https://chatgpt.com/backend-api/wham/usage"
-        private const val USER_AGENT = "TokenPulse/1.0"
         private const val TIMEOUT_SECONDS = 5L
-        private const val BODY_PREVIEW = 200
         private const val FIVE_HOUR_SECONDS = 18_000
         private const val WEEKLY_SECONDS = 604_800
         private const val DURATION_TOLERANCE = 0.05
