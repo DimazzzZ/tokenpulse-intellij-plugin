@@ -61,13 +61,20 @@ class AccountEditDialog(
 ) : DialogWrapper(true) {
 
     companion object {
-        private val XIAOMI_TYPES = setOf(ConnectionType.XIAOMI_API, ConnectionType.XIAOMI_TOKEN_PLAN)
+        // Unified XIAOMI plus the retained legacy types (a persisted account may
+        // still be legacy until the startup migration/dedup runs).
+        private val XIAOMI_TYPES = setOf(
+            ConnectionType.XIAOMI,
+            ConnectionType.XIAOMI_API,
+            ConnectionType.XIAOMI_TOKEN_PLAN
+        )
         private val SESSION_BASED_TYPES = setOf(
             ConnectionType.NEBIUS_BILLING,
             ConnectionType.OPENAI_PLATFORM,
             ConnectionType.CODEX_CLI,
             ConnectionType.CLAUDE_CODE,
             ConnectionType.OPENROUTER_PLUGIN,
+            ConnectionType.XIAOMI,
             ConnectionType.XIAOMI_API,
             ConnectionType.XIAOMI_TOKEN_PLAN
         )
@@ -236,9 +243,7 @@ class AccountEditDialog(
 
     /** Holds the captured Xiaomi session JSON. */
     private var capturedXiaomiSession: String? =
-        if (account?.connectionType == ConnectionType.XIAOMI_API ||
-            account?.connectionType == ConnectionType.XIAOMI_TOKEN_PLAN
-        ) {
+        if (account?.connectionType in XIAOMI_TYPES) {
             existingSecret
         } else {
             null
@@ -315,7 +320,9 @@ class AccountEditDialog(
         ConnectionType.CODEX_CLI -> capturedCodexSecret ?: ""
         ConnectionType.NEBIUS_BILLING -> capturedNebiusSession ?: ""
         ConnectionType.OPENAI_PLATFORM -> capturedOpenAiSecret ?: ""
-        ConnectionType.XIAOMI_API, ConnectionType.XIAOMI_TOKEN_PLAN -> capturedXiaomiSession ?: ""
+        ConnectionType.XIAOMI,
+        ConnectionType.XIAOMI_API,
+        ConnectionType.XIAOMI_TOKEN_PLAN -> capturedXiaomiSession ?: ""
         else -> String(keyField.password).trim()
     }
 
@@ -346,6 +353,7 @@ class AccountEditDialog(
         ConnectionType.NEBIUS_BILLING -> "https://tokenfactory.nebius.com/"
         ConnectionType.OPENAI_PLATFORM -> "https://platform.openai.com/settings/organization/admin-keys"
         ConnectionType.CODEX_CLI -> "https://github.com/openai/codex"
+        ConnectionType.XIAOMI,
         ConnectionType.XIAOMI_API,
         ConnectionType.XIAOMI_TOKEN_PLAN -> "https://platform.xiaomimimo.com/console/api-keys"
     }
@@ -526,12 +534,11 @@ class AccountEditDialog(
                 "Install via: npm install -g @openai/codex"
         ConnectionType.OPENAI_PLATFORM ->
             "OpenAI API key. Click \"Connect API Key →\" to capture your key."
-        ConnectionType.XIAOMI_API ->
-            "Xiaomi MiMo pay-as-you-go API. Click \"Connect Xiaomi Account →\" to capture your platform session. " +
-                "Get your API key at platform.xiaomimimo.com."
+        ConnectionType.XIAOMI,
+        ConnectionType.XIAOMI_API,
         ConnectionType.XIAOMI_TOKEN_PLAN ->
-            "Xiaomi MiMo Token Plan. Click \"Connect Xiaomi Account →\" to capture your platform session. " +
-                "Subscribe at platform.xiaomimimo.com/token-plan."
+            "Xiaomi MiMo. Click \"Connect Xiaomi Account →\" to sign in and capture your platform session. " +
+                "Tracks both pay-as-you-go balance and Token Plan usage."
     }
 
     // ── Panel construction ─────────────────────────────────────────────────
@@ -672,7 +679,9 @@ class AccountEditDialog(
             ConnectionType.OPENAI_PLATFORM -> validateOpenAi()
             ConnectionType.CODEX_CLI -> validateCodex()
             ConnectionType.CLAUDE_CODE -> validateClaudeCode()
-            ConnectionType.XIAOMI_API, ConnectionType.XIAOMI_TOKEN_PLAN -> validateXiaomi()
+            ConnectionType.XIAOMI,
+            ConnectionType.XIAOMI_API,
+            ConnectionType.XIAOMI_TOKEN_PLAN -> validateXiaomi()
             else -> validateOther()
         }
     }

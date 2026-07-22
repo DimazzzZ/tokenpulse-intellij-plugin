@@ -97,8 +97,23 @@ enum class ConnectionType(
     ),
 
     /**
-     * Xiaomi MiMo API - pay-as-you-go billing.
-     * Uses API key for chat completions, session capture for balance tracking.
+     * Xiaomi MiMo - unified provider.
+     *
+     * Tracks BOTH pay-as-you-go dollar balance and Token Plan Credits usage from
+     * the same captured Xiaomi platform session (no API key). This is the single
+     * user-selectable Xiaomi type; [XIAOMI_API] and [XIAOMI_TOKEN_PLAN] are
+     * retained only so legacy persisted accounts still deserialize.
+     */
+    XIAOMI(
+        provider = Provider.XIAOMI,
+        displayName = "MiMo",
+        description = "Tracks pay-as-you-go balance and Token Plan usage via your captured session.",
+        defaultAuthType = AuthType.XIAOMI_SESSION
+    ),
+
+    /**
+     * Legacy Xiaomi MiMo API (pay-as-you-go). Retained for deserialization of
+     * existing accounts only; migrated to [XIAOMI] on load. Not user-selectable.
      */
     XIAOMI_API(
         provider = Provider.XIAOMI,
@@ -108,8 +123,8 @@ enum class ConnectionType(
     ),
 
     /**
-     * Xiaomi MiMo Token Plan - subscription with Credits quota.
-     * Uses Token Plan API key, session capture for Credits usage tracking.
+     * Legacy Xiaomi MiMo Token Plan (subscription). Retained for deserialization
+     * of existing accounts only; migrated to [XIAOMI] on load. Not user-selectable.
      */
     XIAOMI_TOKEN_PLAN(
         provider = Provider.XIAOMI,
@@ -151,13 +166,21 @@ enum class ConnectionType(
             CLAUDE_CODE -> emptySet() // Uses metadata percentage, not dollar formats
             // Codex CLI uses percentage from metadata (not Credits)
             CODEX_CLI -> emptySet() // Uses metadata percentage, not dollar formats
-            // Xiaomi API has dollar balance, supports all formats
+            // Xiaomi (unified) has a dollar balance, supports all formats. When
+            // only Token Plan tokens are present, the formatter falls back to a
+            // percentage/credits display at render time.
+            XIAOMI -> setOf(
+                StatusBarDollarFormat.REMAINING_ONLY,
+                StatusBarDollarFormat.USED_OF_REMAINING,
+                StatusBarDollarFormat.PERCENTAGE_REMAINING
+            )
+            // Legacy Xiaomi API has dollar balance, supports all formats
             XIAOMI_API -> setOf(
                 StatusBarDollarFormat.REMAINING_ONLY,
                 StatusBarDollarFormat.USED_OF_REMAINING,
                 StatusBarDollarFormat.PERCENTAGE_REMAINING
             )
-            // Xiaomi Token Plan uses Credits (percentage-based)
+            // Legacy Xiaomi Token Plan uses Credits (percentage-based)
             XIAOMI_TOKEN_PLAN -> emptySet() // Uses Credits percentage, not dollar formats
         }
 
@@ -174,6 +197,7 @@ enum class ConnectionType(
     val isAvailable: Boolean
         get() = when (this) {
             OPENROUTER_PLUGIN -> false // Coming soon - requires OpenRouter plugin API exposure
+            XIAOMI_API, XIAOMI_TOKEN_PLAN -> false // Legacy: migrated to XIAOMI, kept only for deserialization
             else -> true
         }
 

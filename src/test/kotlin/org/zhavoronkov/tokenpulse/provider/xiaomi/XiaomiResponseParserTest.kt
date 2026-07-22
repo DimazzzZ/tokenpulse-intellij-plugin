@@ -6,21 +6,18 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.zhavoronkov.tokenpulse.model.ConnectionType
 import org.zhavoronkov.tokenpulse.model.ProviderResult
-import org.zhavoronkov.tokenpulse.settings.Account
 
 class XiaomiResponseParserTest {
 
     private val gson = Gson()
 
-    private fun account() = Account(
-        id = "test-account",
-        connectionType = ConnectionType.XIAOMI_API,
-        authType = ConnectionType.XIAOMI_API.defaultAuthType
-    )
-
     private fun json(raw: String): JsonObject = gson.fromJson(raw, JsonObject::class.java)
+
+    private fun creditsOf(part: XiaomiResponseParser.BalancePart) = part as XiaomiResponseParser.BalancePart.Credits
+    private fun tokensOf(part: XiaomiResponseParser.BalancePart) = part as XiaomiResponseParser.BalancePart.TokensPart
+    private fun failureOf(part: XiaomiResponseParser.BalancePart) =
+        (part as XiaomiResponseParser.BalancePart.Failure).error
 
     // ── parseApiBalance ──────────────────────────────────────────────
 
@@ -31,152 +28,119 @@ class XiaomiResponseParserTest {
         fun `parses full balance response`() {
             val body =
                 """{"code":0,"data":{"balance":"55.48","giftBalance":"10.00","cashBalance":"45.48","currency":"USD"}}"""
-            val result = XiaomiResponseParser.parseApiBalance(
-                json(body),
-                account()
-            )
+            val part = creditsOf(XiaomiResponseParser.parseApiBalance(json(body)))
 
-            assertTrue(result is ProviderResult.Success)
-            val snapshot = (result as ProviderResult.Success).snapshot
-            assertEquals("55.48", snapshot.balance.credits?.remaining?.toPlainString())
-            assertEquals(ConnectionType.XIAOMI_API, snapshot.connectionType)
-            assertEquals("USD", snapshot.metadata["currency"])
-            assertEquals("10.00", snapshot.metadata["giftBalance"])
-            assertEquals("45.48", snapshot.metadata["cashBalance"])
+            assertEquals("55.48", part.credits.remaining?.toPlainString())
+            assertEquals("USD", part.metadata["currency"])
+            assertEquals("10.00", part.metadata["giftBalance"])
+            assertEquals("45.48", part.metadata["cashBalance"])
         }
 
         @Test
         fun `defaults missing fields to zero and USD`() {
-            val result = XiaomiResponseParser.parseApiBalance(
-                json("""{"code":0,"data":{}}"""),
-                account()
-            )
+            val part = creditsOf(XiaomiResponseParser.parseApiBalance(json("""{"code":0,"data":{}}""")))
 
-            assertTrue(result is ProviderResult.Success)
-            val snapshot = (result as ProviderResult.Success).snapshot
-            assertEquals("0", snapshot.balance.credits?.remaining?.toPlainString())
-            assertEquals("USD", snapshot.metadata["currency"])
-            assertEquals("0", snapshot.metadata["giftBalance"])
-            assertEquals("0", snapshot.metadata["cashBalance"])
+            assertEquals("0", part.credits.remaining?.toPlainString())
+            assertEquals("USD", part.metadata["currency"])
+            assertEquals("0", part.metadata["giftBalance"])
+            assertEquals("0", part.metadata["cashBalance"])
         }
 
         @Test
         fun `handles null data`() {
-            val result = XiaomiResponseParser.parseApiBalance(
-                json("""{"code":0,"data":null}"""),
-                account()
-            )
+            val part = creditsOf(XiaomiResponseParser.parseApiBalance(json("""{"code":0,"data":null}""")))
 
-            assertTrue(result is ProviderResult.Success)
-            val snapshot = (result as ProviderResult.Success).snapshot
-            assertEquals("0", snapshot.balance.credits?.remaining?.toPlainString())
+            assertEquals("0", part.credits.remaining?.toPlainString())
         }
 
         @Test
         fun `handles missing data field`() {
-            val result = XiaomiResponseParser.parseApiBalance(
-                json("""{"code":0}"""),
-                account()
-            )
+            val part = creditsOf(XiaomiResponseParser.parseApiBalance(json("""{"code":0}""")))
 
-            assertTrue(result is ProviderResult.Success)
-            val snapshot = (result as ProviderResult.Success).snapshot
-            assertEquals("0", snapshot.balance.credits?.remaining?.toPlainString())
+            assertEquals("0", part.credits.remaining?.toPlainString())
         }
 
         @Test
         fun `returns AuthError for token expired message`() {
-            val result = XiaomiResponseParser.parseApiBalance(
-                json("""{"code":-1,"message":"Token expired"}"""),
-                account()
-            )
+            val error =
+                failureOf(XiaomiResponseParser.parseApiBalance(json("""{"code":-1,"message":"Token expired"}""")))
 
-            assertTrue(result is ProviderResult.Failure.AuthError)
+            assertTrue(error is ProviderResult.Failure.AuthError)
             assertEquals(
                 "Xiaomi API error: Token expired",
-                (result as ProviderResult.Failure.AuthError).message
+                (error as ProviderResult.Failure.AuthError).message
             )
         }
 
         @Test
         fun `returns AuthError for session message`() {
-            val result = XiaomiResponseParser.parseApiBalance(
-                json("""{"code":-1,"message":"Session timeout"}"""),
-                account()
-            )
+            val error =
+                failureOf(XiaomiResponseParser.parseApiBalance(json("""{"code":-1,"message":"Session timeout"}""")))
 
-            assertTrue(result is ProviderResult.Failure.AuthError)
+            assertTrue(error is ProviderResult.Failure.AuthError)
         }
 
         @Test
         fun `returns AuthError for unauthorized message`() {
-            val result = XiaomiResponseParser.parseApiBalance(
-                json("""{"code":-1,"message":"Unauthorized access"}"""),
-                account()
+            val error = failureOf(
+                XiaomiResponseParser.parseApiBalance(json("""{"code":-1,"message":"Unauthorized access"}"""))
             )
 
-            assertTrue(result is ProviderResult.Failure.AuthError)
+            assertTrue(error is ProviderResult.Failure.AuthError)
         }
 
         @Test
         fun `returns AuthError for login message`() {
-            val result = XiaomiResponseParser.parseApiBalance(
-                json("""{"code":-1,"message":"Please login again"}"""),
-                account()
+            val error = failureOf(
+                XiaomiResponseParser.parseApiBalance(json("""{"code":-1,"message":"Please login again"}"""))
             )
 
-            assertTrue(result is ProviderResult.Failure.AuthError)
+            assertTrue(error is ProviderResult.Failure.AuthError)
         }
 
         @Test
         fun `returns RateLimited for rate message`() {
-            val result = XiaomiResponseParser.parseApiBalance(
-                json("""{"code":-1,"message":"Rate limit exceeded"}"""),
-                account()
+            val error = failureOf(
+                XiaomiResponseParser.parseApiBalance(json("""{"code":-1,"message":"Rate limit exceeded"}"""))
             )
 
-            assertTrue(result is ProviderResult.Failure.RateLimited)
+            assertTrue(error is ProviderResult.Failure.RateLimited)
             assertEquals(
                 "Xiaomi rate limit: Rate limit exceeded",
-                (result as ProviderResult.Failure.RateLimited).message
+                (error as ProviderResult.Failure.RateLimited).message
             )
         }
 
         @Test
         fun `returns RateLimited for throttle message`() {
-            val result = XiaomiResponseParser.parseApiBalance(
-                json("""{"code":-1,"message":"Throttled"}"""),
-                account()
+            val error = failureOf(
+                XiaomiResponseParser.parseApiBalance(json("""{"code":-1,"message":"Throttled"}"""))
             )
 
-            assertTrue(result is ProviderResult.Failure.RateLimited)
+            assertTrue(error is ProviderResult.Failure.RateLimited)
         }
 
         @Test
         fun `returns UnknownError for unrecognized error`() {
-            val result = XiaomiResponseParser.parseApiBalance(
-                json("""{"code":-1,"message":"Something went wrong"}"""),
-                account()
+            val error = failureOf(
+                XiaomiResponseParser.parseApiBalance(json("""{"code":-1,"message":"Something went wrong"}"""))
             )
 
-            assertTrue(result is ProviderResult.Failure.UnknownError)
+            assertTrue(error is ProviderResult.Failure.UnknownError)
             assertEquals(
                 "Xiaomi API error (code=-1): Something went wrong",
-                (result as ProviderResult.Failure.UnknownError).message
+                (error as ProviderResult.Failure.UnknownError).message
             )
         }
 
         @Test
         fun `returns UnknownError with default message when message is missing`() {
-            val result = XiaomiResponseParser.parseApiBalance(
-                json("""{"code":-1}"""),
-                account()
-            )
+            val error = failureOf(XiaomiResponseParser.parseApiBalance(json("""{"code":-1}""")))
 
-            assertTrue(result is ProviderResult.Failure.UnknownError)
+            assertTrue(error is ProviderResult.Failure.UnknownError)
             assertEquals(
                 "Xiaomi API error (code=-1): Unknown error",
-                (result as ProviderResult.Failure.UnknownError).message
+                (error as ProviderResult.Failure.UnknownError).message
             )
         }
     }
@@ -190,197 +154,164 @@ class XiaomiResponseParserTest {
         fun `parses full token plan response`() {
             val body =
                 """{"code":0,"data":{"monthUsage":{"percent":0.248,"items":[{"used":2727524596,"limit":11000000000}]}}}"""
-            val result = XiaomiResponseParser.parseTokenPlanUsage(
-                json(body),
-                account()
-            )
+            val part = tokensOf(XiaomiResponseParser.parseTokenPlanUsage(json(body)))
 
-            assertTrue(result is ProviderResult.Success)
-            val snapshot = (result as ProviderResult.Success).snapshot
-            assertEquals(ConnectionType.XIAOMI_TOKEN_PLAN, snapshot.connectionType)
-            assertEquals(2727524596L, snapshot.balance.tokens?.used)
-            assertEquals(11000000000L, snapshot.balance.tokens?.total)
-            assertEquals(8272475404L, snapshot.balance.tokens?.remaining)
-            assertEquals("active", snapshot.metadata["planStatus"])
+            assertEquals(2727524596L, part.tokens.used)
+            assertEquals(11000000000L, part.tokens.total)
+            assertEquals(8272475404L, part.tokens.remaining)
+            assertEquals("active", part.metadata["planStatus"])
             // 0.248 * 100 = 24 (int truncation)
-            assertEquals("24", snapshot.metadata["sessionUsed"])
+            assertEquals("24", part.metadata["sessionUsed"])
         }
 
         @Test
         fun `handles null data`() {
-            val result = XiaomiResponseParser.parseTokenPlanUsage(
-                json("""{"code":0,"data":null}"""),
-                account()
-            )
+            val part = tokensOf(XiaomiResponseParser.parseTokenPlanUsage(json("""{"code":0,"data":null}""")))
 
-            assertTrue(result is ProviderResult.Success)
-            val snapshot = (result as ProviderResult.Success).snapshot
-            assertEquals(0L, snapshot.balance.tokens?.used)
-            assertEquals(0L, snapshot.balance.tokens?.total)
-            assertEquals(0L, snapshot.balance.tokens?.remaining)
-            assertEquals("100", snapshot.metadata["sessionUsed"])
-            assertEquals("inactive", snapshot.metadata["planStatus"])
+            assertEquals(0L, part.tokens.used)
+            assertEquals(0L, part.tokens.total)
+            assertEquals(0L, part.tokens.remaining)
+            assertEquals("100", part.metadata["sessionUsed"])
+            assertEquals("inactive", part.metadata["planStatus"])
         }
 
         @Test
         fun `handles missing data field`() {
-            val result = XiaomiResponseParser.parseTokenPlanUsage(
-                json("""{"code":0}"""),
-                account()
-            )
+            val part = tokensOf(XiaomiResponseParser.parseTokenPlanUsage(json("""{"code":0}""")))
 
-            assertTrue(result is ProviderResult.Success)
-            val snapshot = (result as ProviderResult.Success).snapshot
-            assertEquals(0L, snapshot.balance.tokens?.total)
-            assertEquals("inactive", snapshot.metadata["planStatus"])
+            assertEquals(0L, part.tokens.total)
+            assertEquals("inactive", part.metadata["planStatus"])
         }
 
         @Test
         fun `handles null monthUsage`() {
-            val result = XiaomiResponseParser.parseTokenPlanUsage(
-                json("""{"code":0,"data":{"monthUsage":null}}"""),
-                account()
+            val part = tokensOf(
+                XiaomiResponseParser.parseTokenPlanUsage(json("""{"code":0,"data":{"monthUsage":null}}"""))
             )
 
-            assertTrue(result is ProviderResult.Success)
-            val snapshot = (result as ProviderResult.Success).snapshot
-            assertEquals(0L, snapshot.balance.tokens?.total)
-            assertEquals("100", snapshot.metadata["sessionUsed"])
-            assertEquals("inactive", snapshot.metadata["planStatus"])
+            assertEquals(0L, part.tokens.total)
+            assertEquals("100", part.metadata["sessionUsed"])
+            assertEquals("inactive", part.metadata["planStatus"])
         }
 
         @Test
         fun `handles missing monthUsage field`() {
-            val result = XiaomiResponseParser.parseTokenPlanUsage(
-                json("""{"code":0,"data":{}}"""),
-                account()
-            )
+            val part = tokensOf(XiaomiResponseParser.parseTokenPlanUsage(json("""{"code":0,"data":{}}""")))
 
-            assertTrue(result is ProviderResult.Success)
-            val snapshot = (result as ProviderResult.Success).snapshot
-            assertEquals(0L, snapshot.balance.tokens?.total)
-            assertEquals("inactive", snapshot.metadata["planStatus"])
+            assertEquals(0L, part.tokens.total)
+            assertEquals("inactive", part.metadata["planStatus"])
         }
 
         @Test
         fun `handles null items array`() {
-            val result = XiaomiResponseParser.parseTokenPlanUsage(
-                json("""{"code":0,"data":{"monthUsage":{"percent":0.5,"items":null}}}"""),
-                account()
+            val part = tokensOf(
+                XiaomiResponseParser.parseTokenPlanUsage(
+                    json("""{"code":0,"data":{"monthUsage":{"percent":0.5,"items":null}}}""")
+                )
             )
 
-            assertTrue(result is ProviderResult.Success)
-            val snapshot = (result as ProviderResult.Success).snapshot
-            assertEquals(0L, snapshot.balance.tokens?.used)
-            assertEquals(0L, snapshot.balance.tokens?.total)
-            assertEquals("100", snapshot.metadata["sessionUsed"])
-            assertEquals("inactive", snapshot.metadata["planStatus"])
+            assertEquals(0L, part.tokens.used)
+            assertEquals(0L, part.tokens.total)
+            assertEquals("100", part.metadata["sessionUsed"])
+            assertEquals("inactive", part.metadata["planStatus"])
         }
 
         @Test
         fun `handles empty items array`() {
-            val result = XiaomiResponseParser.parseTokenPlanUsage(
-                json("""{"code":0,"data":{"monthUsage":{"percent":0.5,"items":[]}}}"""),
-                account()
+            val part = tokensOf(
+                XiaomiResponseParser.parseTokenPlanUsage(
+                    json("""{"code":0,"data":{"monthUsage":{"percent":0.5,"items":[]}}}""")
+                )
             )
 
-            assertTrue(result is ProviderResult.Success)
-            val snapshot = (result as ProviderResult.Success).snapshot
-            assertEquals(0L, snapshot.balance.tokens?.used)
-            assertEquals(0L, snapshot.balance.tokens?.total)
-            assertEquals("100", snapshot.metadata["sessionUsed"])
-            assertEquals("inactive", snapshot.metadata["planStatus"])
+            assertEquals(0L, part.tokens.used)
+            assertEquals(0L, part.tokens.total)
+            assertEquals("100", part.metadata["sessionUsed"])
+            assertEquals("inactive", part.metadata["planStatus"])
         }
 
         @Test
         fun `handles missing items field`() {
-            val result = XiaomiResponseParser.parseTokenPlanUsage(
-                json("""{"code":0,"data":{"monthUsage":{"percent":0.5}}}"""),
-                account()
+            val part = tokensOf(
+                XiaomiResponseParser.parseTokenPlanUsage(
+                    json("""{"code":0,"data":{"monthUsage":{"percent":0.5}}}""")
+                )
             )
 
-            assertTrue(result is ProviderResult.Success)
-            val snapshot = (result as ProviderResult.Success).snapshot
-            assertEquals(0L, snapshot.balance.tokens?.total)
-            assertEquals("inactive", snapshot.metadata["planStatus"])
+            assertEquals(0L, part.tokens.total)
+            assertEquals("inactive", part.metadata["planStatus"])
         }
 
         @Test
         fun `handles missing percent field`() {
-            val result = XiaomiResponseParser.parseTokenPlanUsage(
-                json("""{"code":0,"data":{"monthUsage":{"items":[{"used":100,"limit":200}]}}}"""),
-                account()
+            val part = tokensOf(
+                XiaomiResponseParser.parseTokenPlanUsage(
+                    json("""{"code":0,"data":{"monthUsage":{"items":[{"used":100,"limit":200}]}}}""")
+                )
             )
 
-            assertTrue(result is ProviderResult.Success)
-            val snapshot = (result as ProviderResult.Success).snapshot
-            assertEquals(100L, snapshot.balance.tokens?.used)
-            assertEquals(200L, snapshot.balance.tokens?.total)
-            assertEquals("active", snapshot.metadata["planStatus"])
+            assertEquals(100L, part.tokens.used)
+            assertEquals(200L, part.tokens.total)
+            assertEquals("active", part.metadata["planStatus"])
             // percent defaults to 0.0 → 0 * 100 = 0
-            assertEquals("0", snapshot.metadata["sessionUsed"])
+            assertEquals("0", part.metadata["sessionUsed"])
         }
 
         @Test
         fun `reports inactive plan when totalCredits is zero`() {
-            val result = XiaomiResponseParser.parseTokenPlanUsage(
-                json("""{"code":0,"data":{"monthUsage":{"percent":0.0,"items":[{"used":0,"limit":0}]}}}"""),
-                account()
+            val part = tokensOf(
+                XiaomiResponseParser.parseTokenPlanUsage(
+                    json("""{"code":0,"data":{"monthUsage":{"percent":0.0,"items":[{"used":0,"limit":0}]}}}""")
+                )
             )
 
-            assertTrue(result is ProviderResult.Success)
-            val snapshot = (result as ProviderResult.Success).snapshot
-            assertEquals("inactive", snapshot.metadata["planStatus"])
-            assertEquals("100", snapshot.metadata["sessionUsed"])
+            assertEquals("inactive", part.metadata["planStatus"])
+            assertEquals("100", part.metadata["sessionUsed"])
         }
 
         @Test
         fun `reports active plan when totalCredits is positive`() {
-            val result = XiaomiResponseParser.parseTokenPlanUsage(
-                json("""{"code":0,"data":{"monthUsage":{"percent":0.75,"items":[{"used":750,"limit":1000}]}}}"""),
-                account()
+            val part = tokensOf(
+                XiaomiResponseParser.parseTokenPlanUsage(
+                    json("""{"code":0,"data":{"monthUsage":{"percent":0.75,"items":[{"used":750,"limit":1000}]}}}""")
+                )
             )
 
-            assertTrue(result is ProviderResult.Success)
-            val snapshot = (result as ProviderResult.Success).snapshot
-            assertEquals("active", snapshot.metadata["planStatus"])
-            assertEquals("75", snapshot.metadata["sessionUsed"])
-            assertEquals(750L, snapshot.balance.tokens?.used)
-            assertEquals(1000L, snapshot.balance.tokens?.total)
-            assertEquals(250L, snapshot.balance.tokens?.remaining)
+            assertEquals("active", part.metadata["planStatus"])
+            assertEquals("75", part.metadata["sessionUsed"])
+            assertEquals(750L, part.tokens.used)
+            assertEquals(1000L, part.tokens.total)
+            assertEquals(250L, part.tokens.remaining)
         }
 
         @Test
         fun `returns AuthError for expired session`() {
-            val result = XiaomiResponseParser.parseTokenPlanUsage(
-                json("""{"code":-1,"message":"Token expired"}"""),
-                account()
+            val error = failureOf(
+                XiaomiResponseParser.parseTokenPlanUsage(json("""{"code":-1,"message":"Token expired"}"""))
             )
 
-            assertTrue(result is ProviderResult.Failure.AuthError)
+            assertTrue(error is ProviderResult.Failure.AuthError)
         }
 
         @Test
         fun `returns RateLimited for rate limit error`() {
-            val result = XiaomiResponseParser.parseTokenPlanUsage(
-                json("""{"code":-1,"message":"Rate limit exceeded"}"""),
-                account()
+            val error = failureOf(
+                XiaomiResponseParser.parseTokenPlanUsage(json("""{"code":-1,"message":"Rate limit exceeded"}"""))
             )
 
-            assertTrue(result is ProviderResult.Failure.RateLimited)
+            assertTrue(error is ProviderResult.Failure.RateLimited)
         }
 
         @Test
         fun `returns UnknownError for other errors`() {
-            val result = XiaomiResponseParser.parseTokenPlanUsage(
-                json("""{"code":500,"message":"Internal server error"}"""),
-                account()
+            val error = failureOf(
+                XiaomiResponseParser.parseTokenPlanUsage(json("""{"code":500,"message":"Internal server error"}"""))
             )
 
-            assertTrue(result is ProviderResult.Failure.UnknownError)
+            assertTrue(error is ProviderResult.Failure.UnknownError)
             assertEquals(
                 "Xiaomi API error (code=500): Internal server error",
-                (result as ProviderResult.Failure.UnknownError).message
+                (error as ProviderResult.Failure.UnknownError).message
             )
         }
     }

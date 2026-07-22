@@ -63,61 +63,104 @@ class XiaomiProviderClientTest {
         server.shutdown()
     }
 
+    /**
+     * The unified client always queries BOTH `/api/v1/balance` and
+     * `/api/v1/tokenPlan/usage`. Install a path-based dispatcher so each test
+     * controls each endpoint independently. An endpoint whose body is null
+     * responds 404 (a non-auth failure the composer silently drops).
+     */
+    private fun serveBoth(balanceBody: String?, tokenBody: String?) {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.path ?: ""
+                return when {
+                    path.startsWith("/api/v1/tokenPlan") ->
+                        tokenBody?.let { MockResponse().setResponseCode(200).setBody(it) }
+                            ?: MockResponse().setResponseCode(404)
+                    path.startsWith("/api/v1/balance") ->
+                        balanceBody?.let { MockResponse().setResponseCode(200).setBody(it) }
+                            ?: MockResponse().setResponseCode(404)
+                    else -> MockResponse().setResponseCode(404)
+                }
+            }
+        }
+    }
+
+    /** Serve the same status code for BOTH endpoints (used for error-path tests). */
+    private fun serveBothStatus(code: Int, body: String = "") {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse =
+                MockResponse().setResponseCode(code).setBody(body)
+        }
+    }
+
     @Test
-    fun `fetchBalance returns dollar balance for XIAOMI_API`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody(
-                    """{"code":0,"message":"","data":{"balance":"55.48","frozenBalance":"0.00","currency":"USD","overdraftLimit":"0.00","remainingOverdraftLimit":"0.00","giftBalance":"55.48","cashBalance":"0.00"}}"""
-                )
+    fun `fetchBalance returns unified dollar balance`() {
+        serveBoth(
+            balanceBody =
+            """{"code":0,"message":"","data":{"balance":"55.48","frozenBalance":"0.00","currency":"USD","overdraftLimit":"0.00","remainingOverdraftLimit":"0.00","giftBalance":"55.48","cashBalance":"0.00"}}""",
+            tokenBody = null
         )
 
-        val result = client.fetchBalance(account(ConnectionType.XIAOMI_API), validSession)
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Success)
         val success = result as ProviderResult.Success
-        assertEquals(ConnectionType.XIAOMI_API, success.snapshot.connectionType)
+        assertEquals(ConnectionType.XIAOMI, success.snapshot.connectionType)
         assertEquals("55.48", success.snapshot.balance.credits?.remaining?.toPlainString())
         assertEquals("USD", success.snapshot.metadata["currency"])
         assertEquals("55.48", success.snapshot.metadata["giftBalance"])
     }
 
     @Test
-    fun `fetchBalance returns Credits usage for XIAOMI_TOKEN_PLAN`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody(
-                    """{"code":0,"message":"","data":{"monthUsage":{"percent":0.248,"items":[{"name":"month_total_token","used":2727524596,"limit":11000000000,"percent":0.248}]},"usage":{"percent":0.25,"items":[{"name":"plan_total_token","used":2727524596,"limit":11000000000,"percent":0.25}]}}}"""
-                )
+    fun `fetchBalance returns unified Token Plan credits`() {
+        serveBoth(
+            balanceBody = null,
+            tokenBody =
+            """{"code":0,"message":"","data":{"monthUsage":{"percent":0.248,"items":[{"name":"month_total_token","used":2727524596,"limit":11000000000,"percent":0.248}]},"usage":{"percent":0.25,"items":[{"name":"plan_total_token","used":2727524596,"limit":11000000000,"percent":0.25}]}}}"""
         )
 
-        val result = client.fetchBalance(account(ConnectionType.XIAOMI_TOKEN_PLAN), validSession)
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Success)
         val success = result as ProviderResult.Success
-        assertEquals(ConnectionType.XIAOMI_TOKEN_PLAN, success.snapshot.connectionType)
+        assertEquals(ConnectionType.XIAOMI, success.snapshot.connectionType)
         assertEquals(2727524596L, success.snapshot.balance.tokens?.used)
         assertEquals(11000000000L, success.snapshot.balance.tokens?.total)
         assertEquals(8272475404L, success.snapshot.balance.tokens?.remaining)
     }
 
     @Test
-    fun `fetchBalance returns AuthError when session is expired`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(401)
+    fun `fetchBalance merges dollar balance and Token Plan credits into one snapshot`() {
+        serveBoth(
+            balanceBody = """{"code":0,"message":"","data":{"balance":"55.48","currency":"USD","giftBalance":"55.48"}}""",
+            tokenBody =
+            """{"code":0,"message":"","data":{"monthUsage":{"percent":0.248,"items":[{"used":2727524596,"limit":11000000000}]}}}"""
         )
 
-        val result = client.fetchBalance(account(ConnectionType.XIAOMI_API), validSession)
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), validSession)
+
+        assertTrue(result is ProviderResult.Success)
+        val success = result as ProviderResult.Success
+        assertEquals(ConnectionType.XIAOMI, success.snapshot.connectionType)
+        assertEquals("55.48", success.snapshot.balance.credits?.remaining?.toPlainString())
+        assertEquals(2727524596L, success.snapshot.balance.tokens?.used)
+        assertEquals("USD", success.snapshot.metadata["currency"])
+        assertEquals("24", success.snapshot.metadata["sessionUsed"])
+    }
+
+    @Test
+    fun `fetchBalance returns AuthError when session is expired`() {
+        serveBothStatus(401)
+
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Failure.AuthError)
     }
 
     @Test
     fun `fetchBalance returns AuthError when session JSON is invalid`() {
-        val result = client.fetchBalance(account(ConnectionType.XIAOMI_API), "not-valid-json")
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), "not-valid-json")
 
         assertTrue(result is ProviderResult.Failure.AuthError)
     }
@@ -128,45 +171,40 @@ class XiaomiProviderClientTest {
             XiaomiProviderClient.XiaomiSession(serviceToken = null, userId = "12345")
         )
 
-        val result = client.fetchBalance(account(ConnectionType.XIAOMI_API), badSession)
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), badSession)
 
         assertTrue(result is ProviderResult.Failure.AuthError)
     }
 
     @Test
     fun `testCredentials returns success for valid session`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody("""{"code":0,"message":"","data":{"balance":"10.00","currency":"USD"}}""")
+        serveBoth(
+            balanceBody = """{"code":0,"message":"","data":{"balance":"10.00","currency":"USD"}}""",
+            tokenBody = null
         )
 
-        val result = client.testCredentials(account(ConnectionType.XIAOMI_API), validSession)
+        val result = client.testCredentials(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Success)
     }
 
     @Test
     fun `testCredentials returns AuthError for expired session`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(401)
-        )
+        serveBothStatus(401)
 
-        val result = client.testCredentials(account(ConnectionType.XIAOMI_API), validSession)
+        val result = client.testCredentials(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Failure.AuthError)
     }
 
     @Test
     fun `fetchBalance sends correct cookies in request`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody("""{"code":0,"message":"","data":{"balance":"0","currency":"USD"}}""")
+        serveBoth(
+            balanceBody = """{"code":0,"message":"","data":{"balance":"0","currency":"USD"}}""",
+            tokenBody = null
         )
 
-        client.fetchBalance(account(ConnectionType.XIAOMI_API), validSession)
+        client.fetchBalance(account(ConnectionType.XIAOMI), validSession)
 
         val request = server.takeRequest()
         val cookie = request.getHeader("Cookie") ?: ""
@@ -178,42 +216,30 @@ class XiaomiProviderClientTest {
 
     @Test
     fun `fetchBalance returns RateLimited on 429`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(429)
-        )
+        serveBothStatus(429)
 
-        val result = client.fetchBalance(account(ConnectionType.XIAOMI_API), validSession)
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Failure.RateLimited)
     }
 
     @Test
     fun `fetchBalance returns NetworkError on 500`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(500)
-        )
+        serveBothStatus(500)
 
-        val result = client.fetchBalance(account(ConnectionType.XIAOMI_API), validSession)
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Failure.NetworkError)
     }
 
     @Test
-    fun `testCredentials returns success for XIAOMI_TOKEN_PLAN`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody(
-                    """{"code":0,"message":"","data":{"monthUsage":{"percent":0.25,"items":[]}}}"""
-                )
+    fun `testCredentials returns success with only Token Plan data`() {
+        serveBoth(
+            balanceBody = null,
+            tokenBody = """{"code":0,"message":"","data":{"monthUsage":{"percent":0.25,"items":[]}}}"""
         )
 
-        val result = client.testCredentials(
-            account(ConnectionType.XIAOMI_TOKEN_PLAN),
-            validSession
-        )
+        val result = client.testCredentials(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Success)
     }
@@ -233,18 +259,12 @@ class XiaomiProviderClientTest {
 
     @Test
     fun `fetchTokenPlanUsage handles null monthUsage gracefully`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody(
-                    """{"code":0,"message":"","data":{"monthUsage":null}}"""
-                )
+        serveBoth(
+            balanceBody = null,
+            tokenBody = """{"code":0,"message":"","data":{"monthUsage":null}}"""
         )
 
-        val result = client.fetchBalance(
-            account(ConnectionType.XIAOMI_TOKEN_PLAN),
-            validSession
-        )
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Success)
         val success = result as ProviderResult.Success
@@ -257,18 +277,12 @@ class XiaomiProviderClientTest {
 
     @Test
     fun `fetchTokenPlanUsage handles null items array gracefully`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody(
-                    """{"code":0,"message":"","data":{"monthUsage":{"percent":0.0,"items":null}}}"""
-                )
+        serveBoth(
+            balanceBody = null,
+            tokenBody = """{"code":0,"message":"","data":{"monthUsage":{"percent":0.0,"items":null}}}"""
         )
 
-        val result = client.fetchBalance(
-            account(ConnectionType.XIAOMI_TOKEN_PLAN),
-            validSession
-        )
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Success)
         val success = result as ProviderResult.Success
@@ -280,18 +294,12 @@ class XiaomiProviderClientTest {
 
     @Test
     fun `fetchTokenPlanUsage handles null data gracefully`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody(
-                    """{"code":0,"message":"","data":null}"""
-                )
+        serveBoth(
+            balanceBody = null,
+            tokenBody = """{"code":0,"message":"","data":null}"""
         )
 
-        val result = client.fetchBalance(
-            account(ConnectionType.XIAOMI_TOKEN_PLAN),
-            validSession
-        )
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Success)
         val success = result as ProviderResult.Success
@@ -303,13 +311,9 @@ class XiaomiProviderClientTest {
 
     @Test
     fun `fetchApiBalance returns AuthError when code is not zero`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody("""{"code":-1,"message":"Token expired","data":{}}""")
-        )
+        serveBothStatus(200, """{"code":-1,"message":"Token expired","data":{}}""")
 
-        val result = client.fetchBalance(account(ConnectionType.XIAOMI_API), validSession)
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Failure.AuthError)
         assertEquals(
@@ -320,16 +324,9 @@ class XiaomiProviderClientTest {
 
     @Test
     fun `fetchTokenPlanUsage returns AuthError when code is not zero`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody("""{"code":-1,"message":"Session invalid","data":{}}""")
-        )
+        serveBothStatus(200, """{"code":-1,"message":"Session invalid","data":{}}""")
 
-        val result = client.fetchBalance(
-            account(ConnectionType.XIAOMI_TOKEN_PLAN),
-            validSession
-        )
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Failure.AuthError)
         assertEquals(
@@ -340,18 +337,12 @@ class XiaomiProviderClientTest {
 
     @Test
     fun `fetchTokenPlanUsage handles missing monthUsage items`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody(
-                    """{"code":0,"message":"","data":{"monthUsage":{"percent":0.0}}}"""
-                )
+        serveBoth(
+            balanceBody = null,
+            tokenBody = """{"code":0,"message":"","data":{"monthUsage":{"percent":0.0}}}"""
         )
 
-        val result = client.fetchBalance(
-            account(ConnectionType.XIAOMI_TOKEN_PLAN),
-            validSession
-        )
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Success)
         val success = result as ProviderResult.Success
@@ -362,13 +353,12 @@ class XiaomiProviderClientTest {
 
     @Test
     fun `fetchApiBalance handles missing balance fields with zero fallback`() {
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody("""{"code":0,"message":"","data":{"currency":"USD"}}""")
+        serveBoth(
+            balanceBody = """{"code":0,"message":"","data":{"currency":"USD"}}""",
+            tokenBody = null
         )
 
-        val result = client.fetchBalance(account(ConnectionType.XIAOMI_API), validSession)
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Success)
         val success = result as ProviderResult.Success
@@ -438,7 +428,7 @@ class XiaomiProviderClientTest {
         }
 
         val c = clientWithRefresh { _, json -> savedJson[0] = json }
-        val result = c.fetchBalance(account(ConnectionType.XIAOMI_API), sessionWithPassport)
+        val result = c.fetchBalance(account(ConnectionType.XIAOMI), sessionWithPassport)
 
         assertTrue(result is ProviderResult.Success)
         assertEquals(2, balanceHits)
@@ -449,26 +439,24 @@ class XiaomiProviderClientTest {
 
     @Test
     fun `fetchBalance does not refresh when no passToken`() {
-        server.enqueue(MockResponse().setResponseCode(401))
+        // Both endpoints return 401; the session lacks a passToken so no silent
+        // re-login is attempted and the session writer is never invoked.
+        serveBothStatus(401)
 
         var writerCalled = false
         val c = clientWithRefresh { _, _ -> writerCalled = true }
-        val result = c.fetchBalance(account(ConnectionType.XIAOMI_API), validSession)
+        val result = c.fetchBalance(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Failure.AuthError)
         assertEquals(false, writerCalled)
-        assertEquals(1, server.requestCount)
     }
 
     @Test
     fun `fetchBalance treats HTML body as AuthError not ParseError`() {
-        server.enqueue(
-            MockResponse().setResponseCode(200)
-                .setBody("<!doctype html><html><body>Login</body></html>")
-        )
+        serveBothStatus(200, "<!doctype html><html><body>Login</body></html>")
 
         // No passport => cannot refresh => surfaces the AuthError.
-        val result = client.fetchBalance(account(ConnectionType.XIAOMI_API), validSession)
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI), validSession)
 
         assertTrue(result is ProviderResult.Failure.AuthError)
     }
@@ -488,7 +476,7 @@ class XiaomiProviderClientTest {
         }
 
         val c = clientWithRefresh { _, _ -> }
-        val result = c.fetchBalance(account(ConnectionType.XIAOMI_API), sessionWithPassport)
+        val result = c.fetchBalance(account(ConnectionType.XIAOMI), sessionWithPassport)
 
         assertTrue(result is ProviderResult.Failure.AuthError)
         // First attempt + exactly one retry after refresh.

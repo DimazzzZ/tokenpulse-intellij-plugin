@@ -69,7 +69,8 @@ class DefaultProviderRegistry(
             ConnectionType.OPENAI_PLATFORM -> openAiPlatformClient
             ConnectionType.CODEX_CLI -> codexClient
             ConnectionType.CLAUDE_CODE -> claudeCodeClient
-            ConnectionType.XIAOMI_API -> xiaomiClient
+            ConnectionType.XIAOMI,
+            ConnectionType.XIAOMI_API,
             ConnectionType.XIAOMI_TOKEN_PLAN -> xiaomiClient
         }
     }

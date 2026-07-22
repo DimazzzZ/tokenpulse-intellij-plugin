@@ -13,7 +13,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.zhavoronkov.tokenpulse.model.ConnectionType
 import org.zhavoronkov.tokenpulse.model.ProviderResult
+import org.zhavoronkov.tokenpulse.provider.SessionParser
+import org.zhavoronkov.tokenpulse.provider.xiaomi.XiaomiProviderClient
+import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.settings.AuthType
 import org.zhavoronkov.tokenpulse.settings.CredentialsStore
 import org.zhavoronkov.tokenpulse.settings.TokenPulseSettingsService
@@ -56,7 +60,14 @@ class BalanceRefreshService : Disposable {
     private val notificationThrottleMs = Constants.NOTIFICATION_THROTTLE_MS
 
     init {
-        startAutoRefresh()
+        // One-time migration for the Xiaomi provider unification: merge duplicate
+        // Xiaomi accounts (same userId). Runs off-EDT on the IO scope because it
+        // reads session secrets from PasswordSafe, and completes BEFORE the first
+        // refresh so a removed duplicate never gets refreshed.
+        scope.launch {
+            dedupeXiaomiAccounts()
+            startAutoRefresh()
+        }
     }
 
     fun restartAutoRefresh() {
@@ -209,6 +220,75 @@ class BalanceRefreshService : Disposable {
         scope.cancel()
     }
 
+    /**
+     * One-time migration: collapse duplicate unified-Xiaomi accounts that share
+     * the same Xiaomi `userId` into a single account.
+     *
+     * Before this session-unification work, a user could add both a
+     * pay-as-you-go and a Token Plan account for the SAME Xiaomi login. Post
+     * migration both are [ConnectionType.XIAOMI] and each shows both balances,
+     * so the second is redundant. We keep one survivor per userId and remove the
+     * rest (account + PasswordSafe secret).
+     *
+     * Safety:
+     * - Runs at most once, guarded by [TokenPulseSettings.xiaomiDedupeDone].
+     * - Reads secrets on the IO scope (never the EDT).
+     * - DATA-LOSS GUARD: any account whose secret is missing/unparseable or
+     *   whose userId is blank is left untouched and never merged.
+     * - Survivor preference: an account whose session carries a `passToken`
+     *   (silent-refresh capable) wins; ties break by lowest id for determinism.
+     */
+    private fun dedupeXiaomiAccounts() {
+        val settingsService = TokenPulseSettingsService.getInstance()
+        if (settingsService.state.xiaomiDedupeDone) return
+
+        val credentials = CredentialsStore.getInstance()
+        val accounts = settingsService.state.accounts
+        val xiaomiAccounts = accounts.filter { it.connectionType == ConnectionType.XIAOMI }
+
+        // Group by userId; only accounts with a readable, parseable session that
+        // yields a non-blank userId are eligible for merging.
+        val byUserId = xiaomiAccounts
+            .mapNotNull { account ->
+                val session = credentials.getApiKey(account.id)?.let { parseXiaomiSession(it) }
+                val userId = session?.userId?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                Triple(account, userId, session)
+            }
+            .groupBy { it.second }
+
+        val idsToRemove = mutableListOf<String>()
+        byUserId.values.filter { it.size > 1 }.forEach { group ->
+            val sorted = group.sortedWith(
+                compareByDescending<Triple<Account, String, XiaomiProviderClient.XiaomiSession>> {
+                    !it.third.passToken.isNullOrBlank()
+                }.thenBy { it.first.id }
+            )
+            // Keep the first (survivor); mark the rest for removal.
+            sorted.drop(1).forEach { idsToRemove.add(it.first.id) }
+        }
+
+        if (idsToRemove.isEmpty()) {
+            settingsService.state.xiaomiDedupeDone = true
+            return
+        }
+
+        TokenPulseLogger.Service.info("Xiaomi dedup: merging ${idsToRemove.size} duplicate account(s)")
+        idsToRemove.forEach { credentials.removeApiKey(it) }
+        settingsService.state.accounts = accounts.filter { it.id !in idsToRemove }
+        settingsService.state.xiaomiDedupeDone = true
+
+        refreshAll(force = true)
+    }
+
+    private fun parseXiaomiSession(secret: String): XiaomiProviderClient.XiaomiSession? =
+        SessionParser.parse(
+            secret = secret,
+            sessionClass = XiaomiProviderClient.XiaomiSession::class.java,
+            validator = { !it.serviceToken.isNullOrBlank() },
+            providerName = "Xiaomi",
+            gson = com.google.gson.Gson()
+        )
+
     private fun startAutoRefresh() {
         restartAutoRefresh()
     }
@@ -259,5 +339,6 @@ internal fun isApiKeyAuth(authType: AuthType): Boolean = when (authType) {
     AuthType.CODEX_CLI_LOCAL,
     AuthType.OPENAI_OAUTH,
     AuthType.NEBIUS_BILLING_SESSION,
+    AuthType.XIAOMI_SESSION,
     AuthType.OPENROUTER_PLUGIN_BRIDGE -> false
 }
