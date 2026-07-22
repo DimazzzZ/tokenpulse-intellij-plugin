@@ -128,7 +128,7 @@ The following classes are excluded from coverage reports as they require Intelli
 |----------|------------------|
 | **UI Dialogs** | `*Dialog`, `TokenPulseConfigurable`, `TokenPulseStatusBarWidget`, `*TableModel` |
 | **Platform Services** | `BalanceRefreshService`, `HttpClientService`, `TokenPulseSettingsService`, `CredentialsStore` |
-| **OAuth/CLI** | `ChatGptOAuthManager`, `CodexAppServerClient`, `ClaudeCliDetector` |
+| **OAuth/CLI** | `ChatGptOAuthManager`, `ClaudeCliDetector`, `CodexCliExecutor` |
 | **Startup** | `WelcomeNotificationActivity`, `WhatsNewNotificationActivity` |
 | **Actions** | `TokenPulseActions` |
 

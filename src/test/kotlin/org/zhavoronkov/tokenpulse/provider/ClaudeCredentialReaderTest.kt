@@ -12,6 +12,9 @@ import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.isClaudeTokenExp
 import org.zhavoronkov.tokenpulse.utils.HostOs
 import java.io.File
 import java.nio.file.Path
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermission
+import com.google.gson.JsonParser
 
 /**
  * Tests for [ClaudeCredentialReader]'s file-mode path. Constructed with
@@ -122,6 +125,93 @@ class ClaudeCredentialReaderTest {
     fun `missing claudeAiOauth object returns null`(@TempDir dir: Path) {
         val configDir = writeCredentials(dir, """{ "somethingElse": {} }""")
         assertNull(reader(configDir).readAccessToken())
+    }
+
+    // ── writeTokens: credential write-back (file mode) ─────────────────────
+
+    @Test
+    fun `writeTokens preserves unrelated fields and updates rotating tokens`(@TempDir dir: Path) {
+        val configDir = writeCredentials(
+            dir,
+            """
+            {
+              "claudeAiOauth": {
+                "accessToken": "old-a",
+                "refreshToken": "old-r",
+                "expiresAt": 1000,
+                "scopes": ["user:profile", "user:inference"],
+                "subscriptionType": "pro",
+                "rateLimitTier": "tier-2",
+                "profile": { "name": "Dev" },
+                "tokenAccount": { "uuid": "u-1", "emailAddress": "dev@example.com" }
+              },
+              "topLevelExtra": "keep-me"
+            }
+            """.trimIndent()
+        )
+        val r = reader(configDir)
+        assertTrue(r.writeTokens("new-a", "new-r", 9999999999999L))
+
+        val root = JsonParser.parseString(File(configDir, ".credentials.json").readText()).asJsonObject
+        val oauth = root.getAsJsonObject("claudeAiOauth")
+        assertEquals("new-a", oauth.get("accessToken").asString)
+        assertEquals("new-r", oauth.get("refreshToken").asString)
+        assertEquals(9999999999999L, oauth.get("expiresAt").asLong)
+        // Unrelated fields survive the round-trip.
+        assertEquals("pro", oauth.get("subscriptionType").asString)
+        assertEquals("tier-2", oauth.get("rateLimitTier").asString)
+        assertEquals("Dev", oauth.getAsJsonObject("profile").get("name").asString)
+        assertEquals("dev@example.com", oauth.getAsJsonObject("tokenAccount").get("emailAddress").asString)
+        assertEquals(2, oauth.getAsJsonArray("scopes").size())
+        assertEquals("keep-me", root.get("topLevelExtra").asString)
+    }
+
+    @Test
+    fun `writeTokens keeps existing refreshToken when new one is null`(@TempDir dir: Path) {
+        val configDir = writeCredentials(
+            dir,
+            """{ "claudeAiOauth": { "accessToken": "old-a", "refreshToken": "old-r", "expiresAt": 1000 } }"""
+        )
+        val r = reader(configDir)
+        assertTrue(r.writeTokens("new-a", null, 2000L))
+        assertEquals("new-a", r.readAccessToken())
+        assertEquals("old-r", r.readRefreshToken())
+        assertEquals(2000L, r.readExpiresAt())
+    }
+
+    @Test
+    fun `writeTokens round-trips via reader accessors`(@TempDir dir: Path) {
+        val configDir = writeCredentials(
+            dir,
+            """{ "claudeAiOauth": { "accessToken": "a", "refreshToken": "r", "expiresAt": 1 } }"""
+        )
+        val r = reader(configDir)
+        assertTrue(r.writeTokens("acc-2", "ref-2", 42L))
+        assertEquals("acc-2", r.readAccessToken())
+        assertEquals("ref-2", r.readRefreshToken())
+        assertEquals(42L, r.readExpiresAt())
+    }
+
+    @Test
+    fun `writeTokens sets owner-only permissions and leaves no temp file`(@TempDir dir: Path) {
+        val configDir = writeCredentials(
+            dir,
+            """{ "claudeAiOauth": { "accessToken": "a", "expiresAt": 1 } }"""
+        )
+        assertTrue(reader(configDir).writeTokens("b", "c", 2L))
+
+        val credFile = File(configDir, ".credentials.json")
+        val perms = Files.getPosixFilePermissions(credFile.toPath())
+        assertEquals(setOf(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE), perms)
+        // Atomic write must not leave a .tmp sibling behind.
+        val leftovers = dir.toFile().listFiles { f -> f.name.contains(".json.tmp") }
+        assertTrue(leftovers == null || leftovers.isEmpty())
+    }
+
+    @Test
+    fun `writeTokens returns false when existing credentials unreadable`(@TempDir dir: Path) {
+        // No .credentials.json => nothing to round-trip => best-effort false.
+        assertFalse(reader(dir.toFile().absolutePath).writeTokens("a", "b", 1L))
     }
 
     // ── isClaudeTokenExpired: pure expiry decision ─────────────────────────

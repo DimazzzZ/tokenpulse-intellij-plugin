@@ -269,8 +269,10 @@ class ClaudeCodeProviderClient : ProviderClient {
 
     /**
      * Attempt a single token refresh. On success, returns the fresh access
-     * token for in-memory use only — TokenPulse never writes back to Claude's
-     * credential store (the `claude` CLI owns its own credential lifecycle).
+     * token for immediate use and writes the rotated tokens back into Claude's
+     * credential store (best-effort) so the running `claude` CLI keeps a valid
+     * refresh token. A write failure is logged but does not block using the
+     * fresh token in memory for this call.
      */
     private fun refreshOnce(credentialReader: ClaudeCredentialReader): TokenAcquisition {
         val rt = credentialReader.readRefreshToken()
@@ -283,6 +285,12 @@ class ClaudeCodeProviderClient : ProviderClient {
         }
         return when (val r = refreshClient.refresh(rt)) {
             is ClaudeOAuthRefreshClient.RefreshResult.Success -> {
+                val wrote = credentialReader.writeTokens(r.accessToken, r.refreshToken, r.expiresAt)
+                if (!wrote) {
+                    TokenPulseLogger.Provider.warn(
+                        "[ClaudeCodeProviderClient] Token write-back failed; using fresh token in-memory only"
+                    )
+                }
                 TokenAcquisition.Ok(r.accessToken)
             }
             is ClaudeOAuthRefreshClient.RefreshResult.Error -> {

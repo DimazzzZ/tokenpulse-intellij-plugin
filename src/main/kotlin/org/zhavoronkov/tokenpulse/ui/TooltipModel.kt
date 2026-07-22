@@ -24,7 +24,11 @@ internal object TooltipModel {
     /** A single logical row in the tooltip, independent of rendering. */
     internal sealed interface TooltipRow {
         data class LabelValue(val label: String, val value: String, val bold: Boolean = false) : TooltipRow
-        data class UsageBar(val label: String, val percent: Int, val resetInline: String?) : TooltipRow
+        // UsageBar: fillPercent (0..100) is CONSUMED and drives the bar fill +
+        // color (high = red); labelText is the pre-formatted right-column text
+        // (Claude/Codex show remaining e.g. "98%", Cline shows used e.g. "50%").
+        data class UsageBar(val label: String, val fillPercent: Int, val labelText: String, val resetInline: String?) :
+            TooltipRow
         data class BalanceBar(
             val label: String,
             val remainingPercent: Int,
@@ -142,16 +146,26 @@ internal object TooltipModel {
             (weeklyUsed != null && weeklyUsed != "N/A") ||
             (codeReviewUsed != null && codeReviewUsed != "N/A")
         if (!hasRateLimits) return false
-        fiveHourUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let {
-            rows.add(TooltipRow.BalanceBar("5-hour", (100 - it).coerceIn(0, 100)))
-        }
-        weeklyUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let {
-            rows.add(TooltipRow.BalanceBar("Weekly", (100 - it).coerceIn(0, 100)))
-        }
-        codeReviewUsed?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt()?.let {
-            rows.add(TooltipRow.BalanceBar("Code Review", (100 - it).coerceIn(0, 100)))
-        }
+        addCodexBar(rows, fiveHourUsed, "5-hour", metadata["fiveHourResetsAt"])
+        addCodexBar(rows, weeklyUsed, "Weekly", metadata["weeklyResetsAt"])
+        addCodexBar(rows, codeReviewUsed, "Code Review", metadata["codeReviewResetsAt"])
         return true
+    }
+
+    /**
+     * Append a Codex usage-bar row when [used] is a parseable non-`N/A` value.
+     * [used] is a "percent used" number; the bar fills with CONSUMED (used%)
+     * and the printed label reads REMAINING (100 - used%). Delegates to
+     * [claudeUsageBar] to share the Claude/Codex "remaining-label" convention.
+     */
+    private fun addCodexBar(
+        rows: MutableList<TooltipRow>,
+        used: String?,
+        label: String,
+        resetsAtIso: String?,
+    ) {
+        val pct = used?.takeIf { it != "N/A" }?.toFloatOrNull()?.toInt() ?: return
+        rows.add(claudeUsageBar(label, pct, resetsAtIso))
     }
 
     /**
@@ -187,29 +201,34 @@ internal object TooltipModel {
         if (fiveHourUtilization != null || sevenDayUtilization != null) {
             fiveHourUtilization?.let {
                 val pct = it.toIntOrNull() ?: 0
-                rows.add(TooltipRow.UsageBar("5-hour", 100 - pct, resetInline(metadata["fiveHourResetsAt"])))
+                rows.add(claudeUsageBar("5-hour", pct, metadata["fiveHourResetsAt"]))
             }
             sevenDayUtilization?.let {
                 val pct = it.toIntOrNull() ?: 0
-                rows.add(TooltipRow.UsageBar("7-day", 100 - pct, resetInline(metadata["sevenDayResetsAt"])))
+                rows.add(claudeUsageBar("7-day", pct, metadata["sevenDayResetsAt"]))
             }
         } else {
             val sessionUsed = metadata["sessionUsed"]
             val weekUsed = metadata["weekUsed"]
             sessionUsed?.let {
                 val pct = it.toIntOrNull() ?: 0
-                rows.add(TooltipRow.UsageBar("5-hour", 100 - pct, resetInline(metadata["sessionResetsAt"])))
+                rows.add(claudeUsageBar("5-hour", pct, metadata["sessionResetsAt"]))
             }
             weekUsed?.let {
                 val pct = it.toIntOrNull() ?: 0
-                rows.add(TooltipRow.UsageBar("Weekly", 100 - pct, resetInline(metadata["weekResetsAt"])))
+                rows.add(claudeUsageBar("Weekly", pct, metadata["weekResetsAt"]))
             }
             if (sessionUsed == null && weekUsed == null) {
                 rows.add(TooltipRow.Info("Usage data unavailable"))
             }
         }
-
         metadata["status"]?.let { rows.add(TooltipRow.Info("Status: $it")) }
+    }
+
+    /** Claude / Codex convention: bar fills with CONSUMED (used%), label reads REMAINING. */
+    private fun claudeUsageBar(label: String, used: Int, resetsAtIso: String?): TooltipRow.UsageBar {
+        val used0 = used.coerceIn(0, 100)
+        return TooltipRow.UsageBar(label, used0, "${100 - used0}%", resetInline(resetsAtIso))
     }
 
     /**
@@ -274,9 +293,10 @@ internal object TooltipModel {
         if (metrics.isEmpty()) return
         rows.add(TooltipRow.SectionHeader(ClinePassUsageRenderer.SECTION_TITLE))
         for (metric in metrics) {
-            // Render Cline metrics the same way Claude Code does: reset time
-            // inline in col 3, never on a separate row (constant placement).
-            rows.add(TooltipRow.UsageBar(metric.label, metric.percent.coerceIn(0, 100), resetInline(metric.resetAt)))
+            // Cline convention: bar fill AND label both read USED% (unchanged
+            // wording); reset time renders inline in col 3.
+            val used0 = metric.percent.coerceIn(0, 100)
+            rows.add(TooltipRow.UsageBar(metric.label, used0, "$used0%", resetInline(metric.resetAt)))
         }
     }
 

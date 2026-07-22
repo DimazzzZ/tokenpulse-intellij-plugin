@@ -119,11 +119,15 @@ usage and cost data. TokenPulse fetches:
 
 ### How does ChatGPT subscription tracking work?
 
-ChatGPT Pro/Plus users can sign in via OAuth to track their subscription usage. The plugin uses
-the same OAuth flow as the official ChatGPT clients (PKCE-based authentication).
+ChatGPT Pro/Plus/Team users sign in once with the `codex` CLI (`codex login`). TokenPulse then
+reads the OAuth credentials that `codex` already stored for you in `~/.codex/auth.json` (or
+`$CODEX_HOME/auth.json`) and calls ChatGPT's usage API directly to display 5-hour, weekly, and
+code-review rate-limit quotas. It no longer spawns a `codex app-server` subprocess.
 
-When **Codex integration** is enabled (requires Codex CLI), TokenPulse can display detailed
-rate limit usage including 5-hour, weekly, and code review quotas.
+When the stored access token expires, the plugin refreshes it using the refresh token and writes
+the rotated tokens back to `auth.json` so your real `codex` login stays in sync — you should not
+have to re-login on the CLI just because your IDE was closed for a while. If the refresh token has
+been revoked, TokenPulse asks you to run `codex` to sign in again.
 
 ### How does Claude Code tracking work?
 
