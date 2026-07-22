@@ -24,6 +24,7 @@ internal object TooltipModel {
     /** A single logical row in the tooltip, independent of rendering. */
     internal sealed interface TooltipRow {
         data class LabelValue(val label: String, val value: String, val bold: Boolean = false) : TooltipRow
+
         // UsageBar: fillPercent (0..100) is CONSUMED and drives the bar fill +
         // color (high = red); labelText is the pre-formatted right-column text
         // (Claude/Codex show remaining e.g. "98%", Cline shows used e.g. "50%").
