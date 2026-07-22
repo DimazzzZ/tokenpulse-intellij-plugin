@@ -5,6 +5,7 @@ import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.Panel
 import com.intellij.ui.dsl.builder.panel
 import org.zhavoronkov.tokenpulse.utils.Constants.TEXT_AREA_COLUMNS
 import org.zhavoronkov.tokenpulse.utils.Constants.TEXT_AREA_ROWS
@@ -121,10 +122,45 @@ class XiaomiConnectDialog : DialogWrapper(true) {
 
         separator()
 
+        if (XiaomiJcefLoginDialog.isSupported()) {
+            row {
+                comment(
+                    "Sign in once in an embedded browser window — TokenPulse captures the " +
+                        "session automatically, including the token needed for silent auto-refresh."
+                )
+            }
+            row {
+                cell(
+                    JButton("Sign in to Xiaomi").apply {
+                        addActionListener { openJcefLogin() }
+                    }
+                )
+            }
+            row {
+                cell(statusLabel)
+            }
+
+            collapsibleGroup("Manual capture (advanced)") {
+                manualCaptureRows()
+            }
+        } else {
+            row {
+                comment(
+                    "<html>The embedded browser isn't available in this IDE build, so use " +
+                        "the manual cURL capture below.</html>"
+                )
+            }
+            manualCaptureRows()
+            row {
+                cell(statusLabel)
+            }
+        }
+    }
+
+    private fun Panel.manualCaptureRows() {
         row {
             label("<html><b>Steps:</b></html>")
         }
-
         row {
             comment(
                 "1. Open <a href=\"$XIAOMI_PLATFORM_URL\">Xiaomi Platform</a> and log in<br>" +
@@ -135,7 +171,6 @@ class XiaomiConnectDialog : DialogWrapper(true) {
                     "6. Paste below"
             )
         }
-
         row {
             cell(
                 JButton("Open Xiaomi Platform →").apply {
@@ -143,48 +178,48 @@ class XiaomiConnectDialog : DialogWrapper(true) {
                 }
             )
         }
-
         separator()
-
         row {
             cell(JBLabel("Paste cURL command:"))
         }
-
         row {
             cell(JScrollPane(pasteArea)).align(AlignX.FILL)
         }
-
         separator()
-
         row {
             label("<html><b>Enable auto-refresh (recommended):</b></html>")
         }
-
         row {
             comment(
                 "To let TokenPulse silently re-login when the session expires, also " +
-                    "capture your Xiaomi Passport cookie:<br>" +
-                    "1. In DevTools → Network, filter by <code>account.xiaomi.com</code> " +
-                    "(or <code>serviceLogin</code>)<br>" +
-                    "2. Right-click any request to that host → <b>Copy as cURL</b> and paste below.<br>" +
+                    "capture your Xiaomi Passport cookie. In a new browser tab open " +
+                    "<a href=\"$XIAOMI_ACCOUNT_URL\">account.xiaomi.com</a> (log in if " +
+                    "prompted), then in DevTools → Network right-click the top document " +
+                    "request → <b>Copy as cURL</b> and paste it below.<br>" +
                     "<i>Optional — leave blank to reconnect manually when the session expires.</i>"
             )
         }
-
         row {
             cell(JScrollPane(accountPasteArea)).align(AlignX.FILL)
         }
-
-        row {
-            cell(statusLabel)
-        }
-
         row {
             cell(
                 JButton("Parse").apply {
                     addActionListener { attemptParse() }
                 }
             )
+        }
+    }
+
+    private fun openJcefLogin() {
+        val login = XiaomiJcefLoginDialog()
+        if (login.showAndGet()) {
+            val json = login.capturedSessionJson
+            if (!json.isNullOrBlank()) {
+                capturedSessionJson = json
+                statusLabel.text = STATUS_SUCCESS
+                isOKActionEnabled = true
+            }
         }
     }
 
