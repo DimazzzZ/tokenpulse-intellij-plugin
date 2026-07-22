@@ -256,8 +256,9 @@ object TokenPulseTooltipPanel {
                 panel,
                 gbc,
                 row.label,
-                row.percent,
-                ProgressBarRenderer.getUsageColor(row.percent),
+                row.fillPercent,
+                row.labelText,
+                ProgressBarRenderer.getUsageColor(row.fillPercent),
                 row.resetInline
             )
             is TooltipRow.BalanceBar -> addBarRow(
@@ -265,6 +266,7 @@ object TokenPulseTooltipPanel {
                 gbc,
                 row.label,
                 row.remainingPercent,
+                "${row.remainingPercent.coerceIn(0, 100)}%",
                 ProgressBarRenderer.getBalanceColor(row.remainingPercent),
                 row.resetInline
             )
@@ -302,7 +304,8 @@ object TokenPulseTooltipPanel {
         panel: JPanel,
         gbc: GridBagConstraints,
         label: String,
-        percent: Int,
+        fillPercent: Int,
+        labelText: String,
         color: Color,
         resetInline: String?
     ) {
@@ -329,10 +332,10 @@ object TokenPulseTooltipPanel {
             anchor = GridBagConstraints.LINE_START,
             rightInset = 4
         ) {
-            UsageBar(percent, color)
+            UsageBar(fillPercent, color)
         }
         cell(panel, gridx = 2, gridy = row, topGap = topGap, anchor = GridBagConstraints.LINE_END) {
-            JBLabel("${percent.coerceIn(0, 100)}%").apply {
+            JBLabel(labelText).apply {
                 font = font.deriveFont(java.awt.Font.BOLD)
             }
         }
