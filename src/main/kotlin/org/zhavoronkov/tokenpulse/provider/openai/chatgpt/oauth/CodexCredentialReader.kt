@@ -1,12 +1,10 @@
 package org.zhavoronkov.tokenpulse.provider.openai.chatgpt.oauth
 
 import com.google.gson.JsonObject
-import com.google.gson.JsonParser
+import org.zhavoronkov.tokenpulse.provider.oauth.OAuthCredentialStore
+import org.zhavoronkov.tokenpulse.provider.oauth.isTokenExpired
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.io.File
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
-import java.nio.file.attribute.PosixFilePermission
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 
@@ -108,48 +106,19 @@ class CodexCredentialReader(
     }
 
     private fun writeAtomicRaw(content: String) {
-        val dir = authFile.parentFile ?: File(".")
-        val tmp = File.createTempFile("auth", ".json.tmp", dir)
-        try {
-            tmp.writeText(content, Charsets.UTF_8)
-            setOwnerOnlyPermissions(tmp)
-            val src = tmp.toPath()
-            val dst = authFile.toPath()
-            try {
-                Files.move(src, dst, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-            } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
-                Files.move(src, dst, StandardCopyOption.REPLACE_EXISTING)
-            }
-        } finally {
-            if (tmp.exists()) tmp.delete()
-        }
-    }
-
-    private fun setOwnerOnlyPermissions(file: File) {
-        try {
-            Files.setPosixFilePermissions(
-                file.toPath(),
-                setOf(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE),
-            )
-        } catch (_: UnsupportedOperationException) {
-            // Non-POSIX filesystem (e.g. Windows): nothing to tighten.
-        } catch (e: Exception) {
-            logDebug("Could not set 0600 on temp file: ${e.message}")
-        }
+        OAuthCredentialStore.writeAtomic(authFile, content, tmpPrefix = "auth")
     }
 
     private fun readRawJson(): JsonObject? {
-        return try {
-            if (!authFile.exists()) {
-                logDebug("auth.json not found: ${authFile.absolutePath}")
-                return null
-            }
-            val element = JsonParser.parseString(authFile.readText(Charsets.UTF_8))
-            if (element.isJsonObject) element.asJsonObject else null
-        } catch (e: Exception) {
-            logWarn("Failed to read auth.json: ${e.message}")
-            null
+        if (!authFile.exists()) {
+            logDebug("auth.json not found: ${authFile.absolutePath}")
+            return null
         }
+        val json = OAuthCredentialStore.readJsonObject(authFile)
+        if (json == null) {
+            logWarn("Failed to read auth.json (malformed or not a JSON object)")
+        }
+        return json
     }
 
     private fun logDebug(msg: String) = TokenPulseLogger.Provider.debug("[CodexCredentialReader] $msg")
@@ -166,6 +135,5 @@ class CodexCredentialReader(
  * epoch seconds. A null `expEpochSeconds` returns false (unknown => usable).
  */
 internal fun isCodexTokenExpired(expEpochSeconds: Long?, nowEpochSeconds: Long, skewSeconds: Long): Boolean {
-    if (expEpochSeconds == null) return false
-    return nowEpochSeconds >= expEpochSeconds - skewSeconds
+    return isTokenExpired(expEpochSeconds, nowEpochSeconds, skewSeconds)
 }

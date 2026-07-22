@@ -3,9 +3,11 @@ package org.zhavoronkov.tokenpulse.provider.openai.chatgpt.oauth
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.google.gson.annotations.SerializedName
+import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_BODY_PREVIEW
+import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_USER_AGENT
+import org.zhavoronkov.tokenpulse.provider.oauth.oauthHttpClient
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.net.URI
-import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
@@ -25,9 +27,7 @@ class CodexOAuthUsageClient(
 ) {
 
     private val gson: Gson = Gson()
-    private val httpClient: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(TIMEOUT_SECONDS))
-        .build()
+    private val httpClient = oauthHttpClient(TIMEOUT_SECONDS)
 
     fun fetch(accessToken: String, accountId: String, fedramp: Boolean = false): UsageResult {
         if (accessToken.isBlank()) {
@@ -53,7 +53,7 @@ class CodexOAuthUsageClient(
                 )
                 429 -> UsageResult.RateLimited
                 else -> UsageResult.Transient(
-                    "Usage API returned ${response.statusCode()}: ${response.body().take(BODY_PREVIEW)}"
+                    "Usage API returned ${response.statusCode()}: ${response.body().take(OAUTH_BODY_PREVIEW)}"
                 )
             }
         } catch (_: java.net.http.HttpTimeoutException) {
@@ -71,7 +71,7 @@ class CodexOAuthUsageClient(
             .uri(URI.create(usageUrl))
             .header("Authorization", "Bearer $accessToken")
             .header("ChatGPT-Account-Id", accountId)
-            .header("User-Agent", USER_AGENT)
+            .header("User-Agent", OAUTH_USER_AGENT)
             .timeout(Duration.ofSeconds(TIMEOUT_SECONDS))
             .GET()
         if (fedramp) {
@@ -205,9 +205,7 @@ class CodexOAuthUsageClient(
 
     companion object {
         private const val USAGE_URL = "https://chatgpt.com/backend-api/wham/usage"
-        private const val USER_AGENT = "TokenPulse/1.0"
         private const val TIMEOUT_SECONDS = 5L
-        private const val BODY_PREVIEW = 200
         private const val FIVE_HOUR_SECONDS = 18_000
         private const val WEEKLY_SECONDS = 604_800
         private const val DURATION_TOLERANCE = 0.05

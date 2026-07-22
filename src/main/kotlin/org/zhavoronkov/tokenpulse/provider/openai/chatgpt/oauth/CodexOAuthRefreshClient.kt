@@ -3,9 +3,11 @@ package org.zhavoronkov.tokenpulse.provider.openai.chatgpt.oauth
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.google.gson.annotations.SerializedName
+import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_BODY_PREVIEW
+import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_USER_AGENT
+import org.zhavoronkov.tokenpulse.provider.oauth.oauthHttpClient
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.net.URI
-import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
@@ -26,9 +28,7 @@ class CodexOAuthRefreshClient(
 ) {
 
     private val gson: Gson = Gson()
-    private val httpClient: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(TIMEOUT_SECONDS))
-        .build()
+    private val httpClient = oauthHttpClient(TIMEOUT_SECONDS)
 
     fun refresh(refreshToken: String): RefreshResult {
         if (refreshToken.isBlank()) {
@@ -48,7 +48,9 @@ class CodexOAuthRefreshClient(
                     val classified = classifyFailure(response.body(), forcePermanent = false)
                     // A non-401 status with an unknown error code is transient.
                     if (classified is RefreshResult.AuthError && classified.reason == RefreshFailureReason.Other) {
-                        RefreshResult.Transient("Token refresh failed ($status): ${response.body().take(BODY_PREVIEW)}")
+                        RefreshResult.Transient(
+                            "Token refresh failed ($status): ${response.body().take(OAUTH_BODY_PREVIEW)}"
+                        )
                     } else {
                         classified
                     }
@@ -73,7 +75,7 @@ class CodexOAuthRefreshClient(
         return HttpRequest.newBuilder()
             .uri(URI.create(tokenUrl))
             .header("Content-Type", "application/json")
-            .header("User-Agent", USER_AGENT)
+            .header("User-Agent", OAUTH_USER_AGENT)
             .timeout(Duration.ofSeconds(TIMEOUT_SECONDS))
             .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(body)))
             .build()
@@ -109,7 +111,7 @@ class CodexOAuthRefreshClient(
             else -> RefreshFailureReason.Other
         }
         if (reason == RefreshFailureReason.Other && !forcePermanent) {
-            return RefreshResult.AuthError(RefreshFailureReason.Other, code ?: body.take(BODY_PREVIEW))
+            return RefreshResult.AuthError(RefreshFailureReason.Other, code ?: body.take(OAUTH_BODY_PREVIEW))
         }
         return RefreshResult.AuthError(reason, code ?: "unauthorized")
     }
@@ -162,9 +164,7 @@ class CodexOAuthRefreshClient(
         private const val TOKEN_URL = "https://auth.openai.com/oauth/token"
         private const val DEFAULT_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
         private const val CLIENT_ID_ENV = "CODEX_APP_SERVER_LOGIN_CLIENT_ID"
-        private const val USER_AGENT = "TokenPulse/1.0"
         private const val TIMEOUT_SECONDS = 15L
-        private const val BODY_PREVIEW = 200
         private const val HTTP_2XX_LOWER = 200
         private const val HTTP_2XX_UPPER = 299
     }

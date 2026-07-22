@@ -3,9 +3,11 @@ package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonSyntaxException
+import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_BODY_PREVIEW
+import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_USER_AGENT
+import org.zhavoronkov.tokenpulse.provider.oauth.oauthHttpClient
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.net.URI
-import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
@@ -35,9 +37,7 @@ class ClaudeOAuthUsageClient(
 ) {
 
     private val gson: Gson = GsonBuilder().create()
-    private val httpClient: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS))
-        .build()
+    private val httpClient = oauthHttpClient(CONNECT_TIMEOUT_SECONDS)
 
     /**
      * Fetch usage data from the OAuth API.
@@ -69,7 +69,9 @@ class ClaudeOAuthUsageClient(
                     "Claude API access forbidden (403). Check your account/organization access."
                 )
                 429 -> OAuthUsageResult.Error("Rate limited by Anthropic API", isRateLimited = true)
-                else -> OAuthUsageResult.Error("API returned ${response.statusCode()}: ${response.body().take(200)}")
+                else -> OAuthUsageResult.Error(
+                    "API returned ${response.statusCode()}: ${response.body().take(OAUTH_BODY_PREVIEW)}"
+                )
             }
         } catch (_: java.net.http.HttpTimeoutException) {
             TokenPulseLogger.Provider.warn("OAuth API request timed out")
@@ -90,7 +92,7 @@ class ClaudeOAuthUsageClient(
             .header("anthropic-beta", BETA_HEADER)
             .header("anthropic-version", ANTHROPIC_VERSION)
             .header("Content-Type", "application/json")
-            .header("User-Agent", USER_AGENT)
+            .header("User-Agent", OAUTH_USER_AGENT)
             .timeout(Duration.ofSeconds(REQUEST_TIMEOUT_SECONDS))
             .GET()
             .build()
@@ -153,7 +155,6 @@ class ClaudeOAuthUsageClient(
         private const val USAGE_API_URL = "https://api.anthropic.com/api/oauth/usage"
         private const val BETA_HEADER = "oauth-2025-04-20"
         private const val ANTHROPIC_VERSION = "2023-06-01"
-        private const val USER_AGENT = "TokenPulse/1.0"
         private const val CONNECT_TIMEOUT_SECONDS = 5L
         private const val REQUEST_TIMEOUT_SECONDS = 5L
     }

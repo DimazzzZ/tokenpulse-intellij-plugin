@@ -4,9 +4,11 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonSyntaxException
 import com.google.gson.annotations.SerializedName
+import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_BODY_PREVIEW
+import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_USER_AGENT
+import org.zhavoronkov.tokenpulse.provider.oauth.oauthHttpClient
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.net.URI
-import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
@@ -28,9 +30,7 @@ class ClaudeOAuthRefreshClient internal constructor(
 ) {
 
     private val gson: Gson = GsonBuilder().create()
-    private val httpClient: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS))
-        .build()
+    private val httpClient = oauthHttpClient(CONNECT_TIMEOUT_SECONDS)
 
     /**
      * Refresh the OAuth token.
@@ -56,7 +56,7 @@ class ClaudeOAuthRefreshClient internal constructor(
                 401 -> RefreshResult.Error("Refresh token invalid or expired", isAuthError = true)
                 400 -> classifyBadRequest(response.body())
                 else -> RefreshResult.Error(
-                    "Token refresh failed (${response.statusCode()}): ${response.body().take(200)}"
+                    "Token refresh failed (${response.statusCode()}): ${response.body().take(OAUTH_BODY_PREVIEW)}"
                 )
             }
         } catch (e: java.net.http.HttpTimeoutException) {
@@ -81,7 +81,7 @@ class ClaudeOAuthRefreshClient internal constructor(
         return HttpRequest.newBuilder()
             .uri(URI.create(tokenUrl))
             .header("Content-Type", "application/json")
-            .header("User-Agent", USER_AGENT)
+            .header("User-Agent", OAUTH_USER_AGENT)
             .timeout(Duration.ofSeconds(REQUEST_TIMEOUT_SECONDS))
             .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(body)))
             .build()
@@ -137,7 +137,7 @@ class ClaudeOAuthRefreshClient internal constructor(
         return if (errorCode == "invalid_grant") {
             RefreshResult.Error("Refresh token invalid or expired", isAuthError = true)
         } else {
-            val detail = errorCode ?: body.take(200)
+            val detail = errorCode ?: body.take(OAUTH_BODY_PREVIEW)
             RefreshResult.Error("Token refresh rejected (400): $detail")
         }
     }
@@ -183,7 +183,6 @@ class ClaudeOAuthRefreshClient internal constructor(
         private const val DEFAULT_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
         private const val DEFAULT_SCOPES =
             "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
-        private const val USER_AGENT = "TokenPulse/1.0"
         private const val CONNECT_TIMEOUT_SECONDS = 15L
         private const val REQUEST_TIMEOUT_SECONDS = 15L
         private const val MILLIS_PER_SECOND = 1000L
