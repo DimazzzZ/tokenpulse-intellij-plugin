@@ -3,13 +3,11 @@ package org.zhavoronkov.tokenpulse.provider.openai.chatgpt.oauth
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.google.gson.annotations.SerializedName
+import org.zhavoronkov.tokenpulse.provider.oauth.AbstractOAuthRefreshClient
 import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_BODY_PREVIEW
 import org.zhavoronkov.tokenpulse.provider.oauth.OAUTH_USER_AGENT
-import org.zhavoronkov.tokenpulse.provider.oauth.oauthHttpClient
-import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import java.net.URI
 import java.net.http.HttpRequest
-import java.net.http.HttpResponse
 import java.time.Duration
 
 /**
@@ -25,48 +23,33 @@ import java.time.Duration
  */
 class CodexOAuthRefreshClient(
     private val tokenUrl: String = TOKEN_URL,
+) : AbstractOAuthRefreshClient<CodexOAuthRefreshClient.RefreshResult>(
+    connectSeconds = TIMEOUT_SECONDS,
+    logTag = "CodexOAuthRefreshClient",
 ) {
 
     private val gson: Gson = Gson()
-    private val httpClient = oauthHttpClient(TIMEOUT_SECONDS)
 
-    fun refresh(refreshToken: String): RefreshResult {
-        if (refreshToken.isBlank()) {
-            return RefreshResult.AuthError(RefreshFailureReason.Other, "Refresh token is empty")
-        }
+    override fun emptyTokenResult(): RefreshResult =
+        RefreshResult.AuthError(RefreshFailureReason.Other, "Refresh token is empty")
 
-        TokenPulseLogger.Provider.debug("[CodexOAuthRefreshClient] Refreshing OAuth token")
+    override fun transient(message: String): RefreshResult = RefreshResult.Transient(message)
 
-        return try {
-            val response = httpClient.send(buildRequest(refreshToken), HttpResponse.BodyHandlers.ofString())
-            TokenPulseLogger.Provider.debug("[CodexOAuthRefreshClient] Refresh response: ${response.statusCode()}")
-
-            when (val status = response.statusCode()) {
-                in HTTP_2XX_LOWER..HTTP_2XX_UPPER -> parseSuccess(response.body())
-                401 -> classifyFailure(response.body(), forcePermanent = true)
-                else -> {
-                    val classified = classifyFailure(response.body(), forcePermanent = false)
-                    // A non-401 status with an unknown error code is transient.
-                    if (classified is RefreshResult.AuthError && classified.reason == RefreshFailureReason.Other) {
-                        RefreshResult.Transient(
-                            "Token refresh failed ($status): ${response.body().take(OAUTH_BODY_PREVIEW)}"
-                        )
-                    } else {
-                        classified
-                    }
-                }
+    override fun mapStatus(status: Int, body: String): RefreshResult = when (status) {
+        in HTTP_2XX_LOWER..HTTP_2XX_UPPER -> parseSuccess(body)
+        401 -> classifyFailure(body, forcePermanent = true)
+        else -> {
+            val classified = classifyFailure(body, forcePermanent = false)
+            // A non-401 status with an unknown error code is transient.
+            if (classified is RefreshResult.AuthError && classified.reason == RefreshFailureReason.Other) {
+                RefreshResult.Transient("Token refresh failed ($status): ${body.take(OAUTH_BODY_PREVIEW)}")
+            } else {
+                classified
             }
-        } catch (_: java.net.http.HttpTimeoutException) {
-            RefreshResult.Transient("Token refresh timed out after $TIMEOUT_SECONDS seconds")
-        } catch (e: java.net.ConnectException) {
-            RefreshResult.Transient("Cannot connect to token endpoint: ${e.message}")
-        } catch (e: Exception) {
-            TokenPulseLogger.Provider.error("[CodexOAuthRefreshClient] Refresh failed", e)
-            RefreshResult.Transient("Token refresh failed: ${e.message}")
         }
     }
 
-    private fun buildRequest(refreshToken: String): HttpRequest {
+    override fun buildRequest(refreshToken: String): HttpRequest {
         val body = mapOf(
             "client_id" to clientId(),
             "grant_type" to "refresh_token",
@@ -134,8 +117,7 @@ class CodexOAuthRefreshClient(
         }
     }
 
-    private fun clientId(): String =
-        System.getenv(CLIENT_ID_ENV)?.takeIf { it.isNotBlank() } ?: DEFAULT_CLIENT_ID
+    private fun clientId(): String = clientId(CLIENT_ID_ENV, DEFAULT_CLIENT_ID)
 
     /** Reason a refresh failed permanently, mirroring codex's classification. */
     enum class RefreshFailureReason { Expired, Reused, Invalidated, Other }
