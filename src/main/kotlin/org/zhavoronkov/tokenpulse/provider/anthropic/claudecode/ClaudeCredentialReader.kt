@@ -6,6 +6,9 @@ import org.zhavoronkov.tokenpulse.utils.HostOs
 import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 import org.zhavoronkov.tokenpulse.utils.detectHostOs
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.PosixFilePermission
 
 /**
  * Reads existing Claude Code credentials from local storage.
@@ -22,10 +25,11 @@ import java.io.File
  * - expiresAt: token expiration timestamp
  * - scopes: OAuth scopes
  *
- * This reader is strictly read-only. TokenPulse never writes back to Claude's
- * credential store: when a token is expired we refresh it and hold the new
- * access token in memory for the current call only, leaving the `claude` CLI
- * to own its own credential lifecycle.
+ * The reader also supports best-effort WRITE-BACK ([writeTokens]): after
+ * TokenPulse refreshes an expired OAuth token, it persists the rotated tokens
+ * back into Claude's credential store so the running `claude` CLI keeps a
+ * valid refresh token and does not get logged out. Write failures never block
+ * using the fresh token in-memory for the current call.
  *
  * @param configDir The `CLAUDE_CONFIG_DIR` this reader targets. `null`/blank
  *   means the default dir (`~/.claude`, unsuffixed Keychain service). Each
@@ -118,14 +122,137 @@ class ClaudeCredentialReader(
     }
 
     /**
+     * Persist rotated tokens back into Claude's credential store so the running
+     * `claude` CLI keeps a valid refresh token and does not get logged out.
+     *
+     * Non-destructive: the full credential JSON is round-tripped and only the
+     * rotating fields (`accessToken`, `refreshToken`, `expiresAt`) are mutated,
+     * preserving every other key Claude Code sets. Best-effort: write failures
+     * are logged and reported via the return value but never throw.
+     *
+     * Targets the SAME store the read resolved from. On macOS this means the
+     * resolved Keychain entry AND the plaintext `.credentials.json` if it also
+     * exists; off-macOS it is the plaintext file only.
+     *
+     * @return true iff at least one target was written successfully.
+     */
+    fun writeTokens(accessToken: String, refreshToken: String?, expiresAt: Long?): Boolean {
+        val readResult = readCredentialsWithSource()
+        if (readResult == null) {
+            logWarn("Cannot write back: existing credentials unreadable")
+            return false
+        }
+        val (root, source) = readResult
+        val oauth = root.getAsJsonObject("claudeAiOauth")
+            ?: JsonObject().also { root.add("claudeAiOauth", it) }
+        oauth.addProperty("accessToken", accessToken)
+        refreshToken?.takeIf { it.isNotBlank() }?.let { oauth.addProperty("refreshToken", it) }
+        expiresAt?.let { oauth.addProperty("expiresAt", it) }
+        val json = root.toString()
+
+        return when (osType) {
+            HostOs.MACOS -> writeMacOs(json, source)
+            else -> runCatching { writeToFile(json) }
+                .onFailure { logWarn("File write-back failed: ${it.message}") }
+                .isSuccess
+        }
+    }
+
+    /**
+     * macOS write-back: update the resolved Keychain entry, and also the
+     * plaintext file when one exists. Each target is independent and
+     * best-effort; success is true if either write succeeds.
+     */
+    private fun writeMacOs(json: String, source: CredentialSource): Boolean {
+        val serviceName = (source as? CredentialSource.Keychain)?.serviceName
+            ?: ClaudeConfigLocator.keychainServiceName(configDir)
+        var wrote = runCatching { writeToKeychain(serviceName, json) }
+            .onFailure { logWarn("Keychain write-back failed: ${it.message}") }
+            .isSuccess
+        if (credentialsFile().exists()) {
+            runCatching { writeToFile(json) }
+                .onFailure { logWarn("Plaintext write-back failed: ${it.message}") }
+                .onSuccess { wrote = true }
+        }
+        return wrote
+    }
+
+    /**
+     * Write the credential blob to a macOS Keychain entry. Recipe mirrors
+     * claude-code's `secureStorage/macOsKeychainStorage.ts`: pipe an
+     * `add-generic-password -U -a <user> -s <service> -X <hex>` command to
+     * `security -i` on stdin, where `<hex>` is the UTF-8 JSON hex-encoded. The
+     * `-U` flag updates the existing entry in place.
+     */
+    private fun writeToKeychain(serviceName: String, json: String) {
+        val hex = json.toByteArray(Charsets.UTF_8).joinToString("") { "%02x".format(it) }
+        val stdin = "add-generic-password -U -a \"${getUsername()}\" -s \"$serviceName\" -X \"$hex\"\n"
+        val process = ProcessBuilder("security", "-i").redirectErrorStream(true).start()
+        process.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(stdin) }
+        val output = process.inputStream.bufferedReader().readText()
+        val exitCode = process.waitFor()
+        if (exitCode != 0) {
+            error("security exit $exitCode: ${output.take(200)}")
+        }
+        logDebug("Persisted refreshed tokens to Keychain service: $serviceName")
+    }
+
+    /**
+     * Write the credential blob to the plaintext `.credentials.json` file
+     * atomically (temp + move), with owner-only (0600) permissions.
+     */
+    private fun writeToFile(json: String) {
+        val target = credentialsFile()
+        val dir = target.parentFile ?: File(".")
+        dir.mkdirs()
+        val tmp = File.createTempFile(".credentials", ".json.tmp", dir)
+        try {
+            tmp.writeText(json, Charsets.UTF_8)
+            setOwnerOnlyPermissions(tmp)
+            val src = tmp.toPath()
+            val dst = target.toPath()
+            try {
+                Files.move(src, dst, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+                Files.move(src, dst, StandardCopyOption.REPLACE_EXISTING)
+            }
+            logDebug("Persisted refreshed tokens to ${target.absolutePath}")
+        } finally {
+            if (tmp.exists()) tmp.delete()
+        }
+    }
+
+    private fun setOwnerOnlyPermissions(file: File) {
+        try {
+            Files.setPosixFilePermissions(
+                file.toPath(),
+                setOf(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE),
+            )
+        } catch (_: UnsupportedOperationException) {
+            // Non-POSIX filesystem (e.g. Windows): nothing to tighten.
+        } catch (e: Exception) {
+            logDebug("Could not set 0600 on temp file: ${e.message}")
+        }
+    }
+
+    /**
      * Read credentials from the appropriate platform-specific store.
      */
     private fun readCredentials(): JsonObject? {
+        return readCredentialsWithSource()?.first
+    }
+
+    /**
+     * Read credentials AND record where they resolved from, so a subsequent
+     * [writeTokens] can target the same store/entry (e.g. a default account
+     * whose token lives in a suffixed Keychain entry via the fallback scan).
+     */
+    private fun readCredentialsWithSource(): Pair<JsonObject, CredentialSource>? {
         logDebug("Reading credentials for OS: $osType")
 
         return when (osType) {
-            HostOs.MACOS -> readFromKeychain()
-            else -> readFromFile()
+            HostOs.MACOS -> readFromKeychainWithSource()
+            else -> readFromFile()?.let { it to CredentialSource.PlaintextFile }
         }
     }
 
@@ -140,7 +267,7 @@ class ClaudeCredentialReader(
      * preserves a pre-existing account whose entry happened to be suffixed
      * (e.g. an alias that set CLAUDE_CONFIG_DIR even for the primary login).
      */
-    private fun readFromKeychain(): JsonObject? {
+    private fun readFromKeychainWithSource(): Pair<JsonObject, CredentialSource>? {
         return try {
             val username = getUsername()
             val serviceName = ClaudeConfigLocator.keychainServiceName(configDir)
@@ -148,7 +275,7 @@ class ClaudeCredentialReader(
 
             val targeted = readKeychainEntry(serviceName, username)
             if (targeted != null && hasValidTokens(targeted)) {
-                return targeted
+                return targeted to CredentialSource.Keychain(serviceName)
             }
 
             // Fallback scan is default-account-only; explicit dirs stay isolated.
@@ -162,7 +289,7 @@ class ClaudeCredentialReader(
                 val result = readKeychainEntry(entryName, username)
                 if (result != null && hasValidTokens(result)) {
                     logDebug("Found valid tokens in suffixed entry: $entryName")
-                    return result
+                    return result to CredentialSource.Keychain(entryName)
                 }
             }
 
@@ -286,6 +413,15 @@ class ClaudeCredentialReader(
 
     private fun logDebug(msg: String) = TokenPulseLogger.Provider.debug("[ClaudeCredentialReader] $msg")
     private fun logWarn(msg: String) = TokenPulseLogger.Provider.warn("[ClaudeCredentialReader] $msg")
+
+    /**
+     * Where a successful credential read resolved from, so [writeTokens] can
+     * target the same place rather than a recomputed (possibly wrong) entry.
+     */
+    private sealed interface CredentialSource {
+        data class Keychain(val serviceName: String) : CredentialSource
+        object PlaintextFile : CredentialSource
+    }
 }
 
 /**
