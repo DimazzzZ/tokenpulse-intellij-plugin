@@ -39,8 +39,11 @@ class XiaomiConnectDialog : DialogWrapper(true) {
         const val XIAOMI_ACCOUNT_URL = "https://account.xiaomi.com/"
         private const val STATUS_WAITING = "<html><i>Waiting for session…</i></html>"
         private const val STATUS_SUCCESS = "<html><font color='green'><b>✓ Session captured!</b></font></html>"
-        private const val STATUS_SUCCESS_NO_REFRESH = "<html><font color='green'><b>✓ Session captured</b></font> " +
-            "<font color='#B87333'>(no passToken — auto-refresh disabled; you'll re-connect when it expires)</font></html>"
+        private const val STATUS_SUCCESS_NO_REFRESH =
+            "<html><font color='green'><b>✓ Session captured</b></font> " +
+                "<font color='#B87333'>" +
+                "(no passToken — auto-refresh disabled; you'll re-connect when it expires)" +
+                "</font></html>"
         private const val STATUS_EMPTY = "<html><font color='red'>Please paste cURL first.</font></html>"
         private const val STATUS_PARSE_ERROR = "<html><font color='red'>Could not parse the pasted text. " +
             "Make sure you used \"Copy as cURL\" on a request to platform.xiaomimimo.com.</font></html>"

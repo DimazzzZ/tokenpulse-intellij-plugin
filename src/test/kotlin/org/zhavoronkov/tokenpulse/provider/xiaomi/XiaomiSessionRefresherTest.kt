@@ -147,8 +147,7 @@ class XiaomiSessionRefresherTest {
         dispatch(
             genLogin = MockResponse().setResponseCode(302)
                 .setHeader("Location", "https://account.xiaomi.com/pass/serviceLogin?sid=api-platform"),
-            serviceLogin = MockResponse().setResponseCode(200)
-                .setBody("&&&START&&&{\"ssecurity\":\"s\",\"location\":\"https://platform.xiaomimimo.com/sts?sign=z\"}"),
+            serviceLogin = MockResponse().setResponseCode(200).setBody(SERVICE_LOGIN_OK_BODY),
             sts = MockResponse().setResponseCode(302)
                 .addHeader("Set-Cookie", "some_other_cookie=abc; Path=/")
         )
@@ -173,8 +172,7 @@ class XiaomiSessionRefresherTest {
         dispatch(
             genLogin = MockResponse().setResponseCode(302)
                 .setHeader("Location", "https://account.xiaomi.com/pass/serviceLogin?sid=api-platform"),
-            serviceLogin = MockResponse().setResponseCode(200)
-                .setBody("&&&START&&&{\"ssecurity\":\"s\",\"location\":\"https://platform.xiaomimimo.com/sts?sign=z\"}"),
+            serviceLogin = MockResponse().setResponseCode(200).setBody(SERVICE_LOGIN_OK_BODY),
             sts = MockResponse().setResponseCode(200)
                 .addHeader("Set-Cookie", "api-platform_serviceToken=T; Path=/")
         )
@@ -192,5 +190,13 @@ class XiaomiSessionRefresherTest {
             }
         }
         assertEquals(true, sawServiceLogin)
+    }
+
+    private companion object {
+        // Passport-authenticated serviceLogin JSON reused across happy-path/probe tests.
+        // Kept as a constant to avoid ArgumentListWrapping detekt hits on the long inline literal.
+        const val SERVICE_LOGIN_OK_BODY =
+            "&&&START&&&{\"ssecurity\":\"s\"," +
+                "\"location\":\"https://platform.xiaomimimo.com/sts?sign=z\"}"
     }
 }
