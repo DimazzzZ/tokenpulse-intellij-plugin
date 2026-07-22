@@ -31,9 +31,16 @@ import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
  *   "serviceToken": "...",
  *   "userId": "...",
  *   "slh": "...",
- *   "ph": "..."
+ *   "ph": "...",
+ *   "passToken": "...",
+ *   "cUserId": "..."
  * }
  * ```
+ *
+ * The platform cookies (`serviceToken`/`slh`/`ph`) are short-lived (~1 day). The
+ * `passToken` (+ `userId`/`cUserId`) is the long-lived Xiaomi Passport credential
+ * on `account.xiaomi.com` that [XiaomiSessionRefresher] uses to silently mint a
+ * fresh platform session on expiry (see that class for the flow).
  *
  * ## Endpoints
  * - `GET /api/v1/balance` — Account balance (pay-as-you-go)
@@ -43,7 +50,9 @@ import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
 class XiaomiProviderClient(
     private val httpClient: OkHttpClient = OkHttpClient(),
     private val gson: Gson = Gson(),
-    private val baseUrl: String = XIAOMI_PLATFORM_URL
+    private val baseUrl: String = XIAOMI_PLATFORM_URL,
+    private val refresher: XiaomiSessionRefresher = XiaomiSessionRefresher(httpClient, gson, baseUrl),
+    private val sessionWriter: (accountId: String, newSecretJson: String) -> Unit = { _, _ -> }
 ) : ProviderClient {
 
     override fun fetchBalance(account: Account, secret: String): ProviderResult {
@@ -67,9 +76,7 @@ class XiaomiProviderClient(
 
     private fun fetchApiBalance(session: XiaomiSession, account: Account, traceId: String): ProviderResult {
         TokenPulseLogger.Provider.debug("[$traceId] Fetching Xiaomi API balance")
-        val request = buildRequest(session, "/api/v1/balance")
-
-        return executeRequest(request) { body ->
+        return executeRequest(session, account, "/api/v1/balance") { body ->
             val json = gson.fromJson(body, JsonObject::class.java)
             XiaomiResponseParser.parseApiBalance(json, account)
         }
@@ -81,9 +88,7 @@ class XiaomiProviderClient(
         traceId: String
     ): ProviderResult {
         TokenPulseLogger.Provider.debug("[$traceId] Fetching Xiaomi Token Plan usage")
-        val request = buildRequest(session, "/api/v1/tokenPlan/usage")
-
-        return executeRequest(request) { body ->
+        return executeRequest(session, account, "/api/v1/tokenPlan/usage") { body ->
             val json = gson.fromJson(body, JsonObject::class.java)
             XiaomiResponseParser.parseTokenPlanUsage(json, account)
         }
@@ -114,13 +119,51 @@ class XiaomiProviderClient(
             .build()
     }
 
-    private fun executeRequest(request: Request, parser: (String) -> ProviderResult): ProviderResult {
+    /**
+     * Execute [path] for [session], with a single silent-refresh retry on expiry.
+     *
+     * Expiry is detected as HTTP 401/403 OR a successful response whose body is HTML
+     * (a login page the shared client may have followed a redirect to) rather than
+     * the expected JSON. On expiry, if the session carries a `passToken`, we attempt
+     * [XiaomiSessionRefresher.refresh]; on success the new session is persisted via
+     * [sessionWriter] and the request is retried exactly once with the fresh cookies.
+     */
+    private fun executeRequest(
+        session: XiaomiSession,
+        account: Account,
+        path: String,
+        parser: (String) -> ProviderResult
+    ): ProviderResult {
+        val first = executeOnce(session, path, parser)
+        if (first !is ProviderResult.Failure.AuthError) {
+            return first
+        }
+
+        // Expired: attempt a one-shot silent re-login using the passport cookie.
+        val refreshed = refresher.refresh(session) ?: return first
+        sessionWriter(account.id, gson.toJson(refreshed))
+        TokenPulseLogger.Provider.debug("Xiaomi session refreshed for account=${account.id}, retrying $path")
+        return executeOnce(refreshed, path, parser)
+    }
+
+    private fun executeOnce(
+        session: XiaomiSession,
+        path: String,
+        parser: (String) -> ProviderResult
+    ): ProviderResult {
+        val request = buildRequest(session, path)
         return try {
             httpClient.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
 
                 if (!response.isSuccessful) {
                     return HttpErrorHandler.mapHttpError(response.code, "Xiaomi")
+                }
+
+                // A followed login-page redirect returns HTML with a 2xx status; treat
+                // it as an auth failure rather than letting it become a ParseError.
+                if (body.trimStart().startsWith("<")) {
+                    return ProviderResult.Failure.AuthError("Xiaomi session expired. Please reconnect.")
                 }
 
                 parser(body)
@@ -136,7 +179,9 @@ class XiaomiProviderClient(
         val serviceToken: String? = null,
         val userId: String? = null,
         val slh: String? = null,
-        val ph: String? = null
+        val ph: String? = null,
+        val passToken: String? = null,
+        val cUserId: String? = null
     )
 
     companion object {

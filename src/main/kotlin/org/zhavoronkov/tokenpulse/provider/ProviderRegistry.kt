@@ -11,6 +11,8 @@ import org.zhavoronkov.tokenpulse.provider.openai.platform.OpenAiPlatformProvide
 import org.zhavoronkov.tokenpulse.provider.openrouter.OpenRouterPluginBridgeClient
 import org.zhavoronkov.tokenpulse.provider.openrouter.OpenRouterProviderClient
 import org.zhavoronkov.tokenpulse.provider.xiaomi.XiaomiProviderClient
+import org.zhavoronkov.tokenpulse.provider.xiaomi.XiaomiSessionRefresher
+import org.zhavoronkov.tokenpulse.settings.CredentialsStore
 
 /**
  * Registry for provider client instances.
@@ -31,7 +33,15 @@ interface ProviderRegistry {
  */
 class DefaultProviderRegistry(
     private val httpClient: OkHttpClient,
-    private val gson: Gson
+    private val gson: Gson,
+    /**
+     * Persists a rotated session secret back to storage. Defaults to the
+     * [CredentialsStore] app service; overridable in tests. Used by the Xiaomi
+     * client to save a silently-refreshed session (see [XiaomiSessionRefresher]).
+     */
+    private val sessionWriter: (accountId: String, newSecretJson: String) -> Unit = { id, json ->
+        CredentialsStore.getInstance().saveApiKey(id, json)
+    }
 ) : ProviderRegistry {
 
     private val openRouterClient by lazy { OpenRouterProviderClient(httpClient, gson) }
@@ -41,7 +51,14 @@ class DefaultProviderRegistry(
     private val openAiPlatformClient by lazy { OpenAiPlatformProviderClient(httpClient, gson) }
     private val codexClient by lazy { CodexProviderClient() }
     private val claudeCodeClient by lazy { ClaudeCodeProviderClient() }
-    private val xiaomiClient by lazy { XiaomiProviderClient(httpClient, gson) }
+    private val xiaomiClient by lazy {
+        XiaomiProviderClient(
+            httpClient = httpClient,
+            gson = gson,
+            refresher = XiaomiSessionRefresher(httpClient, gson),
+            sessionWriter = sessionWriter
+        )
+    }
 
     override fun getClient(connectionType: ConnectionType): ProviderClient {
         return when (connectionType) {

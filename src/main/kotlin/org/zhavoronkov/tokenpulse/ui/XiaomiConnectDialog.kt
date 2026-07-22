@@ -27,13 +27,20 @@ import javax.swing.JTextArea
  * 3. Refresh the page to trigger the request.
  * 4. Right-click the request → "Copy as cURL".
  * 5. Paste the cURL into the text area below.
+ *
+ * Optionally, the user also pastes a cURL from an `account.xiaomi.com` request so
+ * the plugin can capture the long-lived `passToken` and silently re-login when the
+ * short-lived platform session expires (see XiaomiSessionRefresher).
  */
 class XiaomiConnectDialog : DialogWrapper(true) {
 
     companion object {
         const val XIAOMI_PLATFORM_URL = "https://platform.xiaomimimo.com/console/balance"
+        const val XIAOMI_ACCOUNT_URL = "https://account.xiaomi.com/"
         private const val STATUS_WAITING = "<html><i>Waiting for session…</i></html>"
         private const val STATUS_SUCCESS = "<html><font color='green'><b>✓ Session captured!</b></font></html>"
+        private const val STATUS_SUCCESS_NO_REFRESH = "<html><font color='green'><b>✓ Session captured</b></font> " +
+            "<font color='#B87333'>(no passToken — auto-refresh disabled; you'll re-connect when it expires)</font></html>"
         private const val STATUS_EMPTY = "<html><font color='red'>Please paste cURL first.</font></html>"
         private const val STATUS_PARSE_ERROR = "<html><font color='red'>Could not parse the pasted text. " +
             "Make sure you used \"Copy as cURL\" on a request to platform.xiaomimimo.com.</font></html>"
@@ -56,6 +63,23 @@ class XiaomiConnectDialog : DialogWrapper(true) {
                 ph = cookies["api-platform_ph"]
             )
         }
+
+        /**
+         * Extract the long-lived Xiaomi Passport cookies from a cURL command copied
+         * from an `account.xiaomi.com` request. Returns null if no cookie header /
+         * no `passToken` is present.
+         */
+        fun extractPassportFromCurl(text: String): XiaomiPassportCookies? {
+            val cookieString = CurlCookieExtractor.extractCookieString(text) ?: return null
+            val cookies = CurlCookieExtractor.parseCookieString(cookieString)
+            val passToken = cookies["passToken"]
+            if (passToken.isNullOrBlank()) return null
+            return XiaomiPassportCookies(
+                passToken = passToken,
+                userId = cookies["userId"],
+                cUserId = cookies["cUserId"]
+            )
+        }
     }
 
     var capturedSessionJson: String? = null
@@ -64,6 +88,11 @@ class XiaomiConnectDialog : DialogWrapper(true) {
     private val statusLabel = JBLabel(STATUS_WAITING)
 
     private val pasteArea = JTextArea(TEXT_AREA_ROWS, TEXT_AREA_COLUMNS).apply {
+        lineWrap = true
+        wrapStyleWord = true
+    }
+
+    private val accountPasteArea = JTextArea(TEXT_AREA_ROWS, TEXT_AREA_COLUMNS).apply {
         lineWrap = true
         wrapStyleWord = true
     }
@@ -122,6 +151,27 @@ class XiaomiConnectDialog : DialogWrapper(true) {
             cell(JScrollPane(pasteArea)).align(AlignX.FILL)
         }
 
+        separator()
+
+        row {
+            label("<html><b>Enable auto-refresh (recommended):</b></html>")
+        }
+
+        row {
+            comment(
+                "To let TokenPulse silently re-login when the session expires, also " +
+                    "capture your Xiaomi Passport cookie:<br>" +
+                    "1. In DevTools → Network, filter by <code>account.xiaomi.com</code> " +
+                    "(or <code>serviceLogin</code>)<br>" +
+                    "2. Right-click any request to that host → <b>Copy as cURL</b> and paste below.<br>" +
+                    "<i>Optional — leave blank to reconnect manually when the session expires.</i>"
+            )
+        }
+
+        row {
+            cell(JScrollPane(accountPasteArea)).align(AlignX.FILL)
+        }
+
         row {
             cell(statusLabel)
         }
@@ -158,8 +208,25 @@ class XiaomiConnectDialog : DialogWrapper(true) {
                 return
             }
 
-            capturedSessionJson = gson.toJson(cookies)
-            statusLabel.text = STATUS_SUCCESS
+            val passport = accountPasteArea.text.trim()
+                .takeIf { it.isNotEmpty() }
+                ?.let { extractPassportFromCurl(it) }
+
+            val session = XiaomiSessionCookies(
+                serviceToken = cookies.serviceToken,
+                userId = cookies.userId,
+                slh = cookies.slh,
+                ph = cookies.ph,
+                passToken = passport?.passToken,
+                cUserId = passport?.cUserId
+            )
+
+            capturedSessionJson = gson.toJson(session)
+            statusLabel.text = if (passport?.passToken.isNullOrBlank()) {
+                STATUS_SUCCESS_NO_REFRESH
+            } else {
+                STATUS_SUCCESS
+            }
             isOKActionEnabled = true
         } catch (e: Exception) {
             statusLabel.text = STATUS_PARSE_ERROR
@@ -170,6 +237,14 @@ class XiaomiConnectDialog : DialogWrapper(true) {
         val serviceToken: String? = null,
         val userId: String? = null,
         val slh: String? = null,
-        val ph: String? = null
+        val ph: String? = null,
+        val passToken: String? = null,
+        val cUserId: String? = null
+    )
+
+    data class XiaomiPassportCookies(
+        val passToken: String? = null,
+        val userId: String? = null,
+        val cUserId: String? = null
     )
 }

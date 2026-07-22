@@ -2,8 +2,10 @@ package org.zhavoronkov.tokenpulse.provider.xiaomi
 
 import com.google.gson.Gson
 import okhttp3.OkHttpClient
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -31,6 +33,17 @@ class XiaomiProviderClientTest {
             userId = "12345",
             slh = "test-slh",
             ph = "test-ph"
+        )
+    )
+
+    private val sessionWithPassport = gson.toJson(
+        XiaomiProviderClient.XiaomiSession(
+            serviceToken = "old-token",
+            userId = "12345",
+            slh = "old-slh",
+            ph = "old-ph",
+            passToken = "pass-abc",
+            cUserId = "cuser-9"
         )
     )
 
@@ -373,5 +386,112 @@ class XiaomiProviderClientTest {
         val result = client.testCredentials(unsupportedAccount, validSession)
 
         assertTrue(result is ProviderResult.Failure.AuthError)
+    }
+
+    // ---- Silent refresh (headless re-login) ----
+
+    /** A client whose refresher + balance calls both hit this mock server. */
+    private fun clientWithRefresh(writer: (String, String) -> Unit): XiaomiProviderClient {
+        val base = server.url("/").toString().removeSuffix("/")
+        return XiaomiProviderClient(
+            httpClient = OkHttpClient(),
+            gson = gson,
+            baseUrl = base,
+            refresher = XiaomiSessionRefresher(OkHttpClient(), gson, base, base),
+            sessionWriter = writer
+        )
+    }
+
+    private val refreshChainOk: (RecordedRequest) -> MockResponse? = { req ->
+        when {
+            (req.path ?: "").startsWith("/api/v1/genLoginUrl") -> MockResponse().setResponseCode(302)
+                .setHeader("Location", "https://account.xiaomi.com/pass/serviceLogin?sid=api-platform")
+            (req.path ?: "").startsWith("/pass/serviceLogin") -> MockResponse().setResponseCode(200)
+                .setBody(
+                    "&&&START&&&{\"ssecurity\":\"s\",\"location\":\"https://platform.xiaomimimo.com/sts?sign=z\"}"
+                )
+            (req.path ?: "").startsWith("/sts") -> MockResponse().setResponseCode(302)
+                .addHeader("Set-Cookie", "api-platform_serviceToken=NEW-TOKEN; Path=/")
+                .addHeader("Set-Cookie", "api-platform_slh=NEW-SLH; Path=/")
+            else -> null
+        }
+    }
+
+    @Test
+    fun `fetchBalance refreshes on 401 then retries successfully`() {
+        var balanceHits = 0
+        val savedJson = arrayOfNulls<String>(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                refreshChainOk(request)?.let { return it }
+                if ((request.path ?: "").startsWith("/api/v1/balance")) {
+                    balanceHits++
+                    return if (balanceHits == 1) {
+                        MockResponse().setResponseCode(401)
+                    } else {
+                        MockResponse().setResponseCode(200)
+                            .setBody("""{"code":0,"message":"","data":{"balance":"7.00","currency":"USD"}}""")
+                    }
+                }
+                return MockResponse().setResponseCode(404)
+            }
+        }
+
+        val c = clientWithRefresh { _, json -> savedJson[0] = json }
+        val result = c.fetchBalance(account(ConnectionType.XIAOMI_API), sessionWithPassport)
+
+        assertTrue(result is ProviderResult.Success)
+        assertEquals(2, balanceHits)
+        // Persisted the refreshed session with the new token.
+        val saved = savedJson[0]
+        assertTrue(saved != null && saved.contains("NEW-TOKEN"))
+    }
+
+    @Test
+    fun `fetchBalance does not refresh when no passToken`() {
+        server.enqueue(MockResponse().setResponseCode(401))
+
+        var writerCalled = false
+        val c = clientWithRefresh { _, _ -> writerCalled = true }
+        val result = c.fetchBalance(account(ConnectionType.XIAOMI_API), validSession)
+
+        assertTrue(result is ProviderResult.Failure.AuthError)
+        assertEquals(false, writerCalled)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `fetchBalance treats HTML body as AuthError not ParseError`() {
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .setBody("<!doctype html><html><body>Login</body></html>")
+        )
+
+        // No passport => cannot refresh => surfaces the AuthError.
+        val result = client.fetchBalance(account(ConnectionType.XIAOMI_API), validSession)
+
+        assertTrue(result is ProviderResult.Failure.AuthError)
+    }
+
+    @Test
+    fun `fetchBalance retries only once when refresh does not fix expiry`() {
+        var balanceHits = 0
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                refreshChainOk(request)?.let { return it }
+                if ((request.path ?: "").startsWith("/api/v1/balance")) {
+                    balanceHits++
+                    return MockResponse().setResponseCode(401)
+                }
+                return MockResponse().setResponseCode(404)
+            }
+        }
+
+        val c = clientWithRefresh { _, _ -> }
+        val result = c.fetchBalance(account(ConnectionType.XIAOMI_API), sessionWithPassport)
+
+        assertTrue(result is ProviderResult.Failure.AuthError)
+        // First attempt + exactly one retry after refresh.
+        assertEquals(2, balanceHits)
     }
 }
