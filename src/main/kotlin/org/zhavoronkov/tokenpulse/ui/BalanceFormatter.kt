@@ -20,8 +20,7 @@ object BalanceFormatter {
     /** Connection types that report usage as percentage (not dollars). */
     private val usagePercentageTypes = setOf(
         ConnectionType.CLAUDE_CODE,
-        ConnectionType.CODEX_CLI,
-        ConnectionType.XIAOMI_TOKEN_PLAN
+        ConnectionType.CODEX_CLI
     )
 
     /**
@@ -49,8 +48,8 @@ object BalanceFormatter {
     ): String {
         val connectionType = result.snapshot.connectionType
 
-        // For XIAOMI_TOKEN_PLAN with non-percentage format, show credits data
-        if (connectionType == ConnectionType.XIAOMI_TOKEN_PLAN && dollarFormat != null &&
+        // For XIAOMI with a non-percentage dollar format, show Token Plan credits data
+        if (connectionType == ConnectionType.XIAOMI && dollarFormat != null &&
             dollarFormat != StatusBarDollarFormat.PERCENTAGE_REMAINING
         ) {
             return formatXiaomiTokenPlanCredits(result, format, provider, dollarFormat)
@@ -125,7 +124,7 @@ object BalanceFormatter {
                 val weekly = metadata["weeklyUsed"]?.toFloatOrNull()?.toInt()
                 UsageData(fiveHour, weekly, "5h", "wk")
             }
-            ConnectionType.XIAOMI_TOKEN_PLAN -> {
+            ConnectionType.XIAOMI -> {
                 val used = metadata["sessionUsed"]?.toIntOrNull()
                 UsageData(used, null, "Credits", "")
             }
@@ -462,6 +461,17 @@ object BalanceFormatter {
         // Check for usage-percentage type first
         if (isUsagePercentageType(connectionType)) {
             return StatusBarData.UsagePercentage(provider)
+        }
+
+        // Xiaomi (unified): prefer the pay-as-you-go dollar balance; when there
+        // is none, fall back to the Token Plan usage percentage/credits.
+        if (connectionType == ConnectionType.XIAOMI) {
+            val credits = snapshot.balance.credits
+            return when {
+                credits?.remaining != null -> StatusBarData.RemainingDollars(credits.remaining, provider)
+                snapshot.balance.tokens != null -> StatusBarData.UsagePercentage(provider)
+                else -> StatusBarData.NoData
+            }
         }
 
         // Check for dollar amounts

@@ -1,5 +1,6 @@
 package org.zhavoronkov.tokenpulse.provider
 
+import com.google.gson.JsonParser
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -11,10 +12,9 @@ import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCredential
 import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.isClaudeTokenExpired
 import org.zhavoronkov.tokenpulse.utils.HostOs
 import java.io.File
-import java.nio.file.Path
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.attribute.PosixFilePermission
-import com.google.gson.JsonParser
 
 /**
  * Tests for [ClaudeCredentialReader]'s file-mode path. Constructed with

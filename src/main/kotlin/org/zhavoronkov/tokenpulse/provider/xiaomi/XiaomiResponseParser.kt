@@ -1,24 +1,38 @@
 package org.zhavoronkov.tokenpulse.provider.xiaomi
 
 import com.google.gson.JsonObject
-import org.zhavoronkov.tokenpulse.model.Balance
-import org.zhavoronkov.tokenpulse.model.BalanceSnapshot
-import org.zhavoronkov.tokenpulse.model.ConnectionType
 import org.zhavoronkov.tokenpulse.model.Credits
 import org.zhavoronkov.tokenpulse.model.ProviderResult
 import org.zhavoronkov.tokenpulse.model.Tokens
-import org.zhavoronkov.tokenpulse.settings.Account
 import java.math.BigDecimal
-import java.time.Instant
 
 /**
- * Parses Xiaomi platform API responses into [ProviderResult] domain objects.
+ * Parses Xiaomi platform API responses into partial balance parts that the
+ * client composes into a single [org.zhavoronkov.tokenpulse.model.BalanceSnapshot].
  *
- * Handles both the Xiaomi API balance endpoint and the Token Plan usage endpoint,
- * including safe null handling for stopped/expired plans where the API returns
+ * Each endpoint contributes ONE slice of the unified snapshot:
+ * - `/api/v1/balance` -> [BalancePart.Credits] (pay-as-you-go dollar amount)
+ * - `/api/v1/tokenPlan/usage` -> [BalancePart.TokensPart] (Token Plan quota)
+ *
+ * Envelope / auth errors are returned as [BalancePart.Failure] so the client
+ * can decide whether to trigger a shared silent-refresh retry.
+ *
+ * Handles safe null handling for stopped/expired plans where the API returns
  * `null` instead of expected objects or arrays.
  */
 internal object XiaomiResponseParser {
+
+    /**
+     * One endpoint's contribution to the unified Xiaomi snapshot.
+     * The client composes the successful parts and drops (or short-circuits on)
+     * the failures.
+     */
+    sealed class BalancePart {
+        data class Credits(val credits: org.zhavoronkov.tokenpulse.model.Credits, val metadata: Map<String, String>) :
+            BalancePart()
+        data class TokensPart(val tokens: Tokens, val metadata: Map<String, String>) : BalancePart()
+        data class Failure(val error: ProviderResult.Failure) : BalancePart()
+    }
 
     /**
      * Parse the Xiaomi API balance response (pay-as-you-go).
@@ -28,9 +42,9 @@ internal object XiaomiResponseParser {
      * { "code": 0, "data": { "balance": "55.48", "giftBalance": "55.48", "cashBalance": "0.00", "currency": "USD" } }
      * ```
      */
-    fun parseApiBalance(json: JsonObject, account: Account): ProviderResult {
+    fun parseApiBalance(json: JsonObject): BalancePart {
         val envelopeError = checkEnvelope(json)
-        if (envelopeError != null) return envelopeError
+        if (envelopeError != null) return BalancePart.Failure(envelopeError)
 
         val data = json.getObjectOrNull("data")
         val balance = data?.getStringOrNull("balance")?.toBigDecimalOrNull() ?: BigDecimal.ZERO
@@ -38,19 +52,12 @@ internal object XiaomiResponseParser {
         val cashBalance = data?.getStringOrNull("cashBalance")?.toBigDecimalOrNull() ?: BigDecimal.ZERO
         val currency = data?.getStringOrNull("currency") ?: "USD"
 
-        return ProviderResult.Success(
-            BalanceSnapshot(
-                accountId = account.id,
-                connectionType = ConnectionType.XIAOMI_API,
-                balance = Balance(
-                    credits = Credits(remaining = balance, total = null, used = null)
-                ),
-                timestamp = Instant.now(),
-                metadata = mapOf(
-                    "currency" to currency,
-                    "giftBalance" to giftBalance.toPlainString(),
-                    "cashBalance" to cashBalance.toPlainString()
-                )
+        return BalancePart.Credits(
+            credits = Credits(remaining = balance, total = null, used = null),
+            metadata = mapOf(
+                "currency" to currency,
+                "giftBalance" to giftBalance.toPlainString(),
+                "cashBalance" to cashBalance.toPlainString()
             )
         )
     }
@@ -66,9 +73,9 @@ internal object XiaomiResponseParser {
      * When a plan is stopped/expired, the API may return `null` for `data`,
      * `monthUsage`, or `items`. This method handles all such cases gracefully.
      */
-    fun parseTokenPlanUsage(json: JsonObject, account: Account): ProviderResult {
+    fun parseTokenPlanUsage(json: JsonObject): BalancePart {
         val envelopeError = checkEnvelope(json)
-        if (envelopeError != null) return envelopeError
+        if (envelopeError != null) return BalancePart.Failure(envelopeError)
 
         val data = json.getObjectOrNull("data")
         val monthUsage = data?.getObjectOrNull("monthUsage")
@@ -89,24 +96,17 @@ internal object XiaomiResponseParser {
 
         val planStatus = if (totalCredits == 0L) "inactive" else "active"
 
-        return ProviderResult.Success(
-            BalanceSnapshot(
-                accountId = account.id,
-                connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
-                balance = Balance(
-                    tokens = Tokens(
-                        used = usedCredits,
-                        total = totalCredits,
-                        remaining = totalCredits - usedCredits
-                    )
-                ),
-                timestamp = Instant.now(),
-                metadata = mapOf(
-                    "sessionUsed" to effectiveUsedPercent.toString(),
-                    "planUsed" to usedCredits.toString(),
-                    "planTotal" to totalCredits.toString(),
-                    "planStatus" to planStatus
-                )
+        return BalancePart.TokensPart(
+            tokens = Tokens(
+                used = usedCredits,
+                total = totalCredits,
+                remaining = totalCredits - usedCredits
+            ),
+            metadata = mapOf(
+                "sessionUsed" to effectiveUsedPercent.toString(),
+                "planUsed" to usedCredits.toString(),
+                "planTotal" to totalCredits.toString(),
+                "planStatus" to planStatus
             )
         )
     }

@@ -48,6 +48,13 @@ data class TokenPulseSettings(
     var hasSeenWelcome: Boolean = false,
     var lastSeenVersion: String = "",
 
+    /**
+     * One-time guard for the Xiaomi provider-unification dedup migration.
+     * Set true after duplicate Xiaomi accounts (same userId) are merged so the
+     * migration runs at most once. See BalanceRefreshService.dedupeXiaomiAccounts.
+     */
+    var xiaomiDedupeDone: Boolean = false,
+
     // Status bar display settings
     /** Determines what data is shown in the status bar. */
     var statusBarDisplayMode: StatusBarDisplayMode = StatusBarDisplayMode.AUTO,

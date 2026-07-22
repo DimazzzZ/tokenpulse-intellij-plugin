@@ -1,11 +1,11 @@
 package org.zhavoronkov.tokenpulse.ui
 
+import org.zhavoronkov.tokenpulse.model.Balance
 import org.zhavoronkov.tokenpulse.model.ConnectionType
 import org.zhavoronkov.tokenpulse.model.Credits
 import org.zhavoronkov.tokenpulse.model.NebiusBalanceBreakdown
 import org.zhavoronkov.tokenpulse.model.Provider
 import org.zhavoronkov.tokenpulse.model.ProviderResult
-import org.zhavoronkov.tokenpulse.model.Tokens
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.utils.ResetTimeFormatter
 import java.math.BigDecimal
@@ -77,8 +77,8 @@ internal object TooltipModel {
                         appendCodexRows(rows, snapshot.metadata)
                     snapshot.connectionType == ConnectionType.CLAUDE_CODE ->
                         appendClaudeCodeRows(rows, snapshot.metadata)
-                    snapshot.connectionType == ConnectionType.XIAOMI_TOKEN_PLAN ->
-                        appendXiaomiTokenPlanRows(rows, snapshot.metadata, snapshot.balance.tokens)
+                    snapshot.connectionType == ConnectionType.XIAOMI ->
+                        appendXiaomiRows(rows, snapshot.metadata, snapshot.balance)
                     snapshot.connectionType == ConnectionType.CLINE_API ->
                         appendClineRows(rows, snapshot.balance.credits, snapshot.metadata)
                     else ->
@@ -241,15 +241,34 @@ internal object TooltipModel {
     private fun resetInline(iso: String?): String? =
         ResetTimeFormatter.formatReset(iso)?.let { "Resets $it" }
 
-    private fun appendXiaomiTokenPlanRows(
+    /**
+     * Unified Xiaomi tooltip: shows the pay-as-you-go dollar balance AND the
+     * Token Plan usage, rendering whichever parts are present. When a Xiaomi
+     * login has both, both blocks appear; when it has only one, only that block
+     * appears.
+     */
+    private fun appendXiaomiRows(
         rows: MutableList<TooltipRow>,
         metadata: Map<String, String>?,
-        tokens: Tokens?
+        balance: Balance
     ) {
-        if (metadata == null && tokens == null) {
+        val credits = balance.credits
+        val tokens = balance.tokens
+        val hasDollar = credits?.remaining != null
+        val hasTokenPlan = metadata?.get("sessionUsed")?.toIntOrNull() != null ||
+            (tokens?.total != null && tokens.total > 0)
+
+        if (!hasDollar && !hasTokenPlan) {
             rows.add(TooltipRow.Info("No usage data"))
             return
         }
+
+        // Pay-as-you-go dollar balance block.
+        if (hasDollar) {
+            rows.add(TooltipRow.LabelValue("Balance:", formatAmount(credits!!.remaining!!), bold = true))
+        }
+
+        // Token Plan usage block.
         metadata?.get("sessionUsed")?.toIntOrNull()?.let {
             rows.add(TooltipRow.BalanceBar("Credits", 100 - it))
         }

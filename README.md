@@ -23,7 +23,7 @@
   - **ChatGPT (Codex CLI)** — CLI-based usage tracking via Codex CLI
   - **Nebius AI Studio** — Cookie-based auth with trial/paid balance
   - **Claude Code** — OAuth usage tracking that reads your existing `claude` login (multi-account)
-  - **Xiaomi MiMo** — API (pay-as-you-go) and Token Plan (subscription Credits)
+  - **Xiaomi MiMo** — Unified session tracking for both pay-as-you-go balance and Token Plan Credits
 - **🔄 Smart Refresh** — Configurable auto-refresh with TTL caching and single-flight coalescing to avoid rate limits.
 - **🔐 Secure Storage** — API keys are stored securely using IntelliJ's built-in `PasswordSafe`.
 - **📈 Dashboard Overview** — Detailed table view showing per-account provider, key preview, status, last refresh time, and credits.

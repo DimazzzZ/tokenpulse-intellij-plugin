@@ -661,21 +661,19 @@ class BalanceFormatterTest {
     // === isUsagePercentageType ===
 
     @Test
-    fun `isUsagePercentageType returns true for XIAOMI_TOKEN_PLAN`() {
-        assertEquals(true, BalanceFormatter.isUsagePercentageType(ConnectionType.XIAOMI_TOKEN_PLAN))
+    fun `isUsagePercentageType returns false for XIAOMI unified`() {
+        // The unified XIAOMI type prefers its dollar balance and only falls back
+        // to a Token Plan percentage at render time, so it is NOT a pure
+        // percentage type like Claude/Codex.
+        assertEquals(false, BalanceFormatter.isUsagePercentageType(ConnectionType.XIAOMI))
     }
 
-    @Test
-    fun `isUsagePercentageType returns false for XIAOMI_API`() {
-        assertEquals(false, BalanceFormatter.isUsagePercentageType(ConnectionType.XIAOMI_API))
-    }
-
-    // === formatUsagePercentageForStatusBar for XIAOMI_TOKEN_PLAN ===
+    // === formatUsagePercentageForStatusBar for unified XIAOMI (Token Plan slice) ===
 
     @Test
-    fun `formatUsagePercentageForStatusBar shows percentage for XIAOMI_TOKEN_PLAN`() {
+    fun `formatUsagePercentageForStatusBar shows percentage for XIAOMI`() {
         val result = successResult(
-            connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
+            connectionType = ConnectionType.XIAOMI,
             metadata = mapOf("sessionUsed" to "25")
         )
         val formatted = BalanceFormatter.formatUsagePercentageForStatusBar(
@@ -686,9 +684,9 @@ class BalanceFormatterTest {
     }
 
     @Test
-    fun `formatUsagePercentageForStatusBar shows descriptive percentage for XIAOMI_TOKEN_PLAN`() {
+    fun `formatUsagePercentageForStatusBar shows descriptive percentage for XIAOMI`() {
         val result = successResult(
-            connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
+            connectionType = ConnectionType.XIAOMI,
             metadata = mapOf("sessionUsed" to "25")
         )
         val formatted = BalanceFormatter.formatUsagePercentageForStatusBar(
@@ -699,9 +697,9 @@ class BalanceFormatterTest {
     }
 
     @Test
-    fun `formatUsagePercentageForStatusBar shows used of remaining for XIAOMI_TOKEN_PLAN`() {
+    fun `formatUsagePercentageForStatusBar shows used of remaining for XIAOMI`() {
         val result = successResult(
-            connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
+            connectionType = ConnectionType.XIAOMI,
             balance = Balance(tokens = Tokens(used = 2727524596, total = 11000000000, remaining = 8272475404)),
             metadata = mapOf("sessionUsed" to "25")
         )
@@ -715,9 +713,9 @@ class BalanceFormatterTest {
     }
 
     @Test
-    fun `formatUsagePercentageForStatusBar shows descriptive used of remaining for XIAOMI_TOKEN_PLAN`() {
+    fun `formatUsagePercentageForStatusBar shows descriptive used of remaining for XIAOMI`() {
         val result = successResult(
-            connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
+            connectionType = ConnectionType.XIAOMI,
             balance = Balance(tokens = Tokens(used = 2727524596, total = 11000000000, remaining = 8272475404)),
             metadata = mapOf("sessionUsed" to "25")
         )
@@ -731,9 +729,9 @@ class BalanceFormatterTest {
     }
 
     @Test
-    fun `formatUsagePercentageForStatusBar shows remaining only for XIAOMI_TOKEN_PLAN`() {
+    fun `formatUsagePercentageForStatusBar shows remaining only for XIAOMI`() {
         val result = successResult(
-            connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
+            connectionType = ConnectionType.XIAOMI,
             balance = Balance(tokens = Tokens(used = 2727524596, total = 11000000000, remaining = 8272475404)),
             metadata = mapOf("sessionUsed" to "25")
         )
@@ -747,9 +745,9 @@ class BalanceFormatterTest {
     }
 
     @Test
-    fun `formatUsagePercentageForStatusBar shows descriptive remaining only for XIAOMI_TOKEN_PLAN`() {
+    fun `formatUsagePercentageForStatusBar shows descriptive remaining only for XIAOMI`() {
         val result = successResult(
-            connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
+            connectionType = ConnectionType.XIAOMI,
             balance = Balance(tokens = Tokens(used = 2727524596, total = 11000000000, remaining = 8272475404)),
             metadata = mapOf("sessionUsed" to "25")
         )
@@ -787,12 +785,25 @@ class BalanceFormatterTest {
         assertEquals("$200 of $393 remaining", formatted)
     }
 
-    // === getStatusBarDataFromSnapshot for XIAOMI_TOKEN_PLAN ===
+    // === getStatusBarDataFromSnapshot for unified XIAOMI ===
 
     @Test
-    fun `returns UsagePercentage for XIAOMI_TOKEN_PLAN connection`() {
-        val snap = snapshot(ConnectionType.XIAOMI_TOKEN_PLAN)
+    fun `returns UsagePercentage for XIAOMI when only Token Plan tokens present`() {
+        val snap = snapshot(
+            ConnectionType.XIAOMI,
+            balance = Balance(tokens = Tokens(used = 100, total = 1000, remaining = 900))
+        )
         val data = BalanceFormatter.getStatusBarDataFromSnapshot(snap)
         assert(data is BalanceFormatter.StatusBarData.UsagePercentage)
+    }
+
+    @Test
+    fun `returns RemainingDollars for XIAOMI when dollar balance present`() {
+        val snap = snapshot(
+            ConnectionType.XIAOMI,
+            balance = Balance(credits = Credits(remaining = BigDecimal("12.34")))
+        )
+        val data = BalanceFormatter.getStatusBarDataFromSnapshot(snap)
+        assert(data is BalanceFormatter.StatusBarData.RemainingDollars)
     }
 }

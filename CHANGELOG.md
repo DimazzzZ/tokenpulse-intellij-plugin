@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `oauthAccount` (email • organization) on first successful refresh.
 
 ### Changed
+- **Unified Xiaomi MiMo provider** — the two previous connection types ("API (pay-as-you-go)"
+  and "Token Plan") are merged into a single **Xiaomi MiMo** account that tracks both the
+  pay-as-you-go dollar balance and the Token Plan Credits usage from the same captured
+  platform session. The status bar shows the dollar balance when present and falls back to
+  Token Plan usage otherwise; the tooltip shows both. Existing accounts are migrated on load
+  (both legacy types remap to the unified provider); duplicate accounts for the same Xiaomi
+  login are merged on first refresh.
 - **Progress-bar rendering** — the status-bar tooltip is now assembled as a Swing panel
   (`TokenPulseTooltipPanel` + `TooltipModel`) instead of generated HTML, and `ProgressBarRenderer`
   is now a theme-aware color helper (returns `JBColor`s rather than HTML strings).

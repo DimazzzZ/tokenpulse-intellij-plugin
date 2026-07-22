@@ -60,7 +60,17 @@ enum class AuthType(val displayName: String) {
      * The stored secret is a raw API key string (e.g., "tp-...").
      * Credits usage is tracked via Xiaomi platform session capture.
      */
-    XIAOMI_TOKEN_PLAN_KEY("Token Plan Key")
+    XIAOMI_TOKEN_PLAN_KEY("Token Plan Key"),
+
+    /**
+     * Xiaomi MiMo unified session.
+     *
+     * The stored secret is the captured platform session JSON (serviceToken +
+     * passport cookies). Used by the single [ConnectionType.XIAOMI] which reads
+     * both pay-as-you-go balance and Token Plan usage from the same session.
+     * No API key is involved (the sk-/tp- keys were inference-only).
+     */
+    XIAOMI_SESSION("Session")
 }
 
 /**
@@ -164,9 +174,18 @@ fun List<Account>.normalizeConnectionAuthTypes(): List<Account> = map { account 
  * Returns a sanitized list with all accounts having valid, consistent values.
  */
 fun List<Account>.sanitizeAccounts(): List<Account> = map { account ->
+    // Migration: fold legacy Xiaomi split providers into the unified XIAOMI.
+    // Both legacy names shared a session, so the stored secret is already the
+    // unified session JSON keyed by account.id — nothing to rewrite in
+    // PasswordSafe here.
+    val remappedConnectionType = when (account.connectionType) {
+        ConnectionType.XIAOMI_API, ConnectionType.XIAOMI_TOKEN_PLAN -> ConnectionType.XIAOMI
+        else -> account.connectionType
+    }
+
     // Validate connectionType - default to CLINE_API if invalid/missing
     val validConnectionType = try {
-        ConnectionType.entries.find { it == account.connectionType } ?: ConnectionType.CLINE_API
+        ConnectionType.entries.find { it == remappedConnectionType } ?: ConnectionType.CLINE_API
     } catch (_: Exception) {
         ConnectionType.CLINE_API
     }

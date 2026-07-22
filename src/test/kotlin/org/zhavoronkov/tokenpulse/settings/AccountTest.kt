@@ -527,6 +527,36 @@ class SanitizeAccountsTest {
         val sanitized = accounts.sanitizeAccounts()
         assertEquals("user@ex.com • user@ex.com's Organization", sanitized[0].name)
     }
+
+    @Test
+    fun `sanitizeAccounts migrates legacy XIAOMI_API to unified XIAOMI with session auth`() {
+        val accounts = listOf(
+            Account(
+                connectionType = ConnectionType.XIAOMI_API,
+                authType = AuthType.XIAOMI_API_KEY
+            )
+        )
+
+        val sanitized = accounts.sanitizeAccounts()
+
+        assertEquals(ConnectionType.XIAOMI, sanitized[0].connectionType)
+        assertEquals(AuthType.XIAOMI_SESSION, sanitized[0].authType)
+    }
+
+    @Test
+    fun `sanitizeAccounts migrates legacy XIAOMI_TOKEN_PLAN to unified XIAOMI with session auth`() {
+        val accounts = listOf(
+            Account(
+                connectionType = ConnectionType.XIAOMI_TOKEN_PLAN,
+                authType = AuthType.XIAOMI_TOKEN_PLAN_KEY
+            )
+        )
+
+        val sanitized = accounts.sanitizeAccounts()
+
+        assertEquals(ConnectionType.XIAOMI, sanitized[0].connectionType)
+        assertEquals(AuthType.XIAOMI_SESSION, sanitized[0].authType)
+    }
 }
 
 /**

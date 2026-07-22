@@ -278,25 +278,38 @@ class TooltipModelTest {
         assertTrue(out.contains(TooltipRow.Info("Status: ok")))
     }
 
-    // ---- Xiaomi Token Plan ------------------------------------------------
+    // ---- Xiaomi (unified: dollar balance + Token Plan) --------------------
 
     @Test
-    fun `xiaomi empty metadata and no tokens yields no rows`() {
-        // snapshot.metadata is a non-null empty map, so the (metadata == null
-        // && tokens == null) guard is false; nothing is emitted.
-        val r = success(ConnectionType.XIAOMI_TOKEN_PLAN)
-        assertTrue(rows(ConnectionType.XIAOMI_TOKEN_PLAN, r).isEmpty())
+    fun `xiaomi empty metadata and no balance yields no usage data`() {
+        val r = success(ConnectionType.XIAOMI)
+        val out = rows(ConnectionType.XIAOMI, r)
+        assertEquals(listOf(TooltipRow.Info("No usage data")), out)
     }
 
     @Test
     fun `xiaomi session used yields credits bar and plan used`() {
         val r = success(
-            ConnectionType.XIAOMI_TOKEN_PLAN,
+            ConnectionType.XIAOMI,
             tokens = Tokens(total = 1000, used = 250),
             metadata = mapOf("sessionUsed" to "40"),
         )
-        val out = rows(ConnectionType.XIAOMI_TOKEN_PLAN, r)
+        val out = rows(ConnectionType.XIAOMI, r)
         assertEquals(TooltipRow.BalanceBar("Credits", 60), out[0])
+        assertTrue(out.any { it is TooltipRow.LabelValue && it.label == "Used:" })
+    }
+
+    @Test
+    fun `xiaomi dollar balance renders Balance row above Token Plan block`() {
+        val r = success(
+            ConnectionType.XIAOMI,
+            credits = Credits(remaining = BigDecimal("55.48")),
+            tokens = Tokens(total = 1000, used = 250),
+            metadata = mapOf("sessionUsed" to "40"),
+        )
+        val out = rows(ConnectionType.XIAOMI, r)
+        assertEquals(TooltipRow.LabelValue("Balance:", "$55.48", bold = true), out[0])
+        assertTrue(out.any { it is TooltipRow.BalanceBar && it.label == "Credits" })
         assertTrue(out.any { it is TooltipRow.LabelValue && it.label == "Used:" })
     }
 
