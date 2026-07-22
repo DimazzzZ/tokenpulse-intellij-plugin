@@ -34,6 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (macOS Keychain / `~/.claude/.credentials.json`) and calls the usage endpoint directly, with
   automatic token refresh on expiry, instead of scraping `claude` CLI output.
   The legacy CLI-output parser (`ClaudeCliOutputParser` / `ClaudeCliUsageExtractor`) has been removed.
+- **Codex/ChatGPT usage now uses the OAuth API directly** — reads the credentials `codex` already
+  stored in `~/.codex/auth.json` (or `$CODEX_HOME/auth.json`) and calls ChatGPT's usage endpoint
+  directly for the 5-hour, weekly, and code-review quotas, instead of spawning a `codex app-server`
+  JSON-RPC subprocess. Expired access tokens are refreshed and the rotated tokens are written back
+  to `auth.json` so the real `codex` login stays in sync. Also fixes a display bug where reset
+  timestamps were mis-scaled (treated as milliseconds instead of seconds). The app-server client
+  (`CodexAppServerClient`) and its CLI-output parser (`CodexCliOutputParser`) have been removed.
 - **Accounts table** — the "API Key" column shows the Claude config dir (`~/.claude`,
   `~/.claude-work`) for Claude Code rows instead of a key preview.
 - **Claude helper renamed and split** — `ClaudeCliExecutor` is now `ClaudeCliDetector`
