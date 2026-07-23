@@ -128,7 +128,7 @@ object TokenPulseTooltipPanel {
         }
         panel.add(
             JBLabel("$successCount connected$errorSuffix").apply {
-                font = JBFont.smallOrNewUiMedium()
+                font = JBFont.medium()
                 foreground = statusColor
             },
             gbc.nextRow(topGap = 1)
@@ -150,7 +150,7 @@ object TokenPulseTooltipPanel {
     private fun addFooter(panel: JPanel, gbc: GridBagConstraints) {
         panel.add(
             JBLabel("Click for Dashboard \u00b7 Refresh \u00b7 Settings").apply {
-                font = JBFont.smallOrNewUiMedium()
+                font = JBFont.medium()
                 foreground = UIUtil.getContextHelpForeground()
             },
             gbc.nextRow(topGap = 4)
@@ -191,7 +191,7 @@ object TokenPulseTooltipPanel {
         val label = account.name.ifBlank { account.connectionType.displayName }
         panel.add(
             JBLabel(label).apply {
-                font = JBFont.smallOrNewUiMedium().asBold()
+                font = JBFont.medium().asBold()
                 foreground = UIUtil.getContextHelpForeground()
                 border = JBUI.Borders.emptyLeft(INDENT_ACCOUNT)
             },
@@ -276,14 +276,14 @@ object TokenPulseTooltipPanel {
             )
             is TooltipRow.Info -> panel.add(
                 JBLabel(row.message).apply {
-                    font = JBFont.smallOrNewUiMedium()
+                    font = JBFont.medium()
                     foreground = UIUtil.getContextHelpForeground()
                 },
                 gbc.nextRow(topGap = topGap, leftInset = INDENT_ROW)
             )
             is TooltipRow.Error -> panel.add(
                 JBLabel(row.message).apply {
-                    font = JBFont.smallOrNewUiMedium()
+                    font = JBFont.medium()
                     foreground = if (row.warning) COLOR_WARNING else COLOR_ERROR
                 },
                 gbc.nextRow(topGap = topGap, leftInset = INDENT_ROW)
@@ -370,7 +370,7 @@ object TokenPulseTooltipPanel {
                 leftInset = 6
             ) {
                 JBLabel(resetInline).apply {
-                    font = JBFont.smallOrNewUiMedium()
+                    font = JBFont.medium()
                     foreground = UIUtil.getContextHelpForeground()
                 }
             }

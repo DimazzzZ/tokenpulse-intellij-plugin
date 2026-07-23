@@ -13,7 +13,6 @@ import com.intellij.openapi.wm.CustomStatusBarWidget
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.StatusBarWidgetFactory
-import com.intellij.openapi.wm.impl.status.TextPanel
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
@@ -31,6 +30,7 @@ import java.awt.event.MouseEvent
 import java.math.BigDecimal
 import javax.swing.JComponent
 import javax.swing.SwingUtilities
+import javax.swing.SwingConstants
 
 class TokenPulseStatusBarWidgetFactory : StatusBarWidgetFactory {
     override fun getId(): String = "TokenPulse"
@@ -362,13 +362,13 @@ class TokenPulseStatusBarWidget :
 }
 
 /**
- * The on-screen status-bar label. Extends the platform [TextPanel] so the text
- * renders in the exact status-bar font/alignment/truncation, then refreshes
- * from [TokenPulseStatusBarWidget.getText] when balance data changes.
+ * The on-screen status-bar label. Uses a plain [JBLabel] (public API) with
+ * status-bar-appropriate styling, then refreshes from
+ * [TokenPulseStatusBarWidget.getText] when balance data changes.
  */
-private class WidgetLabel(private val widget: TokenPulseStatusBarWidget) : TextPanel() {
+private class WidgetLabel(private val widget: TokenPulseStatusBarWidget) : JBLabel() {
     init {
-        setTextAlignment(Component.CENTER_ALIGNMENT)
+        horizontalAlignment = SwingConstants.CENTER
         refresh()
     }
 
