@@ -98,6 +98,10 @@ The **"Connect Billing Session →"** dialog walks you through a 3-step process:
 2. Open the browser console (F12 → Console) and run the one-line script shown in the dialog.
 3. Copy the output (a small JSON blob) and paste it into the dialog.
 
+Once connected, TokenPulse silently refreshes the CSRF token when it rotates (the common
+auth failure) by re-fetching the SPA landing page, so a still-valid session keeps working
+without reconnecting.
+
 ### Why does OpenRouter require a Provisioning Key specifically?
 
 OpenRouter's regular API keys do **not** expose the `/api/v1/credits` endpoint. Only

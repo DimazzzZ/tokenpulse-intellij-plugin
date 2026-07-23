@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Nebius session auto-refresh** — silently re-mints the CSRF token when it rotates (the most
+  common auth failure) by re-fetching the SPA landing page and scraping the fresh `csrfToken`,
+  so a still-valid session keeps working without reconnecting.
 - **Rich status-bar tooltip** — hovering the status-bar widget now shows a native Swing popup
   with real progress bars for each provider/account, replacing the old HTML tooltip; theme-aware
   colors and screen-clamped positioning so it always fits on screen.
