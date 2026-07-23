@@ -32,6 +32,16 @@
     ]]></description>
 
     <change-notes><![CDATA[
+    <b>0.4.0</b> — Session robustness, unified Xiaomi, and a richer tooltip (2026-07-23)<br>
+    <ul>
+        <li><b>Nebius session auto-refresh:</b> silently re-mints the CSRF token when it rotates, so a still-valid session keeps working without reconnecting</li>
+        <li><b>Unified Xiaomi MiMo provider:</b> pay-as-you-go balance and Token Plan Credits now live in one account (status bar shows dollars, tooltip shows both)</li>
+        <li><b>Rich status-bar tooltip:</b> native Swing popup with real progress bars, theme-aware colors, and humanized quota reset times</li>
+        <li><b>Claude Code:</b> multi-account support plus usage via the OAuth API (with automatic token refresh)</li>
+        <li><b>Codex/ChatGPT:</b> usage read directly via the OAuth API instead of a CLI subprocess</li>
+        <li><b>Smarter notifications:</b> refresh-failure hints are now tailored to each provider's auth type</li>
+    </ul>
+    <br>
     <b>0.2.0</b> — Stabilization and Codex CLI update (2026-04-22)<br>
     <ul>
         <li><b>Codex CLI integration:</b> ChatGPT now uses Codex CLI for simpler setup without OAuth</li>
@@ -54,6 +64,10 @@
     ]]></change-notes>
 
     <depends>com.intellij.modules.platform</depends>
+    <!-- Optional: grants access to com.intellij.ui.jcef.* (embedded Chromium) when the JCEF
+         platform module is present. When absent (rare forks/headless), the plugin still loads
+         and the Xiaomi connect dialog falls back to manual cURL capture. -->
+    <depends optional="true" config-file="tokenpulse-jcef.xml">com.intellij.modules.jcef</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <!-- Application services -->

@@ -122,7 +122,7 @@ class XiaomiConnectDialog : DialogWrapper(true) {
 
         separator()
 
-        if (XiaomiJcefLoginDialog.isSupported()) {
+        if (JcefAvailability.isAvailable()) {
             row {
                 comment(
                     "Sign in once in an embedded browser window — TokenPulse captures the " +

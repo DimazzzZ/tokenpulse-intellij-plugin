@@ -7,6 +7,7 @@ import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
+import com.intellij.openapi.ui.TextBrowseFolderListener
 import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.components.JBLabel
@@ -155,11 +156,15 @@ class AccountEditDialog(
     private val claudeRows = mutableListOf<Pair<JCheckBox, DiscoveredClaudeAccount>>()
 
     private val claudeManualDirField = TextFieldWithBrowseButton().apply {
+        // Use the TextBrowseFolderListener overload (available since 242, non-deprecated in 261)
+        // with title/description set on the descriptor, instead of the deprecated
+        // addBrowseFolderListener(title, description, project, descriptor) method.
         addBrowseFolderListener(
-            "Select Claude Config Dir",
-            "Choose a directory that contains a Claude credential store",
-            null,
-            FileChooserDescriptorFactory.createSingleFolderDescriptor()
+            TextBrowseFolderListener(
+                FileChooserDescriptorFactory.createSingleFolderDescriptor()
+                    .withTitle("Select Claude Config Dir")
+                    .withDescription("Choose a directory that contains a Claude credential store")
+            )
         )
     }
 
@@ -505,14 +510,22 @@ class AccountEditDialog(
     }
 
     private fun openXiaomiConnectDialog() {
-        val dialog = XiaomiConnectDialog()
-        if (dialog.showAndGet()) {
-            val json = dialog.capturedSessionJson
-            if (!json.isNullOrBlank()) {
-                capturedXiaomiSession = json
-                xiaomiStatusLabel.text =
-                    "<html><font color='green'><b>✓ Session connected</b></font></html>"
+        try {
+            val dialog = XiaomiConnectDialog()
+            if (dialog.showAndGet()) {
+                val json = dialog.capturedSessionJson
+                if (!json.isNullOrBlank()) {
+                    capturedXiaomiSession = json
+                    xiaomiStatusLabel.text =
+                        "<html><font color='green'><b>✓ Session connected</b></font></html>"
+                }
             }
+        } catch (@Suppress("TooGenericExceptionCaught") t: Throwable) {
+            // A construction failure in the connect dialog must never silently no-op the
+            // button. Surface it in the status label and log the full stack trace.
+            TokenPulseLogger.Provider.error("Failed to open Xiaomi connect dialog", t)
+            xiaomiStatusLabel.text =
+                "<html><font color='red'>Couldn't open the connect dialog. See the IDE log.</font></html>"
         }
     }
 

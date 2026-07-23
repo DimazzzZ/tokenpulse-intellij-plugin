@@ -195,7 +195,21 @@ class XiaomiJcefLoginDialog : DialogWrapper(true) {
             "<html><font color='red'>Not signed in yet.</font> " +
                 "Finish the Xiaomi login above, then click <b>Capture session</b>.</html>"
 
-        /** True if JCEF is usable on this IDE build (JBR + platform support). */
-        fun isSupported(): Boolean = JBCefApp.isSupported()
+        /**
+         * True if JCEF is usable on this IDE build (JBR + platform support).
+         *
+         * The plugin does not declare a dependency on the JCEF module, and some IDE
+         * builds ship a JBR whose JCEF classes fail to load. Merely referencing
+         * [JBCefApp] can therefore throw [NoClassDefFoundError]/[LinkageError] — which
+         * are [Throwable]s, not [Exception]s — so we must catch [Throwable] and fall
+         * back to "unsupported" (the caller then uses the manual cURL capture flow).
+         */
+        fun isSupported(): Boolean =
+            try {
+                JBCefApp.isSupported()
+            } catch (@Suppress("TooGenericExceptionCaught") t: Throwable) {
+                TokenPulseLogger.Provider.debug("Xiaomi JCEF: unavailable (${t.javaClass.simpleName}: ${t.message})")
+                false
+            }
     }
 }

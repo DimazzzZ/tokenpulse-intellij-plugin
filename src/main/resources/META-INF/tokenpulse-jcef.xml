@@ -1,0 +1,10 @@
+<!--
+  Optional dependency descriptor for com.intellij.modules.jcef.
+
+  Referenced by plugin.xml via:
+    <depends optional="true" config-file="tokenpulse-jcef.xml">com.intellij.modules.jcef</depends>
+
+  Its sole purpose is to wire com.intellij.ui.jcef.* onto the plugin classloader when the JCEF
+  platform module is present. No extra extensions/actions are needed, so this is intentionally empty.
+-->
+<idea-plugin/>
