@@ -88,6 +88,17 @@ class ClaudeOAuthUsageClient(
                 return OAuthUsageResult.Error("Empty response from API")
             }
 
+            // Diagnostic: log RAW utilization Doubles (pre-normalization) for every window,
+            // including the seven_day sub-windows. Lets us verify unit assumptions per account
+            // when things look off (e.g. seven_day=1.0 arriving as 1% vs 100% ambiguity).
+            TokenPulseLogger.Provider.debug(
+                "Raw OAuth utilization: five_hour=${response.fiveHour?.utilization}, " +
+                    "seven_day=${response.sevenDay?.utilization}, " +
+                    "seven_day_opus=${response.sevenDayOpus?.utilization}, " +
+                    "seven_day_sonnet=${response.sevenDaySonnet?.utilization}, " +
+                    "seven_day_oauth_apps=${response.sevenDayOauthApps?.utilization}"
+            )
+
             // Convert API response to internal usage-data format
             val usageData = ClaudeUsageData(
                 sessionUsedPercent = response.fiveHour?.utilization?.let { normalizeUtilization(it) },
@@ -108,17 +119,26 @@ class ClaudeOAuthUsageClient(
     }
 
     /**
-     * Normalize utilization value to 0-100 range.
-     * API may return 0.0-1.0 (fraction) or 0-100 (percentage).
+     * Normalize an API utilization value to an integer percent 0..100.
+     *
+     * The undocumented Anthropic usage API mixes units across windows even within a single
+     * response (see `ClaudeOAuthUsageClientTest`: `0.25` → 25 and `10` → 10 in the same payload).
+     * We discriminate per-value at the 1.0 boundary:
+     *   - value STRICTLY `< 1.0` → treat as fraction (`0.08` → 8, `0.84` → 84).
+     *   - value `>= 1.0`        → treat as already-percentage (`1.0` → 1, `10` → 10, `100.0` → 100).
+     *
+     * The exact value `1.0` is genuinely ambiguous ("100% as fraction" vs "1% as percentage").
+     * Observed data (see raw-utilization log above) shows 100% arrives as `100.0`, not `1.0`, so
+     * mapping `1.0 → 1` is the correct choice for real accounts. If a future account ever ships
+     * a fraction-mode 5-hour at exactly `1.0` (=100%), the raw-utilization log will show it and
+     * we can revisit this rule with evidence instead of guesses.
+     *
+     * Uses `Math.round` (not truncating `toInt()`) to avoid off-by-one floors, then clamps to
+     * `0..100` so any out-of-range API values render safely.
      */
     private fun normalizeUtilization(value: Double): Int {
-        return if (value <= 1.0) {
-            // Value is a fraction (0.0-1.0), convert to percentage
-            (value * 100).toInt()
-        } else {
-            // Value is already a percentage
-            value.toInt()
-        }
+        val pct = if (value < 1.0) value * 100 else value
+        return Math.round(pct).toInt().coerceIn(0, 100)
     }
 
     /**

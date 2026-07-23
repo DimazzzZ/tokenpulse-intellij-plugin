@@ -60,6 +60,36 @@ class ClaudeOAuthUsageClientTest {
     }
 
     @Test
+    fun `seven_day utilization of 1_0 is 1 percent not 100`() {
+        // Regression: a percentage-mode value of 1.0 means 1%, not "100% as a fraction".
+        // Previously `value <= 1.0` computed (1.0 * 100).toInt() = 100, showing a full red
+        // weekly bar for an account with ~1% real usage.
+        status = 200
+        body = """{"five_hour":{"utilization":0.08},"seven_day":{"utilization":1.0}}"""
+
+        val result = client().fetchUsage("token")
+
+        assertTrue(result is ClaudeOAuthUsageClient.OAuthUsageResult.Success)
+        result as ClaudeOAuthUsageClient.OAuthUsageResult.Success
+        assertEquals(8, result.usageData.sessionUsedPercent)
+        assertEquals(1, result.usageData.weekUsedPercent)
+    }
+
+    @Test
+    fun `fractional utilization rounds instead of truncating`() {
+        // 0.999 fraction = 99.9% should round to 100, not floor to 99.
+        status = 200
+        body = """{"five_hour":{"utilization":0.999},"seven_day":{"utilization":0.845}}"""
+
+        val result = client().fetchUsage("token")
+
+        assertTrue(result is ClaudeOAuthUsageClient.OAuthUsageResult.Success)
+        result as ClaudeOAuthUsageClient.OAuthUsageResult.Success
+        assertEquals(100, result.usageData.sessionUsedPercent)
+        assertEquals(85, result.usageData.weekUsedPercent) // 84.5 rounds to 85
+    }
+
+    @Test
     fun `request carries anthropic-version header`() {
         status = 200
         body = "{}"
