@@ -29,8 +29,8 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.math.BigDecimal
 import javax.swing.JComponent
-import javax.swing.SwingUtilities
 import javax.swing.SwingConstants
+import javax.swing.SwingUtilities
 
 class TokenPulseStatusBarWidgetFactory : StatusBarWidgetFactory {
     override fun getId(): String = "TokenPulse"

@@ -1,6 +1,7 @@
 package org.zhavoronkov.tokenpulse.provider.anthropic.claudecode
 
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.WriteAction
 import org.zhavoronkov.tokenpulse.model.Balance
 import org.zhavoronkov.tokenpulse.model.BalanceSnapshot
 import org.zhavoronkov.tokenpulse.model.ConnectionType
@@ -142,13 +143,15 @@ class ClaudeCodeProviderClient : ProviderClient {
         val label = enrichedAccountLabel(identity, account.claudeConfigDir) ?: return
 
         ApplicationManager.getApplication().invokeLater {
-            val target = TokenPulseSettingsService.getInstance().state.accounts
-                .find { it.id == account.id }
-            if (target != null && target.name.isBlank()) {
-                TokenPulseLogger.Provider.info(
-                    "[ClaudeCodeProviderClient] Enriching account ${account.id} name -> '$label'"
-                )
-                target.name = label
+            WriteAction.run<RuntimeException> {
+                val target = TokenPulseSettingsService.getInstance().state.accounts
+                    .find { it.id == account.id }
+                if (target != null && target.name.isBlank()) {
+                    TokenPulseLogger.Provider.info(
+                        "[ClaudeCodeProviderClient] Enriching account ${account.id} name -> '$label'"
+                    )
+                    target.name = label
+                }
             }
         }
     }

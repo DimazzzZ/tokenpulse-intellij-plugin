@@ -114,11 +114,9 @@ class BalanceRefreshService : Disposable {
     }
 
     private fun publishBalanceUpdate(accountId: String, newResult: ProviderResult) {
-        ApplicationManager.getApplication().messageBus
-            .syncPublisher(BalanceUpdatedTopic.TOPIC)
-            .balanceUpdated(accountId, newResult)
-
-        // Handle credential failure cooldowns
+        // Handle credential/history bookkeeping on the calling (IO) thread — these
+        // are thread-safe (ConcurrentHashMap in RefreshCoordinator, and
+        // BalanceHistoryService uses its own IO scope).
         when (newResult) {
             is ProviderResult.Success -> {
                 coordinator.clearCredentialCooldown(accountId)
@@ -129,6 +127,15 @@ class BalanceRefreshService : Disposable {
                     coordinator.recordCredentialFailure(accountId)
                 }
             }
+        }
+
+        // The message-bus subscribers touch Swing (status bar widget) and IDE
+        // UI (dashboard); they MUST run on EDT. Marshal here so no subscriber
+        // has to remember to wrap itself.
+        ApplicationManager.getApplication().invokeLater {
+            ApplicationManager.getApplication().messageBus
+                .syncPublisher(BalanceUpdatedTopic.TOPIC)
+                .balanceUpdated(accountId, newResult)
         }
     }
 
@@ -268,16 +275,19 @@ class BalanceRefreshService : Disposable {
         }
 
         if (idsToRemove.isEmpty()) {
-            settingsService.state.xiaomiDedupeDone = true
+            ApplicationManager.getApplication().invokeLater {
+                settingsService.state.xiaomiDedupeDone = true
+            }
             return
         }
 
         TokenPulseLogger.Service.info("Xiaomi dedup: merging ${idsToRemove.size} duplicate account(s)")
         idsToRemove.forEach { credentials.removeApiKey(it) }
-        settingsService.state.accounts = accounts.filter { it.id !in idsToRemove }
-        settingsService.state.xiaomiDedupeDone = true
-
-        refreshAll(force = true)
+        ApplicationManager.getApplication().invokeLater {
+            settingsService.state.accounts = accounts.filter { it.id !in idsToRemove }
+            settingsService.state.xiaomiDedupeDone = true
+            refreshAll(force = true)
+        }
     }
 
     private fun parseXiaomiSession(secret: String): XiaomiProviderClient.XiaomiSession? =
