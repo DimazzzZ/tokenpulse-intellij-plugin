@@ -34,9 +34,10 @@ class CredentialsStore {
     }
 
     private fun createAttributes(accountId: String): CredentialAttributes {
-        return CredentialAttributes(
-            serviceName = generateServiceName("TokenPulse", accountId),
-            userName = accountId
-        )
+        // Constructed via the Java shim so the emitted bytecode binds to the plain
+        // CredentialAttributes(String, String) JVM constructor. A Kotlin-side call would
+        // route through the default-args synthetic ctor that 2026.1 (build 261) marks
+        // @Deprecated(ERROR); see CredentialAttributesFactory for details.
+        return CredentialAttributesFactory.create(generateServiceName("TokenPulse", accountId), accountId)
     }
 }

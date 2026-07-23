@@ -1,35 +1,44 @@
 # TokenPulse
 
 [![JetBrains Plugin](https://img.shields.io/badge/JetBrains-Plugin-orange.svg)](https://plugins.jetbrains.com/plugin/30615-tokenpulse)
-[![Version](https://img.shields.io/badge/version-0.3.1-blue.svg)](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/releases)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/releases)
 [![CI](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> ⚠️ **Beta Release** — This is an early release (v0.3.1). Features may change and some functionality may be incomplete. Please [report issues](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/issues) on GitHub.
+> ⚠️ **Beta Release** — This is an early release (v0.4.0). Features may change and some functionality may be incomplete. Please [report issues](https://github.com/DimazzzZ/tokenpulse-intellij-plugin/issues) on GitHub.
 
 **TokenPulse** is an IntelliJ IDEA plugin that aggregates token balances and credit usage across multiple AI providers directly in your IDE status bar.
 
 <p align="center">
-  <img src="docs/images/dashboard-screenshot.png" alt="TokenPulse Dashboard" />
+  <img width="35%" src="docs/images/dashboard-screenshot.png" alt="Dashboard — per-account balances and status" />
 </p>
 
-## Features
+## Why TokenPulse
 
-- **📊 Live Aggregate Balance** — See your total remaining credits/tokens at a glance in the status bar.
-- **🤖 Multi-Provider Support** — Supports:
-  - **OpenRouter** — Provisioning Key with credits tracking
-  - **Cline** — API Key for personal and organization accounts
-  - **OpenAI Platform** — Admin API Key (`sk-admin-...`) for organization usage/cost data
-  - **ChatGPT (Codex CLI)** — CLI-based usage tracking via Codex CLI
-  - **Nebius AI Studio** — Cookie-based auth with trial/paid balance
-  - **Claude Code** — OAuth usage tracking that reads your existing `claude` login (multi-account)
-  - **Xiaomi MiMo** — Unified session tracking for both pay-as-you-go balance and Token Plan Credits
-- **🔄 Smart Refresh** — Configurable auto-refresh with TTL caching and single-flight coalescing to avoid rate limits.
-- **🔐 Secure Storage** — API keys are stored securely using IntelliJ's built-in `PasswordSafe`.
-- **📈 Dashboard Overview** — Detailed table view showing per-account provider, key preview, status, last refresh time, and credits.
-- **🛈 Rich Hover Tooltip** — Hover the status-bar widget for a per-account breakdown with live progress bars, theme-aware colors, and humanized quota reset times (`Today 14:30`, `Wed 09:00`, …).
-- **📉 Balance History Chart** — Visual chart showing balance trends over time (24h, 7d, 30d, all time).
-- **🚀 Onboarding & Updates** — Friendly welcome notification for new users and "What's New" highlights after updates.
+Juggling several AI providers means several dashboards, several logins, and no single answer to
+"how much have I got left?". TokenPulse pulls all of it into one place — your IDE status bar — and
+keeps it fresh in the background so you never have to go looking.
+
+## Highlights
+
+- **📊 One-glance aggregate balance** — combined remaining credits/tokens live in the status bar,
+  with flexible display modes (auto, total dollars, or a single provider).
+- **🤖 Seven providers, one view** — Claude Code, Codex/ChatGPT, OpenAI Platform, Cline, OpenRouter,
+  Nebius AI Studio, and Xiaomi MiMo (see the [table](#provider-authentication) below).
+- **🔄 Sessions that refresh themselves** — Nebius and Xiaomi silently re-mint their session in the
+  background when it rotates, so a still-valid login keeps working without reconnecting.
+- **🔑 OAuth tokens kept in sync** — for Claude Code and Codex/ChatGPT, TokenPulse reads the login
+  the CLI already stored, refreshes expired tokens automatically, and **writes the rotated tokens
+  back** so your real CLI login stays valid too.
+- **👥 Claude multi-account** — auto-discovers every logged-in Claude account (default `~/.claude`
+  plus any `CLAUDE_CONFIG_DIR` logins), one row each, labelled by identity (`email • organization`).
+- **🛈 Rich hover tooltip** — a native Swing popup with real per-account progress bars, theme-aware
+  colors, and humanized reset times (`Today 14:30`, `Wed 09:00`, …).
+- **📉 Balance history chart** — trends over 24h / 7d / 30d / all time.
+- **🔐 Secure storage** — credentials live in IntelliJ's `PasswordSafe` (OS keychain), never in
+  plain-text settings.
+- **⚙️ Smart refresh** — configurable auto-refresh with TTL caching and single-flight coalescing
+  to stay under rate limits.
 
 ## Installation
 
@@ -48,7 +57,8 @@
 
 1. Open **Settings** → **Tools** → **TokenPulse**.
 2. Click **+** to add a provider account:
-   - Select the **Provider** (Cline, OpenRouter, Nebius, OpenAI, ChatGPT, or Claude).
+   - Select the **Provider** (Claude Code, Codex/ChatGPT, OpenAI Platform, Cline, OpenRouter,
+     Nebius AI Studio, or Xiaomi MiMo).
    - Follow the provider-specific instructions in the dialog.
 3. Configure the **Refresh Interval** (default: 15 minutes).
 4. The aggregate balance appears in your status bar automatically.
@@ -57,18 +67,23 @@
 
 | Provider | Auth Type | How to Connect |
 |---|---|---|
+| Claude Code | **CLI + OAuth** | Requires `claude` CLI installed + logged in; auto-discovers all logged-in accounts |
+| Codex / ChatGPT | **CLI + OAuth** | Requires `codex` CLI installed and authenticated (`codex login`) |
+| OpenAI Platform | **Admin API Key** (`sk-admin-...`) | https://platform.openai.com/settings/organization/admin-keys |
 | Cline | API Key | https://app.cline.bot/dashboard/account?tab=api-keys |
 | OpenRouter | **Provisioning Key** | https://openrouter.ai/settings/provisioning-keys |
-| OpenAI Platform | **Admin API Key** (`sk-admin-...`) | https://platform.openai.com/settings/organization/admin-keys |
-| ChatGPT (Codex CLI) | **CLI** | Requires `codex` CLI installed and authenticated |
-| Nebius AI Studio | **Billing Session** | Click "Connect Billing Session →" and follow the 3-step guide |
-| Claude Code | **CLI** | Requires `claude` CLI installed + logged in; auto-discovers all logged-in accounts |
-| Xiaomi MiMo | **Session Capture** | Click "Connect Xiaomi Account →" and follow the cURL capture guide |
+| Nebius AI Studio | **Billing Session** (cURL capture) | Click "Connect Billing Session →" and copy a `getBalance` request as cURL (see [FAQ](#how-does-nebius-authentication-work)) |
+| Xiaomi MiMo | **Session** (cURL capture or in-IDE sign-in) | Click "Connect Xiaomi Account →" and capture the session |
 
 > **Tip:** If you add multiple accounts for the same provider, each entry shows a partial key preview
 > (e.g. `sk-or-…91bc`) so you can tell them apart at a glance.
 > Claude Code rows show the account's config directory instead (`~/.claude` for the default
 > login, `~/.claude-work` for a `CLAUDE_CONFIG_DIR` account, etc.).
+
+> **Xiaomi MiMo (0.4.0):** the two former connection types — "API (Pay-as-you-go)" and
+> "Token Plan" — are now a single **Xiaomi MiMo** account that tracks both the pay-as-you-go
+> dollar balance and Token Plan Credits from one captured session. Existing accounts migrate
+> automatically on upgrade.
 
 ## Status Bar Display
 
@@ -93,10 +108,11 @@ generated keys do. This is a provider-side limitation, not a plugin choice.
 Nebius AI Studio does **not** expose a billing API accessible via API key. TokenPulse reads your
 trial balance from the same internal billing gateway used by the Token Factory web UI.
 
-The **"Connect Billing Session →"** dialog walks you through a 3-step process:
-1. Open the Nebius billing page in your browser and log in.
-2. Open the browser console (F12 → Console) and run the one-line script shown in the dialog.
-3. Copy the output (a small JSON blob) and paste it into the dialog.
+The **"Connect Billing Session →"** dialog walks you through capturing the request your browser
+already makes:
+1. Open Nebius, log in, then open DevTools → **Network**.
+2. Refresh the page, filter for `getBalance`, right-click the request → **Copy as cURL**.
+3. Paste the cURL command into the dialog and click **Validate**.
 
 Once connected, TokenPulse silently refreshes the CSRF token when it rotates (the common
 auth failure) by re-fetching the SPA landing page, so a still-valid session keeps working
@@ -159,14 +175,14 @@ on Linux). They are never written to plain-text settings files.
 
 ### The status bar shows "—" or "Error"
 
-- **Auth Error** — for API-key providers (Cline, OpenRouter, OpenAI, Xiaomi) the key is invalid or revoked; re-generate it from the provider's dashboard and re-enter it in TokenPulse. For CLI/OAuth providers (Claude Code, ChatGPT/Codex, Nebius) the login expired; re-run the CLI login (e.g. `claude login`) or reconnect the session — the notification tells you which action applies.
+- **Auth Error** — for API-key providers (Cline, OpenRouter, OpenAI Platform) the key is invalid or revoked; re-generate it from the provider's dashboard and re-enter it in TokenPulse. For CLI/OAuth/session providers (Claude Code, Codex/ChatGPT, Nebius, Xiaomi MiMo) the login or captured session expired; re-run the CLI login (e.g. `claude login`) or reconnect the session — the notification tells you which action applies.
 - **Rate Limited** — too many requests. Increase the refresh interval in Settings → TokenPulse.
 - **Error** — a network or API error. Check your internet connection and try "Refresh All" from the dashboard.
 - **$X.XX used** — OpenAI account showing usage data (not a balance).
 
 ## Compatibility
 
-- **IntelliJ Platform** — 2024.2+ (build 242+) through 2025.1.x
+- **IntelliJ Platform** — 2024.2+ (build 242+); no upper bound (compatible with current and future builds)
 - **Java** — 21 (LTS)
 - **IDEs** — IntelliJ IDEA (Community & Ultimate), WebStorm, PyCharm, and other JetBrains IDEs
 
