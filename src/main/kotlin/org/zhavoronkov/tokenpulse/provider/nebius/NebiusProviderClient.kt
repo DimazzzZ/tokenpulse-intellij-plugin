@@ -56,7 +56,9 @@ import java.time.Instant
 class NebiusProviderClient(
     httpClient: OkHttpClient = OkHttpClient(),
     private val gson: Gson = Gson(),
-    private val baseUrl: String = NEBIUS_BASE_URL
+    private val baseUrl: String = NEBIUS_BASE_URL,
+    private val csrfRefresher: NebiusSessionRefresher = NebiusSessionRefresher(httpClient, baseUrl),
+    private val sessionWriter: (accountId: String, newSecretJson: String) -> Unit = { _, _ -> }
 ) : ProviderClient {
 
     internal var commandExecutor: CommandExecutor = DefaultCommandExecutor
@@ -100,7 +102,63 @@ class NebiusProviderClient(
         val testMode = System.getProperty("tokenpulse.testMode", "false").toBoolean()
         val tenantName: String? = if (!testMode) fetchTenantName(session, account, traceId) else null
 
-        val paidResult = fetchPaidBalance(session, account, traceId)
+        val authSignal = java.util.concurrent.atomic.AtomicBoolean(false)
+        val firstPass = runBalancePass(session, account, tenantName, traceId, authSignal)
+
+        // Shared, one-shot silent CSRF refresh: the most common Nebius auth
+        // failure is a rotated csrfToken against a still-valid session cookie.
+        // Trigger when the pass surfaced an AuthError directly, OR when a
+        // strategy observed an auth failure that the fallback cascade masked
+        // into a NetworkError. Re-mint the token once via the landing page,
+        // persist it, and retry the whole pass with it.
+        val sawAuthFailure = firstPass is ProviderResult.Failure.AuthError || authSignal.get()
+        if (firstPass is ProviderResult.Failure && sawAuthFailure) {
+            val refreshed = csrfRefresher.refreshCsrf(session)
+            if (refreshed != null) {
+                sessionWriter(account.id, gson.toJson(refreshed))
+                TokenPulseLogger.trace(
+                    "NEBIUS",
+                    account.id,
+                    traceId,
+                    "csrf_refreshed",
+                    "CSRF token refreshed; retrying balance fetch"
+                )
+                val tenantAfter = if (!testMode) fetchTenantName(refreshed, account, traceId) else null
+                return runBalancePass(refreshed, account, tenantAfter, traceId)
+            }
+        }
+
+        return firstPass
+    }
+
+    /**
+     * One paid+trial fetch pass with a given [session]. A hard paid failure
+     * (AuthError / RateLimited) short-circuits and is returned directly so the
+     * caller can decide whether to attempt a silent refresh.
+     */
+    private fun runBalancePass(
+        session: NebiusSession,
+        account: Account,
+        tenantName: String?,
+        traceId: String
+    ): ProviderResult = runBalancePass(session, account, tenantName, traceId, authSignal = null)
+
+    /**
+     * [authSignal], when provided, is set to true if any endpoint strategy
+     * produced an [ProviderResult.Failure.AuthError] during this pass — even if
+     * the pass ultimately degraded to a [ProviderResult.Failure.NetworkError]
+     * (which happens because [tryStrategy] masks non-Success results while it
+     * falls through the strategy cascade). The caller uses it to decide whether
+     * a silent CSRF refresh is worth attempting.
+     */
+    private fun runBalancePass(
+        session: NebiusSession,
+        account: Account,
+        tenantName: String?,
+        traceId: String,
+        authSignal: java.util.concurrent.atomic.AtomicBoolean?
+    ): ProviderResult {
+        val paidResult = fetchPaidBalance(session, account, traceId, authSignal)
         val paidSuccess = paidResult as? ProviderResult.Success
         val paidHardFailure = paidResult is ProviderResult.Failure.AuthError ||
             paidResult is ProviderResult.Failure.RateLimited
@@ -109,7 +167,7 @@ class NebiusProviderClient(
             return paidResult
         }
 
-        val trialResult = fetchTrialBalance(session, account, traceId)
+        val trialResult = fetchTrialBalance(session, account, traceId, authSignal)
         val trialSuccess = trialResult as? ProviderResult.Success
 
         return combineResults(account, paidSuccess, trialSuccess, tenantName, traceId)
@@ -208,7 +266,12 @@ class NebiusProviderClient(
         }
     }
 
-    private fun fetchPaidBalance(session: NebiusSession, account: Account, traceId: String): ProviderResult {
+    private fun fetchPaidBalance(
+        session: NebiusSession,
+        account: Account,
+        traceId: String,
+        authSignal: java.util.concurrent.atomic.AtomicBoolean? = null
+    ): ProviderResult {
         val contractId = session.parentId ?: return ProviderResult.Failure.AuthError(
             "Missing contractId in Nebius session. Please reconnect via Settings → Accounts → Edit."
         )
@@ -218,11 +281,17 @@ class NebiusProviderClient(
             traceId,
             BALANCE_ENDPOINT,
             contractId,
-            ::parsePaidBalanceResponse
+            ::parsePaidBalanceResponse,
+            authSignal
         )
     }
 
-    private fun fetchTrialBalance(session: NebiusSession, account: Account, traceId: String): ProviderResult {
+    private fun fetchTrialBalance(
+        session: NebiusSession,
+        account: Account,
+        traceId: String,
+        authSignal: java.util.concurrent.atomic.AtomicBoolean? = null
+    ): ProviderResult {
         if (!validateSession(session)) {
             return ProviderResult.Failure.AuthError(
                 "Nebius session is incomplete. Please reconnect via Settings → Accounts → Edit."
@@ -234,7 +303,8 @@ class NebiusProviderClient(
             traceId,
             TRIAL_ENDPOINT,
             session.parentId ?: "",
-            ::parseTrialResponse
+            ::parseTrialResponse,
+            authSignal
         )
     }
 
@@ -244,20 +314,21 @@ class NebiusProviderClient(
         traceId: String,
         endpoint: String,
         contractId: String,
-        parser: (Account, String) -> ProviderResult
+        parser: (Account, String) -> ProviderResult,
+        authSignal: java.util.concurrent.atomic.AtomicBoolean? = null
     ): ProviderResult {
         val hasParityData = !session.rawCookieHeader.isNullOrBlank()
         val errors = mutableListOf<String>()
         var result: ProviderResult? = null
 
         if (hasParityData) {
-            result = tryStrategy("NativeCurl", account, traceId) {
+            result = tryStrategy("NativeCurl", account, traceId, authSignal) {
                 executeWithNativeCurl(session, endpoint, contractId, parser, account)
             }
             if (result == null) errors.add("NativeCurl: failed")
 
             if (result == null) {
-                result = tryStrategy("Parity+Standard", account, traceId) {
+                result = tryStrategy("Parity+Standard", account, traceId, authSignal) {
                     val request = buildRequest(session, endpoint, contractId, useParity = true)
                     executeWithClient(baseClient, request, account, parser)
                 }
@@ -265,7 +336,7 @@ class NebiusProviderClient(
             }
 
             if (result == null) {
-                result = tryStrategy("Parity+HTTP/1.1", account, traceId) {
+                result = tryStrategy("Parity+HTTP/1.1", account, traceId, authSignal) {
                     val request = buildRequest(session, endpoint, contractId, useParity = true)
                     executeWithClient(http1Client, request, account, parser)
                 }
@@ -274,7 +345,7 @@ class NebiusProviderClient(
         }
 
         if (result == null) {
-            result = tryStrategy("Constructed+Standard", account, traceId) {
+            result = tryStrategy("Constructed+Standard", account, traceId, authSignal) {
                 val request = buildRequest(session, endpoint, contractId, useParity = false)
                 executeWithClient(baseClient, request, account, parser)
             }
@@ -282,7 +353,7 @@ class NebiusProviderClient(
         }
 
         if (result == null) {
-            result = tryStrategy("Direct", account, traceId) {
+            result = tryStrategy("Direct", account, traceId, authSignal) {
                 val request = buildRequest(session, endpoint, contractId, useParity = hasParityData)
                 executeWithClient(directClient, request, account, parser)
             }
@@ -297,10 +368,12 @@ class NebiusProviderClient(
         name: String,
         account: Account,
         traceId: String,
+        authSignal: java.util.concurrent.atomic.AtomicBoolean?,
         block: () -> ProviderResult
     ): ProviderResult? {
         return try {
             val result = block()
+            if (result is ProviderResult.Failure.AuthError) authSignal?.set(true)
             result as? ProviderResult.Success
         } catch (e: Exception) {
             TokenPulseLogger.trace(

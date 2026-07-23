@@ -6,6 +6,7 @@ import org.zhavoronkov.tokenpulse.model.ConnectionType
 import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCodeProviderClient
 import org.zhavoronkov.tokenpulse.provider.cline.ClineProviderClient
 import org.zhavoronkov.tokenpulse.provider.nebius.NebiusProviderClient
+import org.zhavoronkov.tokenpulse.provider.nebius.NebiusSessionRefresher
 import org.zhavoronkov.tokenpulse.provider.openai.chatgpt.CodexProviderClient
 import org.zhavoronkov.tokenpulse.provider.openai.platform.OpenAiPlatformProviderClient
 import org.zhavoronkov.tokenpulse.provider.openrouter.OpenRouterPluginBridgeClient
@@ -47,7 +48,14 @@ class DefaultProviderRegistry(
     private val openRouterClient by lazy { OpenRouterProviderClient(httpClient, gson) }
     private val openRouterPluginClient by lazy { OpenRouterPluginBridgeClient() }
     private val clineClient by lazy { ClineProviderClient(httpClient, gson) }
-    private val nebiusClient by lazy { NebiusProviderClient(httpClient, gson) }
+    private val nebiusClient by lazy {
+        NebiusProviderClient(
+            httpClient = httpClient,
+            gson = gson,
+            csrfRefresher = NebiusSessionRefresher(httpClient),
+            sessionWriter = sessionWriter
+        )
+    }
     private val openAiPlatformClient by lazy { OpenAiPlatformProviderClient(httpClient, gson) }
     private val codexClient by lazy { CodexProviderClient() }
     private val claudeCodeClient by lazy { ClaudeCodeProviderClient() }

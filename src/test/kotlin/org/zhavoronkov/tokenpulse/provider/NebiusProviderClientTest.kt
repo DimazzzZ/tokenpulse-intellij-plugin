@@ -2,10 +2,13 @@ package org.zhavoronkov.tokenpulse.provider
 
 import com.google.gson.Gson
 import okhttp3.OkHttpClient
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -15,9 +18,11 @@ import org.junit.jupiter.api.Test
 import org.zhavoronkov.tokenpulse.model.ConnectionType
 import org.zhavoronkov.tokenpulse.model.ProviderResult
 import org.zhavoronkov.tokenpulse.provider.nebius.NebiusProviderClient
+import org.zhavoronkov.tokenpulse.provider.nebius.NebiusSessionRefresher
 import org.zhavoronkov.tokenpulse.settings.Account
 import org.zhavoronkov.tokenpulse.settings.AuthType
 import java.math.BigDecimal
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Unit tests for NebiusProviderClient.
@@ -589,5 +594,160 @@ class NebiusProviderClientTest {
         val credits = (result as ProviderResult.Success).snapshot.balance.credits!!
         // Combined: 0.00 + 0.50 = 0.50
         assertEquals(0, credits.remaining!!.compareTo(BigDecimal("0.50")))
+    }
+
+    // ── Silent CSRF refresh on auth failure ────────────────────────────────
+
+    private fun authErrorEnvelope() = MockResponse()
+        .setResponseCode(200)
+        .setHeader("Content-Type", "application/json")
+        .setBody("""{"code":"EBADCSRFTOKEN","statusCode":403,"message":"invalid csrf token"}""")
+
+    private fun landingPageAuthenticated(token: String) = MockResponse()
+        .setResponseCode(200)
+        .setHeader("Content-Type", "text/html")
+        .setBody(
+            """<html><script>window.__DATA__ = """ +
+                """{"csrfToken":"$token","isAuthenticatedOnPageLoad":true};</script></html>"""
+        )
+
+    /**
+     * Build a client whose CSRF refresher and balance endpoints both target the
+     * mock server, capturing any persisted session via [writes].
+     */
+    private fun refreshingClient(writes: MutableList<Pair<String, String>>): NebiusProviderClient {
+        val base = server.url("").toString().trimEnd('/')
+        return NebiusProviderClient(
+            httpClient = OkHttpClient(),
+            gson = gson,
+            baseUrl = base,
+            csrfRefresher = NebiusSessionRefresher(OkHttpClient(), base),
+            sessionWriter = { id, json -> writes.add(id to json) }
+        )
+    }
+
+    @Test
+    fun `fetchBalance refreshes csrf then retries and persists new session`() {
+        val writes = mutableListOf<Pair<String, String>>()
+        val client = refreshingClient(writes)
+        val landingHits = AtomicInteger(0)
+
+        // First pass: paid+trial both return EBADCSRFTOKEN so the whole pass fails with
+        // an auth signal. Landing page returns a fresh token. Only AFTER the landing page
+        // has been hit (i.e. on the retry pass) do the endpoints succeed.
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.path ?: ""
+                val refreshed = landingHits.get() > 0
+                return when {
+                    path == "/" -> {
+                        landingHits.incrementAndGet()
+                        landingPageAuthenticated("FRESH-TOKEN")
+                    }
+                    path.contains("/customers/getBalance") ->
+                        if (refreshed) paidBalanceResponse("5.00") else authErrorEnvelope()
+                    path.contains("/getCurrentTrial") ->
+                        if (refreshed) trialBalanceResponse("1.00", "0.25") else authErrorEnvelope()
+                    else -> MockResponse().setResponseCode(404)
+                }
+            }
+        }
+
+        val result = client.fetchBalance(testAccount, validSessionJson)
+
+        assertInstanceOf(ProviderResult.Success::class.java, result)
+        // sessionWriter persisted the refreshed session with the fresh token.
+        assertEquals(1, writes.size)
+        val persisted = gson.fromJson(writes[0].second, NebiusProviderClient.NebiusSession::class.java)
+        assertEquals("FRESH-TOKEN", persisted.csrfToken)
+        assertEquals(testAccount.id, writes[0].first)
+        assertEquals(1, landingHits.get())
+    }
+
+    @Test
+    fun `fetchBalance does not persist when csrf refresh yields no token`() {
+        val writes = mutableListOf<Pair<String, String>>()
+        val client = refreshingClient(writes)
+
+        // Every balance call is an auth error; landing page is NOT authenticated,
+        // so refresh returns null → no retry, no persist.
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.path ?: ""
+                return when {
+                    path == "/" -> MockResponse()
+                        .setResponseCode(200)
+                        .setHeader("Content-Type", "text/html")
+                        .setBody("""<html><script>window.__DATA__={"isAuthenticatedOnPageLoad":false};</script></html>""")
+                    path.contains("/customers/getBalance") -> authErrorEnvelope()
+                    path.contains("/getCurrentTrial") -> authErrorEnvelope()
+                    else -> MockResponse().setResponseCode(404)
+                }
+            }
+        }
+
+        val result = client.fetchBalance(testAccount, validSessionJson)
+
+        assertTrue(result is ProviderResult.Failure)
+        assertTrue(writes.isEmpty(), "No session should be persisted when refresh fails")
+    }
+
+    @Test
+    fun `fetchBalance attempts csrf refresh at most once (no loop)`() {
+        val writes = mutableListOf<Pair<String, String>>()
+        val client = refreshingClient(writes)
+        val landingHits = AtomicInteger(0)
+
+        // Balance ALWAYS returns auth error; landing page always authenticates with a
+        // fresh token. If the retry looped, the landing page would be hit more than once.
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.path ?: ""
+                return when {
+                    path == "/" -> {
+                        landingHits.incrementAndGet()
+                        landingPageAuthenticated("FRESH-TOKEN")
+                    }
+                    path.contains("/customers/getBalance") -> authErrorEnvelope()
+                    path.contains("/getCurrentTrial") -> authErrorEnvelope()
+                    else -> MockResponse().setResponseCode(404)
+                }
+            }
+        }
+
+        val result = client.fetchBalance(testAccount, validSessionJson)
+
+        assertTrue(result is ProviderResult.Failure)
+        // Exactly one refresh attempt, one persist — the retry does not refresh again.
+        assertEquals(1, landingHits.get())
+        assertEquals(1, writes.size)
+    }
+
+    @Test
+    fun `fetchBalance does not refresh when there is no auth failure`() {
+        val writes = mutableListOf<Pair<String, String>>()
+        val client = refreshingClient(writes)
+        val landingHits = AtomicInteger(0)
+
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.path ?: ""
+                return when {
+                    path == "/" -> {
+                        landingHits.incrementAndGet()
+                        landingPageAuthenticated("SHOULD-NOT-BE-FETCHED")
+                    }
+                    path.contains("/customers/getBalance") -> paidBalanceResponse("5.00")
+                    path.contains("/getCurrentTrial") -> trialBalanceResponse("1.00", "0.25")
+                    else -> MockResponse().setResponseCode(404)
+                }
+            }
+        }
+
+        val result = client.fetchBalance(testAccount, validSessionJson)
+
+        assertInstanceOf(ProviderResult.Success::class.java, result)
+        assertEquals(0, landingHits.get(), "Landing page must not be fetched on success")
+        assertFalse(writes.isNotEmpty(), "No refresh persist on success")
     }
 }
