@@ -156,7 +156,15 @@ class TokenPulseStatusBarWidget :
                 if (!SwingUtilities.isLeftMouseButton(e) || e.clickCount != 1) return
                 val project = ProjectManager.getInstance().openProjects.firstOrNull()
                     ?: return
-                createPopupMenu(project).show(RelativePoint(e.component, Point(0, 0)))
+                // Anchor the popup ABOVE the status bar so it doesn't overlap the widget row.
+                // Use the popup's own preferred height so the offset stays correct across
+                // themes and screen scales (no magic constant). Matches the fix in the sibling
+                // openrouter-intellij-plugin (OpenRouterStatusBarWidget.showPopupMenu).
+                val popup = createPopupMenu(project)
+                val popupHeight = popup.content.preferredSize.height
+                val originOnScreen = e.component.locationOnScreen
+                val anchor = Point(originOnScreen.x, originOnScreen.y - popupHeight)
+                popup.show(RelativePoint.fromScreen(anchor))
             }
         })
         IdeTooltipManager.getInstance().setCustomTooltip(comp, tooltip)
