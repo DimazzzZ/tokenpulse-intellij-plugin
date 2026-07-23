@@ -41,12 +41,17 @@ class WhatsNewNotificationActivity : ProjectActivity {
                 "TokenPulse Updated to v$version",
                 """
                 <b>Thank you for using TokenPulse!</b><br/><br/>
-                <b>New in v$version:</b><br/>
-                • <b>ClinePass usage limits</b> — Optional 5-hour, weekly & monthly usage for Cline API key accounts<br/>
-                • <b>Reliability improvements</b> — Fixed CLI connect dialog crash and Claude detection hangs<br/>
-                • <b>Smart refresh tooltip</b> — Shows "Refreshing balances…" instead of "No accounts configured"<br/>
-                • <b>Safe Xiaomi parsing</b> — Handles null responses from expired / stopped token plans<br/>
-                • <b>General hardening</b> — Timeouts, error handling, and debug logging throughout
+                <b>New in v$version &mdash; a redesigned status-bar tooltip</b><br/>
+                Hover the status bar for an all-new, native view of every quota:<br/>
+                • <b>Real progress bars</b> for each provider and account &mdash; no more plain text<br/>
+                • <b>Theme-aware colors</b> that turn orange, then red as you approach a limit<br/>
+                • <b>Humanized reset times</b> like &ldquo;Today 14:30&rdquo; or &ldquo;Tomorrow 09:00&rdquo;<br/>
+                • <b>Grouped by provider</b>, one clear section per account<br/><br/>
+                <b>Also new:</b><br/>
+                • Unified Xiaomi MiMo &mdash; pay-as-you-go balance and Token Plan Credits in one account<br/>
+                • Claude Code multi-account &mdash; auto-discovers every logged-in account<br/>
+                • Codex &amp; Claude OAuth &mdash; usage read from your stored logins, tokens auto-refreshed<br/>
+                • Nebius &amp; Xiaomi silent session refresh &mdash; stay connected without re-logging in
                 """.trimIndent(),
                 NotificationType.INFORMATION
             )
@@ -58,7 +63,7 @@ class WhatsNewNotificationActivity : ProjectActivity {
             })
             .addAction(object : NotificationAction("View Changelog") {
                 override fun actionPerformed(e: AnActionEvent, notification: com.intellij.notification.Notification) {
-                    BrowserUtil.browse("https://github.com/DimazzzZ/token-pulse/blob/main/CHANGELOG.md")
+                    BrowserUtil.browse("https://github.com/DimazzzZ/tokenpulse-intellij-plugin/blob/main/CHANGELOG.md")
                     notification.expire()
                 }
             })

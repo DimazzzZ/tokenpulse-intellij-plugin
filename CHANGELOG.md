@@ -5,17 +5,25 @@ All notable changes to the TokenPulse plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-07-23
 
 ### Added
+- **Redesigned status-bar tooltip** — hovering the status-bar widget now opens an all-new,
+  natively rendered popup that shows your usage at a glance:
+  - real progress bars for every provider and account (replacing the old HTML tooltip),
+  - theme-aware colors that shift green → orange → red as a quota fills,
+  - humanized reset times (`Today 14:30`, `Tomorrow 09:00`, `Wed 09:00`, `Aug 3, 14:30`),
+  - accounts grouped under their provider with one clear section each,
+  - screen-clamped positioning so it always fits on screen.
 - **Nebius session auto-refresh** — silently re-mints the CSRF token when it rotates (the most
   common auth failure) by re-fetching the SPA landing page and scraping the fresh `csrfToken`,
   so a still-valid session keeps working without reconnecting.
-- **Rich status-bar tooltip** — hovering the status-bar widget now shows a native Swing popup
-  with real progress bars for each provider/account, replacing the old HTML tooltip; theme-aware
-  colors and screen-clamped positioning so it always fits on screen.
-- **Humanized reset times** — quota reset timestamps render as `Today 14:30`, `Tomorrow 09:00`,
-  `Wed 09:00`, or `Aug 3, 14:30` instead of raw ISO strings.
+- **Xiaomi session auto-refresh** — silently re-mints the Xiaomi platform session when it goes
+  stale by replaying the captured cookies, so a still-valid login keeps working without
+  reconnecting.
+- **Xiaomi in-IDE sign-in** — the "Connect Xiaomi Account" dialog can capture the session from an
+  embedded browser login (harvesting the platform cookies directly), in addition to the manual
+  cURL capture flow.
 - **Claude Code multi-account support** — discovers and tracks every Claude account on disk
   (default `~/.claude` plus any `CLAUDE_CONFIG_DIR` locations, including suffixed macOS Keychain
   entries), adding one row per account with its own config dir.
@@ -30,9 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Token Plan usage otherwise; the tooltip shows both. Existing accounts are migrated on load
   (both legacy types remap to the unified provider); duplicate accounts for the same Xiaomi
   login are merged on first refresh.
-- **Progress-bar rendering** — the status-bar tooltip is now assembled as a Swing panel
-  (`TokenPulseTooltipPanel` + `TooltipModel`) instead of generated HTML, and `ProgressBarRenderer`
-  is now a theme-aware color helper (returns `JBColor`s rather than HTML strings).
+- **Progress-bar rendering** — as part of the tooltip redesign, the status-bar tooltip is now
+  assembled as a Swing panel (`TokenPulseTooltipPanel` + `TooltipModel`) instead of generated
+  HTML, and `ProgressBarRenderer` is now a theme-aware color helper (returns `JBColor`s rather
+  than HTML strings).
 - **Claude account labels** — auto-named personal organizations (`"<email>'s Organization"`) are
   collapsed so the label shows just the email; real organization names still display as
   `email • Organization`. Existing persisted names are migrated on load.
@@ -42,7 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bridge) show only the provider's own (already actionable) message.
 - **Claude Code usage now uses the OAuth API exclusively** — reads the credentials `claude` already stored
   (macOS Keychain / `~/.claude/.credentials.json`) and calls the usage endpoint directly, with
-  automatic token refresh on expiry, instead of scraping `claude` CLI output.
+  automatic token refresh on expiry (the rotated tokens are written back to the credential store,
+  keychain or file, so the real `claude` login stays in sync), instead of scraping `claude` CLI output.
   The legacy CLI-output parser (`ClaudeCliOutputParser` / `ClaudeCliUsageExtractor`) has been removed.
 - **Codex/ChatGPT usage now uses the OAuth API directly** — reads the credentials `codex` already
   stored in `~/.codex/auth.json` (or `$CODEX_HOME/auth.json`) and calls ChatGPT's usage endpoint
