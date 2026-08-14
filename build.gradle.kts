@@ -29,6 +29,10 @@ dependencies {
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    // Bridges JUnit 3/4-style tests (e.g. IntelliJ's BasePlatformTestCase,
+    // which extends junit.framework.TestCase) onto the JUnit Platform so
+    // `platformTest` actually discovers and runs TokenPulseSmokeTest.
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.11.4")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     // pty4j is provided by IntelliJ platform at runtime - no explicit dependency needed
@@ -145,9 +149,15 @@ tasks {
             if (!project.hasProperty("functional")) {
                 excludeTags("functional")
             }
-            // Skip the IntelliJ Platform smoke test here — it needs a serial,
-            // shared TestApplication fixture and runs in the `platformTest` task.
-            excludeTags("platform")
+        }
+        // TokenPulseSmokeTest extends IntelliJ's BasePlatformTestCase — a
+        // JUnit 3-style junit.framework.TestCase, run through the Vintage
+        // engine, which does NOT honor Jupiter's @Tag (that's Jupiter-only;
+        // Vintage only understands JUnit4 @Category). So the platform split
+        // is done by class name instead of by tag; it needs a serial, shared
+        // TestApplication fixture and runs in the `platformTest` task instead.
+        filter {
+            excludeTestsMatching("org.zhavoronkov.tokenpulse.TokenPulseSmokeTest")
         }
         systemProperty("tokenpulse.testMode", "true")
 
@@ -169,11 +179,30 @@ tasks {
         description = "Runs IntelliJ Platform tests that need the shared TestApplication."
         group = "verification"
 
-        testClassesDirs = sourceSets.test.get().output.classesDirs
-        classpath = sourceSets.test.get().runtimeClasspath
+        // The IntelliJ Platform Gradle plugin only wires its sandbox/module
+        // JVM args (IntelliJPlatformArgumentProvider, SandboxArgumentProvider,
+        // the rearranged plugin/IDE classpath, a custom javaLauncher) onto the
+        // task literally named "test". A separately `register<Test>(...)`
+        // task does NOT get that configuration automatically — without it,
+        // BasePlatformTestCase fails to bootstrap the IDE test application
+        // (IllegalAccessError in UITestUtil). So reuse the already fully
+        // configured "test" task's classpath/args/launcher here and just
+        // retarget which tests run via `filter`.
+        val testTask = named<Test>("test").get()
+        // The reused jvmArgumentProviders/classpath resolve sandbox output
+        // (prepareTestSandbox) at execution time without Gradle seeing it as
+        // a task input, so the sandbox-prep dependency must be declared
+        // explicitly here too.
+        dependsOn("prepareTestSandbox")
+        testClassesDirs = testTask.testClassesDirs
+        classpath = testTask.classpath
+        jvmArgumentProviders.addAll(testTask.jvmArgumentProviders)
+        systemProperties = testTask.systemProperties
+        javaLauncher.set(testTask.javaLauncher)
 
-        useJUnitPlatform {
-            includeTags("platform")
+        useJUnitPlatform()
+        filter {
+            includeTestsMatching("org.zhavoronkov.tokenpulse.TokenPulseSmokeTest")
         }
         systemProperty("tokenpulse.testMode", "true")
         maxParallelForks = 1
