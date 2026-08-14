@@ -75,7 +75,7 @@ abstract class CliConnectDialog(
         }
 
         row {
-            comment(stripHtmlWrapper(spec.descriptionHtml))
+            comment(DslCommentText.sanitize(spec.descriptionHtml))
         }
 
         separator()
@@ -96,7 +96,7 @@ abstract class CliConnectDialog(
         }
 
         row {
-            comment(stripHtmlWrapper(spec.requirementsHtml))
+            comment(DslCommentText.sanitize(spec.requirementsHtml))
         }
 
         separator()
@@ -110,21 +110,6 @@ abstract class CliConnectDialog(
     override fun getPreferredFocusedComponent() = detectButton
 
     // ── HTML helpers ────────────────────────────────────────────────────────
-
-    /**
-     * Strips outer <html>...</html> wrapper if present.
-     * Needed because Row.comment() already wraps text in <html> internally.
-     */
-    private fun stripHtmlWrapper(text: String): String {
-        val trimmed = text.trim()
-        return if (trimmed.startsWith("<html>", ignoreCase = true) &&
-            trimmed.endsWith("</html>", ignoreCase = true)
-        ) {
-            trimmed.substring(6, trimmed.length - 7)
-        } else {
-            trimmed
-        }
-    }
 
     private fun detectingStatusHtml() =
         "<html><i>Detecting ${spec.cliName}...</i></html>"

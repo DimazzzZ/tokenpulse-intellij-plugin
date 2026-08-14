@@ -146,8 +146,8 @@ class XiaomiConnectDialog : DialogWrapper(true) {
         } else {
             row {
                 comment(
-                    "<html>The embedded browser isn't available in this IDE build, so use " +
-                        "the manual cURL capture below.</html>"
+                    "The embedded browser isn't available in this IDE build, so use " +
+                        "the manual cURL capture below."
                 )
             }
             manualCaptureRows()
