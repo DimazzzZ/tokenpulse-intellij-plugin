@@ -25,16 +25,11 @@ internal object TooltipModel {
     internal sealed interface TooltipRow {
         data class LabelValue(val label: String, val value: String, val bold: Boolean = false) : TooltipRow
 
-        // UsageBar: fillPercent (0..100) is CONSUMED and drives the bar fill +
-        // color (high = red); labelText is the pre-formatted right-column text
-        // (Claude/Codex show remaining e.g. "98%", Cline shows used e.g. "50%").
+        // UsageBar: fillPercent (0..100) is REMAINING and drives the bar fill +
+        // color (high = green, low = red); labelText is the pre-formatted
+        // right-column text, consistently showing the same remaining% value.
         data class UsageBar(val label: String, val fillPercent: Int, val labelText: String, val resetInline: String?) :
             TooltipRow
-        data class BalanceBar(
-            val label: String,
-            val remainingPercent: Int,
-            val resetInline: String? = null
-        ) : TooltipRow
         data class Info(val message: String) : TooltipRow
         data class Error(val message: String, val warning: Boolean = false) : TooltipRow
         data class SectionHeader(val title: String) : TooltipRow
@@ -155,9 +150,8 @@ internal object TooltipModel {
 
     /**
      * Append a Codex usage-bar row when [used] is a parseable non-`N/A` value.
-     * [used] is a "percent used" number; the bar fills with CONSUMED (used%)
-     * and the printed label reads REMAINING (100 - used%). Delegates to
-     * [claudeUsageBar] to share the Claude/Codex "remaining-label" convention.
+     * [used] is a "percent used" number; delegates to [claudeUsageBar] to
+     * convert it to the shared remaining% bar/label convention.
      */
     private fun addCodexBar(
         rows: MutableList<TooltipRow>,
@@ -226,10 +220,10 @@ internal object TooltipModel {
         metadata["status"]?.let { rows.add(TooltipRow.Info("Status: $it")) }
     }
 
-    /** Claude / Codex convention: bar fills with CONSUMED (used%), label reads REMAINING. */
+    /** [used] is percent used; the bar fills and labels with the remaining%. */
     private fun claudeUsageBar(label: String, used: Int, resetsAtIso: String?): TooltipRow.UsageBar {
-        val used0 = used.coerceIn(0, 100)
-        return TooltipRow.UsageBar(label, used0, "${100 - used0}%", resetInline(resetsAtIso))
+        val remaining0 = (100 - used.coerceIn(0, 100)).coerceIn(0, 100)
+        return TooltipRow.UsageBar(label, remaining0, "$remaining0%", resetInline(resetsAtIso))
     }
 
     /**
@@ -270,7 +264,8 @@ internal object TooltipModel {
 
         // Token Plan usage block.
         metadata?.get("sessionUsed")?.toIntOrNull()?.let {
-            rows.add(TooltipRow.BalanceBar("Credits", 100 - it))
+            val remaining0 = (100 - it).coerceIn(0, 100)
+            rows.add(TooltipRow.UsageBar("Credits", remaining0, "$remaining0%", null))
         }
         val planUsed = tokens?.used
         val planTotal = tokens?.total
@@ -313,10 +308,8 @@ internal object TooltipModel {
         if (metrics.isEmpty()) return
         rows.add(TooltipRow.SectionHeader(ClinePassUsageRenderer.SECTION_TITLE))
         for (metric in metrics) {
-            // Cline convention: bar fill AND label both read USED% (unchanged
-            // wording); reset time renders inline in col 3.
-            val used0 = metric.percent.coerceIn(0, 100)
-            rows.add(TooltipRow.UsageBar(metric.label, used0, "$used0%", resetInline(metric.resetAt)))
+            val remaining0 = (100 - metric.percent.coerceIn(0, 100)).coerceIn(0, 100)
+            rows.add(TooltipRow.UsageBar(metric.label, remaining0, "$remaining0%", resetInline(metric.resetAt)))
         }
     }
 

@@ -163,8 +163,8 @@ class TooltipModelTest {
         )
         val bars = rows(ConnectionType.CODEX_CLI, r).filterIsInstance<TooltipRow.UsageBar>()
         assertEquals(listOf("5-hour", "Weekly", "Code Review"), bars.map { it.label })
-        // Bar fills with CONSUMED (used %); the printed label reads REMAINING.
-        assertEquals(listOf(10, 20, 30), bars.map { it.fillPercent })
+        // Bar fills with REMAINING (100 - used %); the printed label matches.
+        assertEquals(listOf(90, 80, 70), bars.map { it.fillPercent })
         assertEquals(listOf("90%", "80%", "70%"), bars.map { it.labelText })
         // valid ISO reset -> inline present with prefix; absent -> null
         assertTrue(bars.first { it.label == "5-hour" }.resetInline!!.startsWith("Resets "))
@@ -248,8 +248,8 @@ class TooltipModelTest {
         )
         val bars = rows(ConnectionType.CLAUDE_CODE, r).filterIsInstance<TooltipRow.UsageBar>()
         assertEquals(listOf("5-hour", "7-day"), bars.map { it.label })
-        // Bar fills with CONSUMED (used %); the printed label reads REMAINING.
-        assertEquals(listOf(40, 10), bars.map { it.fillPercent })
+        // Bar fills with REMAINING (100 - used %); the printed label matches.
+        assertEquals(listOf(60, 90), bars.map { it.fillPercent })
         assertEquals(listOf("60%", "90%"), bars.map { it.labelText })
         // valid ISO -> inline reset present with prefix
         val fiveHour = bars.first { it.label == "5-hour" }
@@ -266,7 +266,7 @@ class TooltipModelTest {
         )
         val bars = rows(ConnectionType.CLAUDE_CODE, r).filterIsInstance<TooltipRow.UsageBar>()
         assertEquals(listOf("5-hour", "Weekly"), bars.map { it.label })
-        assertEquals(listOf(30, 15), bars.map { it.fillPercent })
+        assertEquals(listOf(70, 85), bars.map { it.fillPercent })
         assertEquals(listOf("70%", "85%"), bars.map { it.labelText })
     }
 
@@ -295,7 +295,7 @@ class TooltipModelTest {
             metadata = mapOf("sessionUsed" to "40"),
         )
         val out = rows(ConnectionType.XIAOMI, r)
-        assertEquals(TooltipRow.BalanceBar("Credits", 60), out[0])
+        assertEquals(TooltipRow.UsageBar("Credits", 60, "60%", null), out[0])
         assertTrue(out.any { it is TooltipRow.LabelValue && it.label == "Used:" })
     }
 
@@ -309,7 +309,7 @@ class TooltipModelTest {
         )
         val out = rows(ConnectionType.XIAOMI, r)
         assertEquals(TooltipRow.LabelValue("Balance:", "$55.48", bold = true), out[0])
-        assertTrue(out.any { it is TooltipRow.BalanceBar && it.label == "Credits" })
+        assertTrue(out.any { it is TooltipRow.UsageBar && it.label == "Credits" })
         assertTrue(out.any { it is TooltipRow.LabelValue && it.label == "Used:" })
     }
 
@@ -337,7 +337,8 @@ class TooltipModelTest {
         val bars = out.filterIsInstance<TooltipRow.UsageBar>()
         assertEquals(1, bars.size)
         assertEquals("5-hour", bars[0].label)
-        // Cline convention: bar fill AND label both read USED (unchanged).
+        // Bar fill and label both read REMAINING (100 - used %); 50 used ->
+        // 50 remaining is a coincidental fixed point of this test's input.
         assertEquals(50, bars[0].fillPercent)
         assertEquals("50%", bars[0].labelText)
         assertTrue(bars[0].resetInline!!.startsWith("Resets "))
