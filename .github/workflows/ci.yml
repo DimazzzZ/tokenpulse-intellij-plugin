@@ -53,6 +53,39 @@ jobs:
           name: test-results
           path: build/reports/tests/
 
+  verify:
+    name: Plugin Verifier
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+
+      # Catches deprecated / scheduled-for-removal platform API before release
+      # rather than at publish time. failureLevel in build.gradle.kts makes
+      # these actually fail the build instead of only printing a report.
+      - name: Verify plugin
+        run: ./gradlew verifyPlugin --build-cache
+
+      - name: Upload verifier report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-verifier-report
+          path: build/reports/pluginVerifier/
+
   lint:
     name: Lint (Detekt)
     runs-on: ubuntu-latest

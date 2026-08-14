@@ -41,7 +41,10 @@ dependencies {
 
     // IntelliJ Platform dependencies (2.x plugin style)
     intellijPlatform {
-        val platformVersion = project.findProperty("platformVersion") as String? ?: "2024.2.5"
+        // Keep this fallback in step with the pluginSinceBuild fallback below:
+        // compiling against an older SDK than we declare compatibility with
+        // would fail on APIs that only exist in the newer one.
+        val platformVersion = project.findProperty("platformVersion") as String? ?: "2025.3.6"
         intellijIdeaUltimate(platformVersion)
 
         // Test framework for plugin tests
@@ -60,14 +63,31 @@ java {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = project.findProperty("pluginSinceBuild") as String? ?: "242"
+            sinceBuild = project.findProperty("pluginSinceBuild") as String? ?: "253"
             untilBuild = provider { null }  // No upper bound - compatible with all future versions
         }
     }
 
     pluginVerification {
+        // The verifier only FAILS on COMPATIBILITY_PROBLEMS by default — it
+        // merely prints deprecation findings. That is why 0.4.0 shipped with
+        // 2 scheduled-for-removal usages even though release CI ran
+        // verifyPlugin. Fail the build on them instead.
+        failureLevel = listOf(
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.COMPATIBILITY_PROBLEMS,
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.DEPRECATED_API_USAGES,
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
+        )
+
         ides {
-            recommended()
+            // Opt-in fast local loop: -PverifierLocalIde=/path/to/IDE.app verifies
+            // against an installed IDE instead of downloading the recommended set.
+            val localIde = project.findProperty("verifierLocalIde") as String?
+            if (localIde != null) {
+                local(localIde)
+            } else {
+                recommended()
+            }
         }
     }
 

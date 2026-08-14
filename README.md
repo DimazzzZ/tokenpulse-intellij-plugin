@@ -182,7 +182,7 @@ on Linux). They are never written to plain-text settings files.
 
 ## Compatibility
 
-- **IntelliJ Platform** — 2024.2+ (build 242+); no upper bound (compatible with current and future builds)
+- **IntelliJ Platform** — 2025.3+ (build 253+); no upper bound (compatible with current and future builds)
 - **Java** — 21 (LTS)
 - **IDEs** — IntelliJ IDEA (Community & Ultimate), WebStorm, PyCharm, and other JetBrains IDEs
 

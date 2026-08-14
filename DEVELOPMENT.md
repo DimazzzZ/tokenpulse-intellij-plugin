@@ -100,8 +100,8 @@ token-pulse/
 All versioning and platform compatibility info is centralized in **`gradle.properties`**:
 ```properties
 pluginVersion = 0.4.0
-pluginSinceBuild = 242
-platformVersion = 2024.2
+pluginSinceBuild = 253
+platformVersion = 2025.3.6
 ```
 
 To update the version, use:
