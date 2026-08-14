@@ -263,17 +263,6 @@ object TokenPulseTooltipPanel {
                     resetInline = row.resetInline,
                 ),
             )
-            is TooltipRow.BalanceBar -> addBarRow(
-                panel,
-                gbc,
-                BarRowContent(
-                    label = row.label,
-                    fillPercent = row.remainingPercent,
-                    labelText = "${row.remainingPercent.coerceIn(0, 100)}%",
-                    color = ProgressBarRenderer.getBalanceColor(row.remainingPercent),
-                    resetInline = row.resetInline,
-                ),
-            )
             is TooltipRow.Info -> panel.add(
                 JBLabel(row.message).apply {
                     font = JBFont.medium()
