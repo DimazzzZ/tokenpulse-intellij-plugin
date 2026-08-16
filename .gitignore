@@ -9,7 +9,6 @@ build/
 out/
 target/
 bin/
-docs/
 
 # Gradle
 .gradle/
@@ -101,6 +100,8 @@ openrouter-intellij-plugin
 .mimocode/
 .research/
 CLAUDE.md
+# Work items per docs/agents/issue-tracker.md are local Markdown, not committed.
+.scratch/
 
 # Plugin signing credentials (NEVER commit these!)
 *.pem
