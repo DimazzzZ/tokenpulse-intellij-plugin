@@ -40,6 +40,10 @@ jobs:
           # read-only for untrusted fork PRs so they can't poison the cache.
           cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
 
+      # Note: this invocation always discards the configuration cache, because
+      # koverVerify pulls in every Test task including platformTest, which is
+      # opted out of CC (see build.gradle.kts). Splitting the tasks across steps
+      # does not help for the same reason. CC pays off locally, not here.
       - name: Test
         run: ./gradlew test platformTest koverVerify --build-cache
 
@@ -106,7 +110,7 @@ jobs:
           cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
 
       - name: Detekt
-        run: ./gradlew detekt detektSarif --build-cache
+        run: ./gradlew detekt --build-cache
 
       - name: Detekt SARIF diagnostics
         if: always()

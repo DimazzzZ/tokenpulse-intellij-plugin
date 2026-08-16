@@ -13,6 +13,7 @@ TokenPulse uses **JUnit 5** and **Kotlin Coroutines Test**.
 | **Functional Tests** | `*FunctionalTest.kt` | Require external tools (CLI, etc.) |
 | **Live Tests** | `*LiveTest.kt` | Require real API credentials |
 | **Smoke Tests** | `*SmokeTest.kt` | Require IntelliJ Platform |
+| **Guard Tests** | `*GuardTest.kt` | Scan `src/main` sources for a banned pattern rather than executing code |
 
 ## 🚀 Running Tests
 
@@ -87,9 +88,11 @@ src/test/kotlin/org/zhavoronkov/tokenpulse/
 ├── ui/
     ├── AccountTableColumnsTest.kt      # Unit: pure column-value helpers
     ├── BalanceFormatterTest.kt         # Unit: formatting (17)
+    ├── DslCommentHtmlGuardTest.kt      # Guard: scans src/main for <html> passed to UI DSL comment()
+    ├── DslCommentTextTest.kt           # Unit: DslCommentText.sanitize()
     ├── NebiusCurlParserTest.kt         # Unit: parsing
     ├── NormalizedConfigDirTest.kt      # Unit: Claude config-dir canonicalization
-    ├── ProgressBarRendererTest.kt      # Unit: progress bars (17)
+    ├── ProgressBarRendererTest.kt      # Unit: progress bar colors (remaining%)
     ├── SecretRedactorTest.kt           # Unit: redaction (16)
     └── TooltipModelTest.kt             # Unit: tooltip row grouping/construction per provider
 └── utils/
