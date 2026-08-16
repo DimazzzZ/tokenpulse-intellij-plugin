@@ -18,6 +18,15 @@ import org.zhavoronkov.tokenpulse.utils.TokenPulseLogger
  *
  * Requirements:
  * - OpenRouter plugin (org.zhavoronkov.openrouter) must be installed and configured
+ *
+ * NOTE ON REFLECTION: the reflection here targets *another plugin's* service
+ * class, never IntelliJ Platform API. It is therefore not the internal-API
+ * usage the Plugin Verifier forbids (see the `failureLevel` config in
+ * build.gradle.kts, which fails the build on INTERNAL_API_USAGES) — but it is
+ * also invisible to the verifier, so it cannot be machine-checked. Every
+ * lookup is guarded and degrades to "plugin not installed" on any failure;
+ * keep it that way, since the target plugin can rename or remove these
+ * members at any time without breaking our build.
  */
 class OpenRouterPluginBridgeClient : ProviderClient {
 

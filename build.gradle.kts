@@ -1,3 +1,5 @@
+import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel
+
 plugins {
     id("java")
     kotlin("jvm") version "2.1.20"
@@ -70,13 +72,25 @@ intellijPlatform {
 
     pluginVerification {
         // The verifier only FAILS on COMPATIBILITY_PROBLEMS by default — it
-        // merely prints deprecation findings. That is why 0.4.0 shipped with
-        // 2 scheduled-for-removal usages even though release CI ran
-        // verifyPlugin. Fail the build on them instead.
+        // merely prints everything else. That is why 0.4.0 shipped with 2
+        // scheduled-for-removal usages even though release CI ran
+        // verifyPlugin. Fail the build on the whole non-public-API surface
+        // instead: JetBrains penalizes plugins that reach into internal or
+        // experimental platform API, and the plugin is currently clean, so
+        // this is a guard against regressions rather than a migration.
+        //
+        // MISSING_DEPENDENCIES and NOT_DYNAMIC are deliberately NOT included:
+        // the report already lists unavailable *optional* dependencies (e.g.
+        // com.intellij.jetbrains.client) that we do not control, so they
+        // would fail spuriously.
         failureLevel = listOf(
-            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.COMPATIBILITY_PROBLEMS,
-            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.DEPRECATED_API_USAGES,
-            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
+            FailureLevel.COMPATIBILITY_PROBLEMS,
+            FailureLevel.DEPRECATED_API_USAGES,
+            FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
+            FailureLevel.INTERNAL_API_USAGES,
+            FailureLevel.EXPERIMENTAL_API_USAGES,
+            FailureLevel.OVERRIDE_ONLY_API_USAGES,
+            FailureLevel.NON_EXTENDABLE_API_USAGES,
         )
 
         ides {
