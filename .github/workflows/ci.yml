@@ -14,9 +14,6 @@ concurrency:
 env:
   # Opt into Node.js 24 for GitHub Actions (Node.js 20 deprecated June 2026)
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  # Skip the ~23s headless-IDE buildSearchableOptions task on CI verification.
-  # The release workflow does NOT set this, so releases still generate it.
-  SKIP_SEARCHABLE_OPTIONS: "true"
 
 jobs:
   test:

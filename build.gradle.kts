@@ -151,14 +151,16 @@ tasks {
         ignoreFailures = true  // Don't fail the build on Detekt issues during development
     }
 
-    // buildSearchableOptions launches a headless IDE (~23s) to index plugin
-    // searchable options. It is only needed for the shipped plugin ZIP, not for
-    // PR/push CI verification. `ci.yml` sets SKIP_SEARCHABLE_OPTIONS=true to skip
-    // it; the release workflow does NOT set it, so releases still generate it.
-    // (Note: GitHub Actions always sets CI=true, so we deliberately do NOT gate
-    // on CI here — that would also skip it during releases.)
+    // buildSearchableOptions launches a headless IDE (~23s) purely to index the
+    // plugin's settings so individual options are findable in Settings search.
+    // Disabled outright: on the 2025.3.6 SDK its bundled JBR aborts at JVM
+    // startup on macOS (SIGABRT in Threads::create_vm -> post_vm_initialized,
+    // ~0.18s in, before any plugin code runs), so it breaks local release
+    // builds and buys little — the TokenPulse settings PAGE is still reachable
+    // from Settings search either way, only the individual option labels are
+    // not indexed.
     named("buildSearchableOptions") {
-        enabled = System.getenv("SKIP_SEARCHABLE_OPTIONS") != "true"
+        enabled = false
     }
 
     // Configure tests
