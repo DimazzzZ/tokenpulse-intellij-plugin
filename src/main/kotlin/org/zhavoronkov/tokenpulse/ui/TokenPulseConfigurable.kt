@@ -10,6 +10,7 @@ import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.bindIntText
 import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
 import org.zhavoronkov.tokenpulse.model.ConnectionType
@@ -132,7 +133,7 @@ class TokenPulseConfigurable : Configurable {
                 row("Display mode:") {
                     displayModeCombo = comboBox(
                         StatusBarDisplayMode.entries,
-                        renderer = com.intellij.ui.SimpleListCellRenderer.create("") { it.displayName }
+                        renderer = textListCellRenderer { it?.displayName.orEmpty() }
                     )
                         .applyToComponent {
                             selectedItem = statusBarDisplayMode
@@ -160,7 +161,7 @@ class TokenPulseConfigurable : Configurable {
                 row("Format:") {
                     formatCombo = comboBox(
                         StatusBarFormat.entries,
-                        renderer = com.intellij.ui.SimpleListCellRenderer.create("") { it.displayName }
+                        renderer = textListCellRenderer { it?.displayName.orEmpty() }
                     )
                         .applyToComponent {
                             selectedItem = statusBarFormat

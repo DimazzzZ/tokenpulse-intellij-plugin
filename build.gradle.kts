@@ -41,7 +41,10 @@ dependencies {
 
     // IntelliJ Platform dependencies (2.x plugin style)
     intellijPlatform {
-        val platformVersion = project.findProperty("platformVersion") as String? ?: "2024.2.5"
+        // Keep this fallback in step with the pluginSinceBuild fallback below:
+        // compiling against an older SDK than we declare compatibility with
+        // would fail on APIs that only exist in the newer one.
+        val platformVersion = project.findProperty("platformVersion") as String? ?: "2025.3.6"
         intellijIdeaUltimate(platformVersion)
 
         // Test framework for plugin tests
@@ -60,14 +63,31 @@ java {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = project.findProperty("pluginSinceBuild") as String? ?: "242"
+            sinceBuild = project.findProperty("pluginSinceBuild") as String? ?: "253"
             untilBuild = provider { null }  // No upper bound - compatible with all future versions
         }
     }
 
     pluginVerification {
+        // The verifier only FAILS on COMPATIBILITY_PROBLEMS by default — it
+        // merely prints deprecation findings. That is why 0.4.0 shipped with
+        // 2 scheduled-for-removal usages even though release CI ran
+        // verifyPlugin. Fail the build on them instead.
+        failureLevel = listOf(
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.COMPATIBILITY_PROBLEMS,
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.DEPRECATED_API_USAGES,
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
+        )
+
         ides {
-            recommended()
+            // Opt-in fast local loop: -PverifierLocalIde=/path/to/IDE.app verifies
+            // against an installed IDE instead of downloading the recommended set.
+            val localIde = project.findProperty("verifierLocalIde") as String?
+            if (localIde != null) {
+                local(localIde)
+            } else {
+                recommended()
+            }
         }
     }
 
@@ -131,14 +151,16 @@ tasks {
         ignoreFailures = true  // Don't fail the build on Detekt issues during development
     }
 
-    // buildSearchableOptions launches a headless IDE (~23s) to index plugin
-    // searchable options. It is only needed for the shipped plugin ZIP, not for
-    // PR/push CI verification. `ci.yml` sets SKIP_SEARCHABLE_OPTIONS=true to skip
-    // it; the release workflow does NOT set it, so releases still generate it.
-    // (Note: GitHub Actions always sets CI=true, so we deliberately do NOT gate
-    // on CI here — that would also skip it during releases.)
+    // buildSearchableOptions launches a headless IDE (~23s) purely to index the
+    // plugin's settings so individual options are findable in Settings search.
+    // Disabled outright: on the 2025.3.6 SDK its bundled JBR aborts at JVM
+    // startup on macOS (SIGABRT in Threads::create_vm -> post_vm_initialized,
+    // ~0.18s in, before any plugin code runs), so it breaks local release
+    // builds and buys little — the TokenPulse settings PAGE is still reachable
+    // from Settings search either way, only the individual option labels are
+    // not indexed.
     named("buildSearchableOptions") {
-        enabled = System.getenv("SKIP_SEARCHABLE_OPTIONS") != "true"
+        enabled = false
     }
 
     // Configure tests

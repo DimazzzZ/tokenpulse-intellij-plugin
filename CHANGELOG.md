@@ -5,6 +5,31 @@ All notable changes to the TokenPulse plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Architecture Decision Records** — `docs/adr/` now holds the ADRs that
+  `docs/agents/domain.md` has always required. They were previously impossible to commit:
+  `.gitignore` listed `docs/` under "Build directories" and swallowed the whole tree, which
+  also kept the agent-convention docs out of the repository.
+
+### Changed
+- **⚠️ Minimum IntelliJ platform is now 2025.3 (build 253)**, up from 2024.2 (build 242).
+  IDEs from 2024.2 through 2025.2 will stay on the last compatible release and no longer
+  receive updates. This was required to replace `SimpleListCellRenderer.create(...)`, which
+  JetBrains has scheduled for removal — both of its overloads are deprecated in current
+  builds, and the replacement API does not exist in the 2024.2 SDK.
+  See [ADR-0001](docs/adr/0001-raise-minimum-platform-to-2025-3.md).
+
+### Fixed
+- Removed all use of platform API that is deprecated or scheduled for removal, so the plugin
+  verifies cleanly against current IDEs.
+
+### Removed
+- Individual TokenPulse settings are no longer indexed for Settings search
+  (`buildSearchableOptions` is disabled — its headless IDE run crashes on the 2025.3.6 SDK).
+  The TokenPulse settings page itself is still findable.
+
 ## [0.4.0] - 2026-07-23
 
 ### Added
