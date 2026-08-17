@@ -125,14 +125,19 @@ class DeepSeekProviderClientTest {
     }
 
     @Test
-    fun `test fetchBalance returns ParseError when is_available is false`() {
+    fun `test fetchBalance succeeds when is_available is false (zero balance)`() {
         mockWebServer.enqueue(
             MockResponse()
                 .setResponseCode(200)
                 .setBody(
                     """{
                     "is_available": false,
-                    "balance_infos": []
+                    "balance_infos": [
+                        {
+                            "currency": "USD",
+                            "total_balance": "0.00"
+                        }
+                    ]
                 }"""
                 )
         )
@@ -140,7 +145,10 @@ class DeepSeekProviderClientTest {
         val account = Account(connectionType = ConnectionType.DEEPSEEK_API, authType = AuthType.DEEPSEEK_API_KEY)
         val result = client.fetchBalance(account, "sk-test-key")
 
-        assertTrue(result is ProviderResult.Failure.NetworkError)
+        assertTrue(result is ProviderResult.Success)
+        val success = result as ProviderResult.Success
+        assertEquals(0, BigDecimal("0.00").compareTo(success.snapshot.balance.credits?.remaining))
+        assertEquals("USD", success.snapshot.metadata["currency"])
     }
 
     @Test

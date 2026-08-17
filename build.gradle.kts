@@ -5,7 +5,7 @@ plugins {
     kotlin("jvm") version "2.1.20"
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
     id("org.jetbrains.kotlinx.kover") version "0.9.1"
-    id("org.jetbrains.intellij.platform") version "2.3.0"
+    id("org.jetbrains.intellij.platform") version "2.18.1"
 }
 
 group = project.findProperty("pluginGroup") ?: "org.zhavoronkov.tokenpulse"
@@ -138,7 +138,9 @@ intellijPlatform {
 
             when {
                 localIde != null -> local(localIde)
-                pinnedIdes.isNotEmpty() -> ides(pinnedIdes)
+                pinnedIdes.isNotEmpty() -> pinnedIdes.forEach { ideNotation ->
+                    create(ideNotation, ideNotation)
+                }
                 else -> recommended()
             }
         }

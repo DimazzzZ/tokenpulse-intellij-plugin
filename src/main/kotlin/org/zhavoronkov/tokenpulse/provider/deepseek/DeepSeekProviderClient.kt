@@ -109,13 +109,11 @@ class DeepSeekProviderClient(
         return try {
             val jsonObject = gson.fromJson(body, JsonObject::class.java)
 
-            // Check if the response indicates the account is available
-            val isAvailable = jsonObject.get("is_available")?.asBoolean ?: false
-            if (!isAvailable) {
-                return BalanceResponse.Failure.Network("DeepSeek account is not available")
-            }
-
-            // Extract balance_infos array
+            // Extract balance_infos array. Note: DeepSeek's `is_available` field
+            // is informational — it means "account has enough balance to make
+            // API calls" (i.e., non-zero balance). It is NOT an auth/connectivity
+            // signal. A brand-new key with $0.00 balance returns is_available=false
+            // but is a perfectly valid key, so we always parse the balance data.
             val balanceInfos = jsonObject.getAsJsonArray("balance_infos")
             if (balanceInfos == null || balanceInfos.size() == 0) {
                 return BalanceResponse.Failure.Parse("Missing or empty balance_infos in response", null)
