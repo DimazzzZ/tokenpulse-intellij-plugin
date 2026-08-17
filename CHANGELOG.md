@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   JetBrains has scheduled for removal — both of its overloads are deprecated in current
   builds, and the replacement API does not exist in the 2024.2 SDK.
   See [ADR-0001](docs/adr/0001-raise-minimum-platform-to-2025-3.md).
+- **Non-public platform API is now a build failure, not a warning** — the Plugin Verifier gate
+  covers internal, experimental, override-only and non-extendable API alongside deprecated and
+  scheduled-for-removal usages. The plugin is already clean, so this is a guard against
+  regressions. `MISSING_DEPENDENCIES` and `NOT_DYNAMIC` are deliberately excluded because they
+  report unavailable *optional* dependencies we don't control.
+  See [ADR-0002](docs/adr/0002-no-non-public-platform-api.md).
 
 ### Fixed
 - Removed all use of platform API that is deprecated or scheduled for removal, so the plugin
