@@ -11,7 +11,19 @@ plugins {
 group = project.findProperty("pluginGroup") ?: "org.zhavoronkov.tokenpulse"
 version = project.findProperty("pluginVersion") ?: "0.1.0"
 
+// Read into a local first: referencing `version` inside the task action would
+// capture the Project itself, which the configuration cache cannot serialize
+// ("cannot serialize object of type 'DefaultProject'") and which was the only
+// thing blocking configuration cache for this build.
+val pluginVersionValue = version.toString()
+
 tasks.processResources {
+    // Re-bind to a local inside the task configuration block: a top-level
+    // `val` in a .kts script is a field on the script object, so referencing
+    // it directly from the action lambda below captures the script itself
+    // ("cannot serialize Gradle script object references"). Capturing a plain
+    // local does not.
+    val version = pluginVersionValue
     filesMatching("tokenpulse.properties") {
         expand("pluginVersion" to version)
     }
@@ -124,29 +136,24 @@ detekt {
     basePath = projectDir.absolutePath
 }
 
-// Configure Detekt SARIF reporting task
-tasks.register<io.gitlab.arturbosch.detekt.Detekt>("detektSarif") {
-    description = "Runs detekt and generates SARIF report for GitHub Code Scanning"
-    group = "verification"
-
-    buildUponDefaultConfig = true
-    config.setFrom("$projectDir/config/detekt/detekt.yml")
-
-    setSource(files("src/main/kotlin"))
-    include("**/*.kt")
-    exclude("**/test/**", "**/*Test.kt")
-
+// SARIF (for GitHub Code Scanning) is produced by the main `detekt` task
+// itself — a second Detekt task re-analyzing src/main/kotlin just doubled the
+// work in the lint job for the same findings.
+//
+// Note this deliberately WIDENS code-scanning scope: the removed `detektSarif`
+// task carried exclude("**/test/**", "**/*Test.kt"), whereas `detekt` analyses
+// test sources too. That is wanted — the first run under this config caught a
+// real LoopWithTooManyJumpStatements in DslCommentHtmlGuardTest — but it does
+// mean code-scanning alerts can now originate from src/test.
+tasks.named<io.gitlab.arturbosch.detekt.Detekt>("detekt") {
     reports {
+        // Only what something actually consumes: sarif -> GitHub code scanning,
+        // txt -> the PR-summary script, html -> the uploaded artifact humans read.
         sarif.required.set(true)
-        sarif.outputLocation.set(file("build/reports/detekt/detekt.sarif"))
-        html.required.set(false)
         txt.required.set(true)
+        html.required.set(true)
         xml.required.set(false)
     }
-
-    jvmTarget = "21"
-    basePath = projectDir.absolutePath
-    ignoreFailures = true
 }
 
 tasks {
@@ -159,10 +166,12 @@ tasks {
         compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
     }
 
-    // Configure Detekt tasks
+    // Configure Detekt tasks. Detekt runs inside the Gradle daemon, so it
+    // depends on gradle/gradle-daemon-jvm.properties pinning that daemon to
+    // Java 21 — on a JDK 26 daemon it aborts with a bare "> 26.0.2".
+    // ignoreFailures is deliberately NOT set: lint gates the build.
     withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
         jvmTarget = "21"
-        ignoreFailures = true  // Don't fail the build on Detekt issues during development
     }
 
     // buildSearchableOptions launches a headless IDE (~23s) purely to index the
@@ -214,6 +223,16 @@ tasks {
     register<Test>("platformTest") {
         description = "Runs IntelliJ Platform tests that need the shared TestApplication."
         group = "verification"
+
+        // Reusing the `test` task's wiring (below) means holding a reference to
+        // that Task, which the configuration cache cannot serialize. Opt this
+        // one task out rather than lose CC everywhere: the common local loops
+        // (`test`, `compileKotlin`, `buildPlugin`) keep it, and only builds that
+        // actually include `platformTest` (e.g. `check`) fall back.
+        // Migrating to intellijPlatformTesting.testIde would restore CC here.
+        notCompatibleWithConfigurationCache(
+            "reuses the `test` task's IntelliJ sandbox wiring, which holds a Task reference"
+        )
 
         // The IntelliJ Platform Gradle plugin only wires its sandbox/module
         // JVM args (IntelliJPlatformArgumentProvider, SandboxArgumentProvider,

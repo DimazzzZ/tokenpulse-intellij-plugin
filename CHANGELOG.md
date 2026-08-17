@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   regressions. `MISSING_DEPENDENCIES` and `NOT_DYNAMIC` are deliberately excluded because they
   report unavailable *optional* dependencies we don't control.
   See [ADR-0002](docs/adr/0002-no-non-public-platform-api.md).
+- **Detekt now gates the build** — it previously ran with `ignoreFailures = true`, so lint could
+  never fail anything, and it crashed outright on a JDK 26 Gradle daemon. The daemon is now
+  pinned to Java 21 via `gradle/gradle-daemon-jvm.properties`, the duplicate `detektSarif` task
+  is folded into `detekt`, and code-scanning coverage now includes test sources.
+- **Configuration cache is enabled** for local builds — the blocker was this build capturing the
+  `Project` inside `processResources`, not the IntelliJ plugin. `platformTest` is opted out, and
+  because `koverVerify` depends on every test task, the cache benefits local loops rather than CI.
 
 ### Fixed
 - Removed all use of platform API that is deprecated or scheduled for removal, so the plugin

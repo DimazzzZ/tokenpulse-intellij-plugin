@@ -38,8 +38,8 @@ For day-to-day development, use the fast build script to skip slow analysis task
 # Run all tests
 ./gradlew test
 
-# Run static analysis
-./gradlew detekt detektSarif
+# Run static analysis (also emits the SARIF report)
+./gradlew detekt
 ```
 
 > **💡 Tip:** The Gradle daemon keeps builds fast. Always use `./gradlew` commands 
@@ -54,13 +54,15 @@ For day-to-day development, use the fast build script to skip slow analysis task
 ./gradlew runIde
 ```
 
-> **Java 21 required for runs.** The `gradle.properties` file pins the Kotlin compiler and Gradle
-> daemon to Java 21. If `./gradlew runIde` fails with a JDK version error, verify your active JDK:
+> **Java 21 required for runs.** `gradle/gradle-daemon-jvm.properties` pins the Gradle *daemon* to
+> Java 21 (by criteria, so any installed JDK 21 is auto-detected), and `gradle.properties` runs the
+> Kotlin compiler inside that daemon. Detekt also runs in the daemon and fails on newer JDKs, so
+> this pin is what keeps `./gradlew detekt` working. If a Gradle run fails with a JDK version error,
+> verify what it actually picked:
 > ```bash
-> java -version   # must show 21.x
-> ./gradlew -version  # shows the JDK Gradle is using
+> ./gradlew -version  # "Daemon JVM" must resolve to Java 21
 > ```
-> On macOS with multiple JDKs installed, set `JAVA_HOME` explicitly before running Gradle.
+> If no JDK 21 is installed, Gradle cannot satisfy the criteria — install one (e.g. Zulu 21).
 
 ## 🏗️ Project Architecture
 
