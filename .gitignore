@@ -113,3 +113,6 @@ private_encrypted.pem
 
 # Captured network traces (may contain session cookies/tokens)
 *.har
+
+# Kotlin compiler daemon session artifacts
+.kotlin/
