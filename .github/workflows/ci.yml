@@ -41,9 +41,13 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          # Write caches for internal branch pushes and same-repo PRs; keep
-          # read-only for untrusted fork PRs so they can't poison the cache.
-          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          # Only pushes to main write the cache; every pull request reads it.
+          # PRs used to write too (this condition excluded forks only), which
+          # put the repository at 24GB across 60 cache entries against a ~10GB
+          # budget: entries were LRU-evicted before they could be reused, so
+          # runs started cold AND spent ~2min/run uploading. PRs can still
+          # restore the default branch's cache, which is what we want.
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
 
       # Note: this invocation always discards the configuration cache, because
       # koverVerify pulls in every Test task including platformTest, which is
@@ -102,17 +106,20 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          # See the note in the test job: PRs read, main writes. This job is the
+          # worst offender for cache size, since it pulls whole IDE installers.
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
 
       # The Plugin Verifier CLI downloads the plugin's Marketplace dependencies
       # (~1GB, ~2min observed) into ~/.pluginVerifier/loaded-plugins. That is
-      # outside the Gradle user home, so setup-gradle does not cover it.
+      # outside the Gradle user home, so setup-gradle does not cover it — hence
+      # this explicit cache.
       #
-      # The IDEs themselves are deliberately NOT cached: IPGP 2.x resolves them
-      # as Gradle dependencies and extracts each to ~4GB under
-      # ~/.gradle/caches/<version>/transforms/. Three supported lines would blow
-      # GitHub's 10GB per-repo cache budget and evict everything else. Pinning
-      # to one IDE (below) is the lever instead.
+      # The IDEs themselves need no cache action of our own: setup-gradle
+      # already covers them, both the installers in caches/modules-2 and the
+      # extracted trees (there is a `gradle-transforms-v1` entry, ~1.4GB). An
+      # earlier comment here claimed otherwise; that was wrong. Keeping the
+      # verification pinned to one IDE is what bounds the size.
       - name: Cache Plugin Verifier downloads
         uses: actions/cache@v4
         with:

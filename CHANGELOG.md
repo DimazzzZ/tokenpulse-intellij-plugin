@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   where deprecations surface at all, since the oldest supported SDK carries no annotation for
   them. Releases still sweep every supported line. Lint shares the test job, and the verifier's
   Marketplace downloads are cached, so the extra check costs little.
+- **CI cache is written only by `main`**, and read by pull requests. Every PR used to write its
+  own copy of the Gradle home, which put the repository at 24 GB across 60 entries against a
+  ~10 GB budget — so entries were evicted before they could be reused, making runs cold *and*
+  costing ~2 min per run in uploads.
 
 ### Fixed
 - Removed all use of platform API that is deprecated or scheduled for removal, so the plugin
