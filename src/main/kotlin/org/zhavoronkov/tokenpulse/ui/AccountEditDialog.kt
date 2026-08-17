@@ -353,6 +353,7 @@ class AccountEditDialog(
     private fun getProviderUrl(): String = when (getConnectionType()) {
         ConnectionType.CLAUDE_CODE -> "https://claude.ai/settings/usage"
         ConnectionType.CLINE_API -> "https://app.cline.bot/dashboard/account?tab=api-keys"
+        ConnectionType.DEEPSEEK_API -> "https://platform.deepseek.com/api_keys"
         ConnectionType.OPENROUTER_PROVISIONING -> "https://openrouter.ai/settings/provisioning-keys"
         ConnectionType.OPENROUTER_PLUGIN -> "https://openrouter.ai"
         ConnectionType.NEBIUS_BILLING -> "https://tokenfactory.nebius.com/"
@@ -536,6 +537,8 @@ class AccountEditDialog(
         ConnectionType.CLINE_API ->
             "Cline personal API key. <b>Note:</b> API key management is only available for Personal accounts, " +
                 "not Organization accounts."
+        ConnectionType.DEEPSEEK_API ->
+            "DeepSeek personal API key. Used to track your remaining balance."
         ConnectionType.OPENROUTER_PROVISIONING ->
             "OpenRouter <b>Provisioning Key</b> required. Click \"Get API Key →\" to open the OpenRouter settings."
         ConnectionType.OPENROUTER_PLUGIN ->

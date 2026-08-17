@@ -19,6 +19,9 @@ enum class Provider(val displayName: String, val abbreviation: String) {
     /** Cline - AI coding assistant with its own API. */
     CLINE("Cline", "CN"),
 
+    /** DeepSeek - maker of DeepSeek-V3/R1 models. */
+    DEEPSEEK("DeepSeek", "DS"),
+
     /** OpenRouter - unified API gateway for multiple AI models. */
     OPENROUTER("OpenRouter", "OR"),
 
