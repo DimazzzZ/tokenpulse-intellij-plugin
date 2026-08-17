@@ -106,13 +106,40 @@ intellijPlatform {
         )
 
         ides {
-            // Opt-in fast local loop: -PverifierLocalIde=/path/to/IDE.app verifies
-            // against an installed IDE instead of downloading the recommended set.
+            // Three ways to pick what to verify against, fastest first:
+            //  -PverifierLocalIde=/path/to/IDE.app  an already-installed IDE
+            //                                       (local loop; no download)
+            //  -PverifierIdes=IU-2025.3.6[,...]     an explicit, pinned set
+            //                                       (PR CI; one IDE is enough
+            //                                       to catch API breakage)
+            //  neither                              recommended(), i.e. every
+            //                                       supported line — thorough
+            //                                       but several GB, so it is
+            //                                       reserved for releases.
             val localIde = project.findProperty("verifierLocalIde") as String?
-            if (localIde != null) {
-                local(localIde)
-            } else {
-                recommended()
+            val verifierIdesProperty = project.findProperty("verifierIdes") as String?
+            val pinnedIdes = verifierIdesProperty
+                ?.split(',')
+                ?.map(String::trim)
+                ?.filter(String::isNotEmpty)
+                .orEmpty()
+
+            // Fail loudly rather than quietly widening scope: if the property
+            // was supplied but yields nothing (empty, blank, or a stray comma),
+            // silently falling through to recommended() would turn a typo into
+            // a multi-GB sweep of every supported line.
+            if (verifierIdesProperty != null && pinnedIdes.isEmpty()) {
+                throw GradleException(
+                    "-PverifierIdes was supplied but resolved to no IDE notations " +
+                        "(got \"$verifierIdesProperty\"). Pass e.g. -PverifierIdes=IU-2026.2.1, " +
+                        "or omit it entirely to verify against recommended()."
+                )
+            }
+
+            when {
+                localIde != null -> local(localIde)
+                pinnedIdes.isNotEmpty() -> ides(pinnedIdes)
+                else -> recommended()
             }
         }
     }

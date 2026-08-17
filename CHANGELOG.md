@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Configuration cache is enabled** for local builds — the blocker was this build capturing the
   `Project` inside `processResources`, not the IntelliJ plugin. `platformTest` is opted out, and
   because `koverVerify` depends on every test task, the cache benefits local loops rather than CI.
+- **The Plugin Verifier now runs on pull requests**, against the newest supported IDE — that is
+  where deprecations surface at all, since the oldest supported SDK carries no annotation for
+  them. Releases still sweep every supported line. Lint shares the test job, and the verifier's
+  Marketplace downloads are cached, so the extra check costs little.
 
 ### Fixed
 - Removed all use of platform API that is deprecated or scheduled for removal, so the plugin
