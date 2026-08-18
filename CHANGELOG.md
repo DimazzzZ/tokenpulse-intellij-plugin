@@ -30,6 +30,8 @@ Jump to the release that interests you:
 
 ## [0.5.0] - 2026-08-18
 
+> **Highlights:** New DeepSeek & GitHub Copilot providers • Platform raised to 2025.3 • Build hardening (non-public API & Detekt gates) • UI fixes
+
 ### Added
 - **DeepSeek provider support** — track your DeepSeek API usage and quota
   alongside the other LLM providers.
@@ -87,6 +89,8 @@ Jump to the release that interests you:
   The TokenPulse settings page itself is still findable.
 
 ## [0.4.0] - 2026-07-23
+
+> **Highlights:** Redesigned status-bar tooltip with native rendering • Session auto-refresh for Nebius & Xiaomi • Claude Code multi-account support • OAuth API integration for Claude & Codex • Unified Xiaomi MiMo provider
 
 ### Added
 - **Redesigned status-bar tooltip** — hovering the status-bar widget now opens an all-new,
@@ -162,6 +166,8 @@ Jump to the release that interests you:
 
 ## [0.3.1] - 2026-07-08
 
+> **Highlights:** ClinePass usage limits • Improved CLI detection reliability • Dialog & logging fixes
+
 ### Added
 - **ClinePass usage limits** for Cline API key accounts — optional 5-hour, weekly, and monthly
   usage (percent + reset time) displayed in the tooltip when available
@@ -189,6 +195,8 @@ Jump to the release that interests you:
 
 ## [0.3.0] - 2026-06-22
 
+> **Highlights:** Xiaomi MiMo provider (pay-as-you-go + Token Plan) • Session capture flow • Status bar format options • Short number formatting
+
 ### Added
 - **Xiaomi MiMo provider** — Two connection types: API (pay-as-you-go) and Token Plan (subscription Credits)
 - **Session capture flow** — XiaomiConnectDialog for capturing platform session via cURL
@@ -214,6 +222,8 @@ Jump to the release that interests you:
 
 ## [0.2.0] - 2026-04-22
 
+> **Highlights:** Codex CLI integration for ChatGPT • Credential failure cooldowns • Improved Nebius handling
+
 ### Added
 - **Codex CLI integration** — ChatGPT now uses Codex CLI for simpler, more reliable setup without OAuth complexity
 - **Credential failure cooldowns** — Smart throttling reduces notification spam for repeated credential errors
@@ -235,6 +245,8 @@ Jump to the release that interests you:
 ---
 
 ## [0.1.0] - 2026-03-10 (Initial β Release)
+
+> **Highlights:** Multi-provider balance tracking • 6 providers supported (OpenRouter, Cline, OpenAI, ChatGPT, Nebius, Claude) • Status bar widget & dashboard • Settings page & secure storage
 
 ### Added
 - **Multi-provider balance tracking** — Monitor token balances and credit usage across multiple AI providers directly in your IDE status bar.
