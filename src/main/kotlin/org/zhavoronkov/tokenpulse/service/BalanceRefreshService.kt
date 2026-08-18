@@ -341,6 +341,7 @@ internal fun composeNotificationMessage(
  */
 internal fun isApiKeyAuth(authType: AuthType): Boolean = when (authType) {
     AuthType.CLINE_API_KEY,
+    AuthType.DEEPSEEK_API_KEY,
     AuthType.OPENAI_API_KEY,
     AuthType.XIAOMI_API_KEY,
     AuthType.XIAOMI_TOKEN_PLAN_KEY,

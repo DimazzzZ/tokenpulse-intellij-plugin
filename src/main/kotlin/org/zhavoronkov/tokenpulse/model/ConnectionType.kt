@@ -64,6 +64,17 @@ enum class ConnectionType(
     ),
 
     /**
+     * DeepSeek API - personal API key for DeepSeek service.
+     * Provides access to the /user/balance endpoint for balance tracking.
+     */
+    DEEPSEEK_API(
+        provider = Provider.DEEPSEEK,
+        displayName = "API Key",
+        description = "Personal API key from DeepSeek platform.",
+        defaultAuthType = AuthType.DEEPSEEK_API_KEY
+    ),
+
+    /**
      * OpenRouter Provisioning - provisioning key for credit tracking.
      * Note: Regular API keys do not expose credit information.
      */
@@ -160,6 +171,8 @@ enum class ConnectionType(
             )
             // Cline has only remaining, other formats will fallback
             CLINE_API -> setOf(StatusBarDollarFormat.REMAINING_ONLY)
+            // DeepSeek has only remaining (from /user/balance total_balance); other formats will fallback
+            DEEPSEEK_API -> setOf(StatusBarDollarFormat.REMAINING_ONLY)
             // OpenAI Platform has only used, no remaining
             OPENAI_PLATFORM -> setOf(StatusBarDollarFormat.REMAINING_ONLY) // Will show "used" as fallback
             // Claude Code uses percentage from metadata (not Credits)

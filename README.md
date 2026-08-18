@@ -23,7 +23,7 @@ keeps it fresh in the background so you never have to go looking.
 
 - **📊 One-glance aggregate balance** — combined remaining credits/tokens live in the status bar,
   with flexible display modes (auto, total dollars, or a single provider).
-- **🤖 Seven providers, one view** — Claude Code, Codex/ChatGPT, OpenAI Platform, Cline, OpenRouter,
+- **🤖 Eight providers, one view** — Claude Code, Codex/ChatGPT, OpenAI Platform, Cline, DeepSeek, OpenRouter,
   Nebius AI Studio, and Xiaomi MiMo (see the [table](#provider-authentication) below).
 - **🔄 Sessions that refresh themselves** — Nebius and Xiaomi silently re-mint their session in the
   background when it rotates, so a still-valid login keeps working without reconnecting.
@@ -58,7 +58,7 @@ keeps it fresh in the background so you never have to go looking.
 1. Open **Settings** → **Tools** → **TokenPulse**.
 2. Click **+** to add a provider account:
    - Select the **Provider** (Claude Code, Codex/ChatGPT, OpenAI Platform, Cline, OpenRouter,
-     Nebius AI Studio, or Xiaomi MiMo).
+     DeepSeek, Nebius AI Studio, or Xiaomi MiMo).
    - Follow the provider-specific instructions in the dialog.
 3. Configure the **Refresh Interval** (default: 15 minutes).
 4. The aggregate balance appears in your status bar automatically.
@@ -71,6 +71,7 @@ keeps it fresh in the background so you never have to go looking.
 | Codex / ChatGPT | **CLI + OAuth** | Requires `codex` CLI installed and authenticated (`codex login`) |
 | OpenAI Platform | **Admin API Key** (`sk-admin-...`) | https://platform.openai.com/settings/organization/admin-keys |
 | Cline | API Key | https://app.cline.bot/dashboard/account?tab=api-keys |
+| DeepSeek | API Key | https://platform.deepseek.com/api_keys |
 | OpenRouter | **Provisioning Key** | https://openrouter.ai/settings/provisioning-keys |
 | Nebius AI Studio | **Billing Session** (cURL capture) | Click "Connect Billing Session →" and copy a `getBalance` request as cURL (see [FAQ](#how-does-nebius-authentication-work)) |
 | Xiaomi MiMo | **Session** (cURL capture or in-IDE sign-in) | Click "Connect Xiaomi Account →" and capture the session |
@@ -175,7 +176,7 @@ on Linux). They are never written to plain-text settings files.
 
 ### The status bar shows "—" or "Error"
 
-- **Auth Error** — for API-key providers (Cline, OpenRouter, OpenAI Platform) the key is invalid or revoked; re-generate it from the provider's dashboard and re-enter it in TokenPulse. For CLI/OAuth/session providers (Claude Code, Codex/ChatGPT, Nebius, Xiaomi MiMo) the login or captured session expired; re-run the CLI login (e.g. `claude login`) or reconnect the session — the notification tells you which action applies.
+- **Auth Error** — for API-key providers (Cline, DeepSeek, OpenRouter, OpenAI Platform) the key is invalid or revoked; re-generate it from the provider's dashboard and re-enter it in TokenPulse. For CLI/OAuth/session providers (Claude Code, Codex/ChatGPT, Nebius, Xiaomi MiMo) the login or captured session expired; re-run the CLI login (e.g. `claude login`) or reconnect the session — the notification tells you which action applies.
 - **Rate Limited** — too many requests. Increase the refresh interval in Settings → TokenPulse.
 - **Error** — a network or API error. Check your internet connection and try "Refresh All" from the dashboard.
 - **$X.XX used** — OpenAI account showing usage data (not a balance).

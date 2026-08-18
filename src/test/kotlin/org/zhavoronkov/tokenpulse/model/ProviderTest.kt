@@ -66,7 +66,7 @@ class ProviderTest {
     }
 
     @Test
-    fun `there are exactly 6 providers`() {
-        assertEquals(6, Provider.entries.size)
+    fun `there are exactly 7 providers`() {
+        assertEquals(7, Provider.entries.size)
     }
 }

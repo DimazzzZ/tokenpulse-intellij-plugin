@@ -5,6 +5,7 @@ import okhttp3.OkHttpClient
 import org.zhavoronkov.tokenpulse.model.ConnectionType
 import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCodeProviderClient
 import org.zhavoronkov.tokenpulse.provider.cline.ClineProviderClient
+import org.zhavoronkov.tokenpulse.provider.deepseek.DeepSeekProviderClient
 import org.zhavoronkov.tokenpulse.provider.nebius.NebiusProviderClient
 import org.zhavoronkov.tokenpulse.provider.nebius.NebiusSessionRefresher
 import org.zhavoronkov.tokenpulse.provider.openai.chatgpt.CodexProviderClient
@@ -48,6 +49,7 @@ class DefaultProviderRegistry(
     private val openRouterClient by lazy { OpenRouterProviderClient(httpClient, gson) }
     private val openRouterPluginClient by lazy { OpenRouterPluginBridgeClient() }
     private val clineClient by lazy { ClineProviderClient(httpClient, gson) }
+    private val deepSeekClient by lazy { DeepSeekProviderClient(httpClient, gson) }
     private val nebiusClient by lazy {
         NebiusProviderClient(
             httpClient = httpClient,
@@ -73,6 +75,7 @@ class DefaultProviderRegistry(
             ConnectionType.OPENROUTER_PROVISIONING -> openRouterClient
             ConnectionType.OPENROUTER_PLUGIN -> openRouterPluginClient
             ConnectionType.CLINE_API -> clineClient
+            ConnectionType.DEEPSEEK_API -> deepSeekClient
             ConnectionType.NEBIUS_BILLING -> nebiusClient
             ConnectionType.OPENAI_PLATFORM -> openAiPlatformClient
             ConnectionType.CODEX_CLI -> codexClient

@@ -20,6 +20,14 @@ enum class AuthType(val displayName: String) {
     CLINE_API_KEY("API Key"),
 
     /**
+     * DeepSeek personal API key.
+     *
+     * The stored secret is a raw API key string (e.g., "sk-..."). Balance is read
+     * from the dedicated `GET /user/balance` endpoint with a simple Bearer header.
+     */
+    DEEPSEEK_API_KEY("API Key"),
+
+    /**
      * Nebius AI Studio billing session.
      *
      * Nebius does not expose a billing API accessible via API key. Instead, the plugin

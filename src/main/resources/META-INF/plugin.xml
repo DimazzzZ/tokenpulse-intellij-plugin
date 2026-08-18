@@ -16,6 +16,7 @@
     <ul>
         <li><b>OpenRouter</b> — Provisioning Key with credits tracking</li>
         <li><b>Cline</b> — API Key for personal and organization accounts</li>
+        <li><b>DeepSeek</b> — API Key with balance tracking</li>
         <li><b>OpenAI Platform</b> — Admin API Key with usage/costs via Organization APIs</li>
         <li><b>ChatGPT (Codex CLI)</b> — CLI-based usage tracking via Codex CLI</li>
         <li><b>Nebius AI Studio</b> — Cookie-based auth with trial/paid balance</li>
