@@ -39,19 +39,14 @@ class WhatsNewNotificationActivity : ProjectActivity {
             .getNotificationGroup("TokenPulse Updates")
             .createNotification(
                 "TokenPulse Updated to v$version",
-                """
+               """
                 <b>Thank you for using TokenPulse!</b><br/><br/>
-                <b>New in v$version &mdash; a redesigned status-bar tooltip</b><br/>
-                Hover the status bar for an all-new, native view of every quota:<br/>
-                • <b>Real progress bars</b> for each provider and account &mdash; no more plain text<br/>
-                • <b>Theme-aware colors</b> that turn orange, then red as you approach a limit<br/>
-                • <b>Humanized reset times</b> like &ldquo;Today 14:30&rdquo; or &ldquo;Tomorrow 09:00&rdquo;<br/>
-                • <b>Grouped by provider</b>, one clear section per account<br/><br/>
-                <b>Also new:</b><br/>
-                • Unified Xiaomi MiMo &mdash; pay-as-you-go balance and Token Plan Credits in one account<br/>
-                • Claude Code multi-account &mdash; auto-discovers every logged-in account<br/>
-                • Codex &amp; Claude OAuth &mdash; usage read from your stored logins, tokens auto-refreshed<br/>
-                • Nebius &amp; Xiaomi silent session refresh &mdash; stay connected without re-logging in
+                <b>What&rsquo;s new in v$version:</b><br/>
+                • <b>DeepSeek provider</b> &mdash; track your DeepSeek API usage and quota<br/>
+                • <b>GitHub Copilot provider</b> &mdash; personal and organization budget tracking<br/>
+                • <b>Platform raised to IntelliJ 2025.3</b> &mdash; required for forward compatibility<br/>
+                • <b>Build hardened</b> &mdash; non-public API and Detekt now gate the build<br/>
+                • <b>UI fix</b> &mdash; Add/Edit Account dialog hint no longer floods the log or gets stuck tall
                 """.trimIndent(),
                 NotificationType.INFORMATION
             )

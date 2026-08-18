@@ -101,7 +101,7 @@ token-pulse/
 
 All versioning and platform compatibility info is centralized in **`gradle.properties`**:
 ```properties
-pluginVersion = 0.4.0
+pluginVersion = 0.5.0
 pluginSinceBuild = 253
 platformVersion = 2025.3.6
 ```
@@ -135,6 +135,6 @@ Code quality is enforced via **Detekt**. The build will fail if any issues are f
 
 1. Update version in `gradle.properties`.
 2. Add a new entry to `CHANGELOG.md`.
-3. Create a git tag: `git tag v0.4.0` and push it.
+3. Create a git tag: `git tag v0.5.0` and push it.
 4. CI will automatically create a GitHub Release and attach the ZIP artifact.
 5. **Manually publish** the signed artifact to the JetBrains Marketplace (see `MARKETPLACE.md`).

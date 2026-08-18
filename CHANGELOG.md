@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+## [0.5.0] - 2026-08-18
+
+### Added
+- **DeepSeek provider support** — track your DeepSeek API usage and quota
+  alongside the other LLM providers.
+- **GitHub Copilot provider** — track Copilot spend for both personal
+  accounts and organizations from the status bar, with a dedicated
+  connect dialog for each flavor.
 - **Architecture Decision Records** — `docs/adr/` now holds the ADRs that
   `docs/agents/domain.md` has always required. They were previously impossible to commit:
   `.gitignore` listed `docs/` under "Build directories" and swallowed the whole tree, which
@@ -41,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own copy of the Gradle home, which put the repository at 24 GB across 60 entries against a
   ~10 GB budget — so entries were evicted before they could be reused, making runs cold *and*
   costing ~2 min per run in uploads.
+- **Triage label vocabulary expanded** with type/domain/priority namespaces,
+  giving contributors a shared taxonomy for classifying issues and PRs.
 
 ### Fixed
 - Removed all use of platform API that is deprecated or scheduled for removal, so the plugin
