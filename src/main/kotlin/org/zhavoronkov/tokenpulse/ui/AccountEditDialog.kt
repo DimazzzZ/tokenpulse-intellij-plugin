@@ -306,7 +306,8 @@ class AccountEditDialog(
         xiaomiConnectButton.isVisible = isXiaomi
         xiaomiStatusLabel.isVisible = isXiaomi
 
-        providerHintLabel.component.text = "<html>${keyHintFor(connectionType)}</html>"
+        providerHintLabel.component.text = keyHintFor(connectionType)
+        window?.pack()
 
         gitHubPanel.copilotConnectButton.isVisible = connectionType == ConnectionType.GITHUB_COPILOT_PAT
         gitHubPanel.copilotStatusLabel.isVisible = connectionType == ConnectionType.GITHUB_COPILOT_PAT
