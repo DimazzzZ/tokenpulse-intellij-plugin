@@ -5,6 +5,19 @@ All notable changes to the TokenPulse plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 📋 Quick Navigation
+
+Jump to the release that interests you:
+
+| Release | Highlights |
+|---------|-----------|
+| [0.5.0](#050---2026-08-18) | DeepSeek & GitHub Copilot providers, platform 2025.3, build hardening |
+| [0.4.0](#040---2026-07-23) | Redesigned tooltip, session auto-refresh, multi-account support |
+| [0.3.1](#031---2026-07-08) | ClinePass usage limits, improved CLI detection |
+| [0.3.0](#030---2026-06-22) | Xiaomi MiMo provider, session capture, status bar formats |
+| [0.2.0](#020---2026-04-22) | Codex CLI integration, credential cooldowns |
+| [0.1.0](#010---2026-03-10-initial--release) | Initial release — multi-provider tracking, status bar widget |
+
 ## [Unreleased]
 
 ### Added
