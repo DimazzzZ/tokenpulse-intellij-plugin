@@ -5,7 +5,7 @@ plugins {
     kotlin("jvm") version "2.1.20"
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
     id("org.jetbrains.kotlinx.kover") version "0.9.1"
-    id("org.jetbrains.intellij.platform") version "2.3.0"
+    id("org.jetbrains.intellij.platform") version "2.18.1"
 }
 
 group = project.findProperty("pluginGroup") ?: "org.zhavoronkov.tokenpulse"
@@ -48,7 +48,17 @@ dependencies {
     // `platformTest` actually discovers and runs TokenPulseSmokeTest.
     testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.11.4")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0") {
+        // Exclude the transitive kotlinx-coroutines-core-jvm — IntelliJ's
+        // bundled lib/util-8.jar ships a patched version (1.10.1-intellij-5)
+        // that includes `runBlockingWithParallelismCompensation`. If the plain
+        // 1.9.0 core JAR lands on the classpath, the PathClassLoader resolves
+        // `kotlinx.coroutines.BuildersKt` from it (missing the method) before
+        // reaching util-8.jar, causing NoSuchMethodError during tearDown.
+        exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core")
+        exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-core-jvm")
+        exclude(group = "org.jetbrains.kotlinx", module = "kotlinx-coroutines-bom")
+    }
     // pty4j is provided by IntelliJ platform at runtime - no explicit dependency needed
 
     detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.8")
@@ -138,7 +148,12 @@ intellijPlatform {
 
             when {
                 localIde != null -> local(localIde)
-                pinnedIdes.isNotEmpty() -> ides(pinnedIdes)
+                // IntelliJ Platform Gradle Plugin 2.18.1 removed the
+                // `ides(List<String>)` overload. Explicit, pinned notations
+                // (e.g. IU-2025.3.6) now go through `create(Provider<List<String>>)`,
+                // whose default configure block parses each notation into a
+                // (type, version) installer dependency.
+                pinnedIdes.isNotEmpty() -> create(providers.provider { pinnedIdes })
                 else -> recommended()
             }
         }
@@ -203,15 +218,10 @@ tasks {
 
     // buildSearchableOptions launches a headless IDE (~23s) purely to index the
     // plugin's settings so individual options are findable in Settings search.
-    // Disabled outright: on the 2025.3.6 SDK its bundled JBR aborts at JVM
-    // startup on macOS (SIGABRT in Threads::create_vm -> post_vm_initialized,
-    // ~0.18s in, before any plugin code runs), so it breaks local release
-    // builds and buys little — the TokenPulse settings PAGE is still reachable
-    // from Settings search either way, only the individual option labels are
-    // not indexed.
-    named("buildSearchableOptions") {
-        enabled = false
-    }
+    // Re-enabled after upgrading IntelliJ Platform Gradle Plugin 2.3.0 → 2.18.1.
+    // The plugin 2.3.0 generated a broken coroutines javaagent JAR that caused
+    // SIGABRT at JVM startup on macOS aarch64 with JBR 21.0.11 and IDE 2025.3.6.
+    // Plugin 2.18.1 fixes the agent generation, so buildSearchableOptions now works.
 
     // Configure tests
     test {
@@ -246,55 +256,6 @@ tasks {
         }
     }
 
-    // Serial task for IntelliJ Platform tests that need the shared TestApplication.
-    register<Test>("platformTest") {
-        description = "Runs IntelliJ Platform tests that need the shared TestApplication."
-        group = "verification"
-
-        // Reusing the `test` task's wiring (below) means holding a reference to
-        // that Task, which the configuration cache cannot serialize. Opt this
-        // one task out rather than lose CC everywhere: the common local loops
-        // (`test`, `compileKotlin`, `buildPlugin`) keep it, and only builds that
-        // actually include `platformTest` (e.g. `check`) fall back.
-        // Migrating to intellijPlatformTesting.testIde would restore CC here.
-        notCompatibleWithConfigurationCache(
-            "reuses the `test` task's IntelliJ sandbox wiring, which holds a Task reference"
-        )
-
-        // The IntelliJ Platform Gradle plugin only wires its sandbox/module
-        // JVM args (IntelliJPlatformArgumentProvider, SandboxArgumentProvider,
-        // the rearranged plugin/IDE classpath, a custom javaLauncher) onto the
-        // task literally named "test". A separately `register<Test>(...)`
-        // task does NOT get that configuration automatically — without it,
-        // BasePlatformTestCase fails to bootstrap the IDE test application
-        // (IllegalAccessError in UITestUtil). So reuse the already fully
-        // configured "test" task's classpath/args/launcher here and just
-        // retarget which tests run via `filter`.
-        val testTask = named<Test>("test").get()
-        // The reused jvmArgumentProviders/classpath resolve sandbox output
-        // (prepareTestSandbox) at execution time without Gradle seeing it as
-        // a task input, so the sandbox-prep dependency must be declared
-        // explicitly here too.
-        dependsOn("prepareTestSandbox")
-        testClassesDirs = testTask.testClassesDirs
-        classpath = testTask.classpath
-        jvmArgumentProviders.addAll(testTask.jvmArgumentProviders)
-        systemProperties = testTask.systemProperties
-        javaLauncher.set(testTask.javaLauncher)
-
-        useJUnitPlatform()
-        filter {
-            includeTestsMatching("org.zhavoronkov.tokenpulse.TokenPulseSmokeTest")
-        }
-        systemProperty("tokenpulse.testMode", "true")
-        maxParallelForks = 1
-
-        reports {
-            junitXml.required.set(true)
-            html.required.set(true)
-        }
-    }
-
     // Separate task to run only functional tests
     register<Test>("functionalTest") {
         description = "Runs functional/integration tests that require external dependencies"
@@ -315,6 +276,51 @@ tasks {
     // Ensure the platform smoke test still runs as part of `check` / `build`.
     named("check") {
         dependsOn("platformTest")
+    }
+}
+
+// Serial task for IntelliJ Platform tests that need the shared TestApplication.
+//
+// Uses the official `intellijPlatformTesting.testIde { ... }` API from the
+// IntelliJ Platform Gradle plugin (2.18.1). This registers a `TestIdeTask` —
+// a Gradle `Test` subtype the plugin fully wires with:
+//   • the 9-step classpath order that puts `intellijPlatformClasspathConfiguration`
+//     (bundled `lib/util-8.jar`, which carries IntelliJ's patched coroutines
+//     with `runBlockingWithParallelismCompensation`) BEFORE the resolved
+//     testRuntimeClasspath — so the plain `kotlinx-coroutines-core-jvm:1.9.0`
+//     (transitive of `kotlinx-coroutines-test`) can't shadow IntelliJ's
+//     patched `BuildersKt`
+//   • `intelliJPlatformTestRuntimeFixClasspathConfiguration`
+//     (see YouTrack IJPL-180516)
+//   • sandbox directories, IDE home path, `coroutines-javaagent.jar`
+//   • the IntelliJ Java launcher
+// Handrolling this with `register<Test>("platformTest")` (previous approach)
+// missed the classpath-fix step, which surfaced as
+//   NoSuchMethodError: kotlinx.coroutines.BuildersKt.runBlockingWithParallelismCompensation
+// during `BasePlatformTestCase.tearDown()`.
+//
+// Bonus: `TestIdeTask` is configuration-cache compatible, so the previous
+// `notCompatibleWithConfigurationCache(...)` opt-out is no longer needed.
+intellijPlatformTesting {
+    testIde {
+        register("platformTest") {
+            task {
+                description = "Runs IntelliJ Platform tests that need the shared TestApplication."
+                group = "verification"
+
+                useJUnitPlatform()
+                filter {
+                    includeTestsMatching("org.zhavoronkov.tokenpulse.TokenPulseSmokeTest")
+                }
+                systemProperty("tokenpulse.testMode", "true")
+                maxParallelForks = 1
+
+                reports {
+                    junitXml.required.set(true)
+                    html.required.set(true)
+                }
+            }
+        }
     }
 }
 

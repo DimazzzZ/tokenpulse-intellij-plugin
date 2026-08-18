@@ -74,10 +74,10 @@ class NebiusConnectDialog : DialogWrapper(true) {
             label("<html><b>Method: cURL (Required)</b></html>")
         }
         row {
-            label("<html>1. Open Nebius, login, then DevTools → <b>Network</b>.</html>")
+            comment("1. Open Nebius, login, then DevTools → <b>Network</b>.")
         }
         row {
-            label("<html>2. Refresh, filter by \"getBalance\", right-click → <b>Copy as cURL</b>.</html>")
+            comment("2. Refresh, filter by \"getBalance\", right-click → <b>Copy as cURL</b>.")
         }
         row {
             label("<html>3. Paste result below and click Validate.</html>")

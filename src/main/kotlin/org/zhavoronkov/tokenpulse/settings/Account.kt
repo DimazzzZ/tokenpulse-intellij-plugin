@@ -78,7 +78,27 @@ enum class AuthType(val displayName: String) {
      * both pay-as-you-go balance and Token Plan usage from the same session.
      * No API key is involved (the sk-/tp- keys were inference-only).
      */
-    XIAOMI_SESSION("Session")
+    XIAOMI_SESSION("Session"),
+
+    /**
+     * GitHub Copilot personal billing (per-user usage).
+     *
+     * The stored secret is a JSON blob: {"pat":"...","username":"..."}
+     * where `pat` is a Personal Access Token with billing read permission,
+     * and `username` is the GitHub username (required for the endpoint path).
+     * Tracks premium_request spend (headline) and ai_credit spend (metadata).
+     */
+    GITHUB_COPILOT_PAT("Personal Access Token"),
+
+    /**
+     * GitHub Copilot org billing (budget tracking).
+     *
+     * The stored secret is a JSON blob: {"pat":"...","org":"..."}
+     * where `pat` is a Personal Access Token with org admin/billing-manager
+     * permissions, and `org` is the GitHub organization name.
+     * Tracks budget_amount and consumed_amount for Copilot-related budgets.
+     */
+    GITHUB_COPILOT_ORG_BUDGET_PAT("Org Billing PAT")
 }
 
 /**

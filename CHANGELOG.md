@@ -45,6 +45,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Removed all use of platform API that is deprecated or scheduled for removal, so the plugin
   verifies cleanly against current IDEs.
+- **Add/Edit Account dialog hint no longer floods the log or gets stuck tall** — the provider
+  hint text was double-wrapped in `<html>`, which threw a SEVERE `UiDslException` on every
+  connection-type change under the 2025.3 SDK (the DSL `comment()` label inserts `<html>`
+  itself). The manual wrapper is removed, and the dialog now re-packs after the hint changes so
+  it shrinks back to fit shorter hints instead of staying at its tallest size.
 
 ### Removed
 - Individual TokenPulse settings are no longer indexed for Settings search

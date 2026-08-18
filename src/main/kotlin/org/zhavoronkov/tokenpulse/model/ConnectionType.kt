@@ -142,6 +142,34 @@ enum class ConnectionType(
         displayName = "Token Plan",
         description = "Token Plan subscription with Credits quota. Tracked via Xiaomi platform session.",
         defaultAuthType = AuthType.XIAOMI_TOKEN_PLAN_KEY
+    ),
+
+    /**
+     * GitHub Copilot personal billing - per-user usage via Personal Access Token.
+     *
+     * Reports premium-request spend (headline) and AI-credit spend (metadata).
+     * These endpoints return usage/spend, not a remaining balance, so this
+     * connection type shows a "used" figure (like [OPENAI_PLATFORM]).
+     */
+    GITHUB_COPILOT_PAT(
+        provider = Provider.GITHUB,
+        displayName = "Personal (PAT)",
+        description = "Per-user Copilot spend via a Personal Access Token with billing read permission.",
+        defaultAuthType = AuthType.GITHUB_COPILOT_PAT
+    ),
+
+    /**
+     * GitHub Copilot org billing - budget tracking via an org admin PAT.
+     *
+     * Reports budget_amount (total) and consumed_amount (used) for Copilot
+     * budgets, yielding a true remaining figure. Requires org admin /
+     * billing-manager authorization.
+     */
+    GITHUB_COPILOT_ORG_BUDGET(
+        provider = Provider.GITHUB,
+        displayName = "Organization (Budget)",
+        description = "Copilot org budget tracking. Requires an org admin/billing-manager PAT.",
+        defaultAuthType = AuthType.GITHUB_COPILOT_ORG_BUDGET_PAT
     );
 
     /**
@@ -195,6 +223,14 @@ enum class ConnectionType(
             )
             // Legacy Xiaomi Token Plan uses Credits (percentage-based)
             XIAOMI_TOKEN_PLAN -> emptySet() // Uses Credits percentage, not dollar formats
+            // GitHub Copilot personal (PAT) has only used, no remaining (usage endpoint)
+            GITHUB_COPILOT_PAT -> setOf(StatusBarDollarFormat.REMAINING_ONLY) // Will show "used" as fallback
+            // GitHub Copilot org (budget) has remaining + used, supports all formats
+            GITHUB_COPILOT_ORG_BUDGET -> setOf(
+                StatusBarDollarFormat.REMAINING_ONLY,
+                StatusBarDollarFormat.USED_OF_REMAINING,
+                StatusBarDollarFormat.PERCENTAGE_REMAINING
+            )
         }
 
     /**

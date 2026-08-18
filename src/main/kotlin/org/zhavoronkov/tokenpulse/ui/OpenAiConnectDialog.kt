@@ -76,13 +76,13 @@ class OpenAiConnectDialog : DialogWrapper(true) {
             label("<html><b>OpenAI Admin Key Connection</b></html>")
         }
         row {
-            label("<html>1. Open the OpenAI Admin keys page (org level).</html>")
+            comment("1. Open the OpenAI Admin keys page (org level).")
         }
         row {
             cell(openBrowserButton)
         }
         row {
-            label("<html>2. Create key with <b>Usage API Scope = read</b>.</html>")
+            comment("2. Create key with <b>Usage API Scope = read</b>.")
         }
         row {
             label("<html>3. Paste key (sk-admin-...) below:</html>")
