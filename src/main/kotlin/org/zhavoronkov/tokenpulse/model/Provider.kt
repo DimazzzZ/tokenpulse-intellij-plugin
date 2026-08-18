@@ -29,7 +29,10 @@ enum class Provider(val displayName: String, val abbreviation: String) {
     NEBIUS("Nebius", "NB"),
 
     /** Xiaomi - MiMo AI platform (pay-as-you-go and Token Plan). */
-    XIAOMI("Xiaomi", "XM");
+    XIAOMI("Xiaomi", "XM"),
+
+    /** GitHub - Copilot billing (per-user usage and org budgets). */
+    GITHUB("GitHub Copilot", "GH");
 
     companion object {
         /**

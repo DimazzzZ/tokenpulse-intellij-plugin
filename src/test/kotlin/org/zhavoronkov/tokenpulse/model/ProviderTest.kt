@@ -66,7 +66,13 @@ class ProviderTest {
     }
 
     @Test
-    fun `there are exactly 7 providers`() {
-        assertEquals(7, Provider.entries.size)
+    fun `GITHUB has correct display name and short code`() {
+        assertEquals("GitHub Copilot", Provider.GITHUB.displayName)
+        assertEquals("GH", Provider.GITHUB.abbreviation)
+    }
+
+    @Test
+    fun `there are exactly 8 providers`() {
+        assertEquals(8, Provider.entries.size)
     }
 }

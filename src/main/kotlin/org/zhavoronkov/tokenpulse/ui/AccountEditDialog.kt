@@ -77,7 +77,9 @@ class AccountEditDialog(
             ConnectionType.OPENROUTER_PLUGIN,
             ConnectionType.XIAOMI,
             ConnectionType.XIAOMI_API,
-            ConnectionType.XIAOMI_TOKEN_PLAN
+            ConnectionType.XIAOMI_TOKEN_PLAN,
+            ConnectionType.GITHUB_COPILOT_PAT,
+            ConnectionType.GITHUB_COPILOT_ORG_BUDGET
         )
     }
 
@@ -179,6 +181,9 @@ class AccountEditDialog(
     private val xiaomiConnectButton = JButton("Connect Xiaomi Account →").apply {
         addActionListener { openXiaomiConnectDialog() }
     }
+
+    // ── GitHub Copilot (personal) connect button ──────────────────────────
+    private val gitHubPanel = GitHubProviderPanel(existingSecret)
 
     private val enabledCheckBox = JCheckBox("Account enabled", account?.isEnabled ?: true)
 
@@ -302,6 +307,11 @@ class AccountEditDialog(
         xiaomiStatusLabel.isVisible = isXiaomi
 
         providerHintLabel.text = "<html><font color='gray'>${keyHintFor(connectionType)}</font></html>"
+
+        gitHubPanel.copilotConnectButton.isVisible = connectionType == ConnectionType.GITHUB_COPILOT_PAT
+        gitHubPanel.copilotStatusLabel.isVisible = connectionType == ConnectionType.GITHUB_COPILOT_PAT
+        gitHubPanel.orgConnectButton.isVisible = connectionType == ConnectionType.GITHUB_COPILOT_ORG_BUDGET
+        gitHubPanel.orgStatusLabel.isVisible = connectionType == ConnectionType.GITHUB_COPILOT_ORG_BUDGET
     }
 
     /**
@@ -328,6 +338,8 @@ class AccountEditDialog(
         ConnectionType.XIAOMI,
         ConnectionType.XIAOMI_API,
         ConnectionType.XIAOMI_TOKEN_PLAN -> capturedXiaomiSession ?: ""
+        ConnectionType.GITHUB_COPILOT_PAT,
+        ConnectionType.GITHUB_COPILOT_ORG_BUDGET -> gitHubPanel.getSecret(getConnectionType())
         else -> String(keyField.password).trim()
     }
 
@@ -362,6 +374,8 @@ class AccountEditDialog(
         ConnectionType.XIAOMI,
         ConnectionType.XIAOMI_API,
         ConnectionType.XIAOMI_TOKEN_PLAN -> "https://platform.xiaomimimo.com/console/api-keys"
+        ConnectionType.GITHUB_COPILOT_PAT -> "https://github.com/settings/tokens?type=beta"
+        ConnectionType.GITHUB_COPILOT_ORG_BUDGET -> "https://github.com/settings/tokens?type=beta"
     }
 
     private fun openNebiusConnectDialog() {
@@ -555,6 +569,12 @@ class AccountEditDialog(
         ConnectionType.XIAOMI_TOKEN_PLAN ->
             "Xiaomi MiMo. Click \"Connect Xiaomi Account →\" to sign in and capture your platform session. " +
                 "Tracks both pay-as-you-go balance and Token Plan usage."
+        ConnectionType.GITHUB_COPILOT_PAT ->
+            "GitHub Copilot personal usage. Click \"Connect GitHub Copilot →\" to enter your username and a " +
+                "Personal Access Token with billing read permission. Shows your premium-request spend."
+        ConnectionType.GITHUB_COPILOT_ORG_BUDGET ->
+            "GitHub Copilot organization budgets. Click \"Connect GitHub Copilot Org →\" to enter your org and " +
+                "an admin/billing-manager PAT. Shows remaining vs. consumed budget."
     }
 
     // ── Panel construction ─────────────────────────────────────────────────
@@ -576,7 +596,9 @@ class AccountEditDialog(
                     it != ConnectionType.CODEX_CLI &&
                     it != ConnectionType.CLAUDE_CODE &&
                     it != ConnectionType.OPENROUTER_PLUGIN &&
-                    it !in XIAOMI_TYPES
+                    it !in XIAOMI_TYPES &&
+                    it != ConnectionType.GITHUB_COPILOT_PAT &&
+                    it != ConnectionType.GITHUB_COPILOT_ORG_BUDGET
             }
         )
 
@@ -647,6 +669,22 @@ class AccountEditDialog(
             connectionTypeCombo.selectedValueMatches { it in XIAOMI_TYPES }
         )
 
+        // --- GitHub Copilot (personal) Row ---
+        row {
+            cell(gitHubPanel.copilotConnectButton)
+            cell(gitHubPanel.copilotStatusLabel)
+        }.visibleIf(
+            connectionTypeCombo.selectedValueMatches { it == ConnectionType.GITHUB_COPILOT_PAT }
+        )
+
+        // --- GitHub Copilot (org) Row ---
+        row {
+            cell(gitHubPanel.orgConnectButton)
+            cell(gitHubPanel.orgStatusLabel)
+        }.visibleIf(
+            connectionTypeCombo.selectedValueMatches { it == ConnectionType.GITHUB_COPILOT_ORG_BUDGET }
+        )
+
         separator()
 
         row {
@@ -680,7 +718,9 @@ class AccountEditDialog(
             account.connectionType != ConnectionType.NEBIUS_BILLING &&
             account.connectionType != ConnectionType.CODEX_CLI &&
             account.connectionType != ConnectionType.CLAUDE_CODE &&
-            account.connectionType !in XIAOMI_TYPES
+            account.connectionType !in XIAOMI_TYPES &&
+            account.connectionType != ConnectionType.GITHUB_COPILOT_PAT &&
+            account.connectionType != ConnectionType.GITHUB_COPILOT_ORG_BUDGET
     }
 
     // ── Public accessors ───────────────────────────────────────────────────
@@ -698,6 +738,8 @@ class AccountEditDialog(
             ConnectionType.XIAOMI,
             ConnectionType.XIAOMI_API,
             ConnectionType.XIAOMI_TOKEN_PLAN -> validateXiaomi()
+            ConnectionType.GITHUB_COPILOT_PAT,
+            ConnectionType.GITHUB_COPILOT_ORG_BUDGET -> gitHubPanel.validate(getConnectionType())
             else -> validateOther()
         }
     }

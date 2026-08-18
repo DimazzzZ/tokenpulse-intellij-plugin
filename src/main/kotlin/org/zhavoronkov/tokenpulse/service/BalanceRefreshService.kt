@@ -345,7 +345,9 @@ internal fun isApiKeyAuth(authType: AuthType): Boolean = when (authType) {
     AuthType.OPENAI_API_KEY,
     AuthType.XIAOMI_API_KEY,
     AuthType.XIAOMI_TOKEN_PLAN_KEY,
-    AuthType.OPENROUTER_PROVISIONING_KEY -> true
+    AuthType.OPENROUTER_PROVISIONING_KEY,
+    AuthType.GITHUB_COPILOT_PAT,
+    AuthType.GITHUB_COPILOT_ORG_BUDGET_PAT -> true
     AuthType.CLAUDE_CODE_LOCAL,
     AuthType.CODEX_CLI_LOCAL,
     AuthType.OPENAI_OAUTH,

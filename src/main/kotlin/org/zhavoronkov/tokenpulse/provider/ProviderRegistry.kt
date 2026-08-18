@@ -6,6 +6,8 @@ import org.zhavoronkov.tokenpulse.model.ConnectionType
 import org.zhavoronkov.tokenpulse.provider.anthropic.claudecode.ClaudeCodeProviderClient
 import org.zhavoronkov.tokenpulse.provider.cline.ClineProviderClient
 import org.zhavoronkov.tokenpulse.provider.deepseek.DeepSeekProviderClient
+import org.zhavoronkov.tokenpulse.provider.github.GitHubCopilotBudgetProviderClient
+import org.zhavoronkov.tokenpulse.provider.github.GitHubCopilotProviderClient
 import org.zhavoronkov.tokenpulse.provider.nebius.NebiusProviderClient
 import org.zhavoronkov.tokenpulse.provider.nebius.NebiusSessionRefresher
 import org.zhavoronkov.tokenpulse.provider.openai.chatgpt.CodexProviderClient
@@ -69,6 +71,8 @@ class DefaultProviderRegistry(
             sessionWriter = sessionWriter
         )
     }
+    private val gitHubCopilotClient by lazy { GitHubCopilotProviderClient(httpClient, gson) }
+    private val gitHubCopilotBudgetClient by lazy { GitHubCopilotBudgetProviderClient(httpClient, gson) }
 
     override fun getClient(connectionType: ConnectionType): ProviderClient {
         return when (connectionType) {
@@ -83,6 +87,8 @@ class DefaultProviderRegistry(
             ConnectionType.XIAOMI,
             ConnectionType.XIAOMI_API,
             ConnectionType.XIAOMI_TOKEN_PLAN -> xiaomiClient
+            ConnectionType.GITHUB_COPILOT_PAT -> gitHubCopilotClient
+            ConnectionType.GITHUB_COPILOT_ORG_BUDGET -> gitHubCopilotBudgetClient
         }
     }
 }
