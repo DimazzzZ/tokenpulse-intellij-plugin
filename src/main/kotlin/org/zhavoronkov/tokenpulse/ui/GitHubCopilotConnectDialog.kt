@@ -76,7 +76,7 @@ class GitHubCopilotConnectDialog : DialogWrapper(true) {
             label("<html><b>GitHub Copilot Personal Billing</b></html>")
         }
         row {
-            label("<html>Tracks your per-user Copilot premium-request spend.</html>")
+            comment("Tracks your per-user Copilot premium-request spend.")
         }
         row {
             label("<html><b>Step 1:</b> Create a Personal Access Token</html>")
@@ -85,7 +85,7 @@ class GitHubCopilotConnectDialog : DialogWrapper(true) {
             cell(openBrowserButton)
         }
         row {
-            label(STEP2_HTML)
+            comment(DslCommentText.sanitize(STEP2_HTML))
         }
         row {
             label("<html><b>Step 3:</b> Enter your GitHub username and paste the PAT:</html>")

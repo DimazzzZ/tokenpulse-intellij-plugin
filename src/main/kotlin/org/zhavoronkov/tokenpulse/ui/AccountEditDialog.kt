@@ -187,7 +187,7 @@ class AccountEditDialog(
 
     private val enabledCheckBox = JCheckBox("Account enabled", account?.isEnabled ?: true)
 
-    private val providerHintLabel = JBLabel("<html><small></small></html>")
+    private lateinit var providerHintLabel: com.intellij.ui.dsl.builder.Cell<javax.swing.JEditorPane>
 
     // ── Claude Code name field (editable label; email/org or dir basename) ──
     private val nameField = JBTextField(account?.name ?: "").apply {
@@ -306,7 +306,7 @@ class AccountEditDialog(
         xiaomiConnectButton.isVisible = isXiaomi
         xiaomiStatusLabel.isVisible = isXiaomi
 
-        providerHintLabel.text = "<html><font color='gray'>${keyHintFor(connectionType)}</font></html>"
+        providerHintLabel.component.text = "<html>${keyHintFor(connectionType)}</html>"
 
         gitHubPanel.copilotConnectButton.isVisible = connectionType == ConnectionType.GITHUB_COPILOT_PAT
         gitHubPanel.copilotStatusLabel.isVisible = connectionType == ConnectionType.GITHUB_COPILOT_PAT
@@ -692,7 +692,7 @@ class AccountEditDialog(
         }
 
         row {
-            cell(providerHintLabel).align(AlignX.FILL)
+            providerHintLabel = comment("")
         }
 
         row {

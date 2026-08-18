@@ -75,7 +75,7 @@ class GitHubCopilotOrgConnectDialog : DialogWrapper(true) {
             label("<html><b>GitHub Copilot Organization Billing</b></html>")
         }
         row {
-            label("<html>Tracks your org's Copilot budget limits and consumption.</html>")
+            comment("Tracks your org's Copilot budget limits and consumption.")
         }
         row {
             label("<html><b>Step 1:</b> Create a Personal Access Token</html>")
@@ -84,7 +84,7 @@ class GitHubCopilotOrgConnectDialog : DialogWrapper(true) {
             cell(openBrowserButton)
         }
         row {
-            label(STEP2_HTML)
+            comment(DslCommentText.sanitize(STEP2_HTML))
         }
         row {
             label("<html><b>Step 3:</b> Enter your org name and paste the PAT:</html>")
