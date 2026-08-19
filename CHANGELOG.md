@@ -11,7 +11,7 @@ Jump to the release that interests you:
 
 | Release | Highlights |
 |---------|-----------|
-| [0.5.0](#050---2026-08-18) | DeepSeek & GitHub Copilot providers, platform 2025.3, build hardening |
+| [0.5.0](#050---2026-08-18) | DeepSeek & GitHub Copilot providers, platform 2025.3, progress bar fix, build hardening |
 | [0.4.0](#040---2026-07-23) | Redesigned tooltip, session auto-refresh, multi-account support |
 | [0.3.1](#031---2026-07-08) | ClinePass usage limits, improved CLI detection |
 | [0.3.0](#030---2026-06-22) | Xiaomi MiMo provider, session capture, status bar formats |
@@ -30,7 +30,7 @@ Jump to the release that interests you:
 
 ## [0.5.0] - 2026-08-18
 
-> **Highlights:** New DeepSeek & GitHub Copilot providers • Platform raised to 2025.3 • Build hardening (non-public API & Detekt gates) • UI fixes
+> **Highlights:** New DeepSeek & GitHub Copilot providers • Platform raised to 2025.3 • Build hardening (non-public API & Detekt gates) • Progress bar & UI fixes
 
 ### Added
 - **DeepSeek provider support** — track your DeepSeek API usage and quota
@@ -44,6 +44,13 @@ Jump to the release that interests you:
   also kept the agent-convention docs out of the repository.
 
 ### Changed
+- **Tooltip progress bars unified on a single remaining% convention** — every provider row in
+  the status-bar popup (Claude, Codex, Cline, Xiaomi) now fills and labels its progress bar
+  the same way: **percent remaining**. Previously Claude/Codex filled the bar with used% but
+  labeled it remaining%, Cline used used% for both, and Xiaomi used remaining% for both —
+  three inconsistent behaviors in one popup. Thresholds are now shared (red ≤10%, orange ≤30%,
+  green otherwise), and the row model collapsed from `BalanceBar` + `UsageBar` into a single
+  `UsageBar`.
 - **⚠️ Minimum IntelliJ platform is now 2025.3 (build 253)**, up from 2024.2 (build 242).
   IDEs from 2024.2 through 2025.2 will stay on the last compatible release and no longer
   receive updates. This was required to replace `SimpleListCellRenderer.create(...)`, which
@@ -82,6 +89,15 @@ Jump to the release that interests you:
   connection-type change under the 2025.3 SDK (the DSL `comment()` label inserts `<html>`
   itself). The manual wrapper is removed, and the dialog now re-packs after the hint changes so
   it shrinks back to fit shorter hints instead of staying at its tallest size.
+- **Xiaomi Connect dialog no longer emits an error balloon on JCEF-unavailable builds** — the
+  fallback branch passed a literal `<html>...</html>` wrapper into the UI DSL `comment()`,
+  which IntelliJ rejects at runtime (`Invalid html: tag <html> inserted automatically`). The
+  wrapper is stripped, and a shared `DslCommentText.sanitize()` helper plus a source-scanning
+  regression test (`DslCommentHtmlGuardTest`) now catch any future occurrence at build time.
+- **`platformTest` had been silently running zero tests** — the class-name-based JUnit filter
+  was replaced with a working one, and the missing `junit-vintage-engine` dependency plus
+  IntelliJ sandbox JVM wiring were added so the platform smoke tests actually execute in `check`
+  / CI. `check` was previously reporting green on zero platform assertions.
 
 ### Removed
 - Individual TokenPulse settings are no longer indexed for Settings search
