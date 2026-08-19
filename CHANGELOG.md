@@ -5,15 +5,52 @@ All notable changes to the TokenPulse plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 📋 Quick Navigation
+
+Jump to the release that interests you:
+
+| Release | Highlights |
+|---------|-----------|
+| [0.5.0](#050---2026-08-18) | DeepSeek & GitHub Copilot providers, platform 2025.3, progress bar fix, build hardening |
+| [0.4.0](#040---2026-07-23) | Redesigned tooltip, session auto-refresh, multi-account support |
+| [0.3.1](#031---2026-07-08) | ClinePass usage limits, improved CLI detection |
+| [0.3.0](#030---2026-06-22) | Xiaomi MiMo provider, session capture, status bar formats |
+| [0.2.0](#020---2026-04-22) | Codex CLI integration, credential cooldowns |
+| [0.1.0](#010---2026-03-10-initial--release) | Initial release — multi-provider tracking, status bar widget |
+
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+## [0.5.0] - 2026-08-18
+
+> **Highlights:** New DeepSeek & GitHub Copilot providers • Platform raised to 2025.3 • Build hardening (non-public API & Detekt gates) • Progress bar & UI fixes
+
+### Added
+- **DeepSeek provider support** — track your DeepSeek API usage and quota
+  alongside the other LLM providers.
+- **GitHub Copilot provider** — track Copilot spend for both personal
+  accounts and organizations from the status bar, with a dedicated
+  connect dialog for each flavor.
 - **Architecture Decision Records** — `docs/adr/` now holds the ADRs that
   `docs/agents/domain.md` has always required. They were previously impossible to commit:
   `.gitignore` listed `docs/` under "Build directories" and swallowed the whole tree, which
   also kept the agent-convention docs out of the repository.
 
 ### Changed
+- **Tooltip progress bars unified on a single remaining% convention** — every provider row in
+  the status-bar popup (Claude, Codex, Cline, Xiaomi) now fills and labels its progress bar
+  the same way: **percent remaining**. Previously Claude/Codex filled the bar with used% but
+  labeled it remaining%, Cline used used% for both, and Xiaomi used remaining% for both —
+  three inconsistent behaviors in one popup. Thresholds are now shared (red ≤10%, orange ≤30%,
+  green otherwise), and the row model collapsed from `BalanceBar` + `UsageBar` into a single
+  `UsageBar`.
 - **⚠️ Minimum IntelliJ platform is now 2025.3 (build 253)**, up from 2024.2 (build 242).
   IDEs from 2024.2 through 2025.2 will stay on the last compatible release and no longer
   receive updates. This was required to replace `SimpleListCellRenderer.create(...)`, which
@@ -41,6 +78,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own copy of the Gradle home, which put the repository at 24 GB across 60 entries against a
   ~10 GB budget — so entries were evicted before they could be reused, making runs cold *and*
   costing ~2 min per run in uploads.
+- **Triage label vocabulary expanded** with type/domain/priority namespaces,
+  giving contributors a shared taxonomy for classifying issues and PRs.
 
 ### Fixed
 - Removed all use of platform API that is deprecated or scheduled for removal, so the plugin
@@ -50,6 +89,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   connection-type change under the 2025.3 SDK (the DSL `comment()` label inserts `<html>`
   itself). The manual wrapper is removed, and the dialog now re-packs after the hint changes so
   it shrinks back to fit shorter hints instead of staying at its tallest size.
+- **Xiaomi Connect dialog no longer emits an error balloon on JCEF-unavailable builds** — the
+  fallback branch passed a literal `<html>...</html>` wrapper into the UI DSL `comment()`,
+  which IntelliJ rejects at runtime (`Invalid html: tag <html> inserted automatically`). The
+  wrapper is stripped, and a shared `DslCommentText.sanitize()` helper plus a source-scanning
+  regression test (`DslCommentHtmlGuardTest`) now catch any future occurrence at build time.
+- **`platformTest` had been silently running zero tests** — the class-name-based JUnit filter
+  was replaced with a working one, and the missing `junit-vintage-engine` dependency plus
+  IntelliJ sandbox JVM wiring were added so the platform smoke tests actually execute in `check`
+  / CI. `check` was previously reporting green on zero platform assertions.
 
 ### Removed
 - Individual TokenPulse settings are no longer indexed for Settings search
@@ -57,6 +105,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The TokenPulse settings page itself is still findable.
 
 ## [0.4.0] - 2026-07-23
+
+> **Highlights:** Redesigned status-bar tooltip with native rendering • Session auto-refresh for Nebius & Xiaomi • Claude Code multi-account support • OAuth API integration for Claude & Codex • Unified Xiaomi MiMo provider
 
 ### Added
 - **Redesigned status-bar tooltip** — hovering the status-bar widget now opens an all-new,
@@ -132,6 +182,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.1] - 2026-07-08
 
+> **Highlights:** ClinePass usage limits • Improved CLI detection reliability • Dialog & logging fixes
+
 ### Added
 - **ClinePass usage limits** for Cline API key accounts — optional 5-hour, weekly, and monthly
   usage (percent + reset time) displayed in the tooltip when available
@@ -159,6 +211,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - 2026-06-22
 
+> **Highlights:** Xiaomi MiMo provider (pay-as-you-go + Token Plan) • Session capture flow • Status bar format options • Short number formatting
+
 ### Added
 - **Xiaomi MiMo provider** — Two connection types: API (pay-as-you-go) and Token Plan (subscription Credits)
 - **Session capture flow** — XiaomiConnectDialog for capturing platform session via cURL
@@ -184,6 +238,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - 2026-04-22
 
+> **Highlights:** Codex CLI integration for ChatGPT • Credential failure cooldowns • Improved Nebius handling
+
 ### Added
 - **Codex CLI integration** — ChatGPT now uses Codex CLI for simpler, more reliable setup without OAuth complexity
 - **Credential failure cooldowns** — Smart throttling reduces notification spam for repeated credential errors
@@ -205,6 +261,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## [0.1.0] - 2026-03-10 (Initial β Release)
+
+> **Highlights:** Multi-provider balance tracking • 6 providers supported (OpenRouter, Cline, OpenAI, ChatGPT, Nebius, Claude) • Status bar widget & dashboard • Settings page & secure storage
 
 ### Added
 - **Multi-provider balance tracking** — Monitor token balances and credit usage across multiple AI providers directly in your IDE status bar.
