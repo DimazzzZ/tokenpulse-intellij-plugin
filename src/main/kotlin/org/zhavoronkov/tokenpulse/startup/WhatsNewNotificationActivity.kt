@@ -39,7 +39,7 @@ class WhatsNewNotificationActivity : ProjectActivity {
             .getNotificationGroup("TokenPulse Updates")
             .createNotification(
                 "TokenPulse Updated to v$version",
-               """
+                """
                 <b>Thank you for using TokenPulse!</b><br/><br/>
                 <b>What&rsquo;s new in v$version:</b><br/>
                 • <b>DeepSeek provider</b> &mdash; track your DeepSeek API usage and quota<br/>
