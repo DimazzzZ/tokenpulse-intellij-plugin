@@ -41,7 +41,11 @@ class WhatsNewNotificationActivity : ProjectActivity {
                 "TokenPulse Updated to v$version",
                 """
                 <b>Thank you for using TokenPulse!</b><br/><br/>
-                <b>What&rsquo;s new in v$version:</b><br/>
+                <b>Fixed in v$version:</b><br/>
+                • <b>One Keychain prompt instead of one per account</b> &mdash; on macOS, all TokenPulse
+                credentials now share a single Keychain entry, so IDE updates no longer trigger a
+                password dialog for every account (existing keys are migrated automatically)<br/><br/>
+                <b>Recently added in v0.5.0:</b><br/>
                 • <b>DeepSeek provider</b> &mdash; track your DeepSeek API usage and quota<br/>
                 • <b>GitHub Copilot provider</b> &mdash; personal and organization budget tracking<br/>
                 • <b>Platform raised to IntelliJ 2025.3</b> &mdash; required for forward compatibility<br/>

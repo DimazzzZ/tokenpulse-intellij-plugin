@@ -11,6 +11,7 @@ Jump to the release that interests you:
 
 | Release | Highlights |
 |---------|-----------|
+| [0.5.1](#051---2026-09-23) | One macOS Keychain prompt instead of one per account |
 | [0.5.0](#050---2026-08-18) | DeepSeek & GitHub Copilot providers, platform 2025.3, progress bar fix, build hardening |
 | [0.4.0](#040---2026-07-23) | Redesigned tooltip, session auto-refresh, multi-account support |
 | [0.3.1](#031---2026-07-08) | ClinePass usage limits, improved CLI detection |
@@ -27,6 +28,21 @@ Jump to the release that interests you:
 ### Fixed
 
 ### Removed
+
+## [0.5.1] - 2026-09-23
+
+> **Highlights:** macOS Keychain now asks once for all TokenPulse credentials instead of once per account
+
+### Fixed
+- **No more Keychain prompt storm on macOS** — every account's secret used to live in its own
+  Keychain entry, and macOS ties an "Always Allow" grant to the IDE's code signature. Each IDE
+  update (EAP builds especially) therefore revoked the grant and re-prompted once *per account* —
+  ten accounts meant ten password dialogs. All secrets now live in a single PasswordSafe entry
+  (`TokenPulse — vault`), read once per IDE session and cached in memory, so an IDE update costs
+  at most one prompt.
+- **Automatic migration** — existing per-account entries are moved into the vault on first use
+  and then deleted. The vault is written before the old entry is removed, so a secret is never
+  lost mid-migration. macOS may ask for each old entry one last time during this migration.
 
 ## [0.5.0] - 2026-08-18
 
