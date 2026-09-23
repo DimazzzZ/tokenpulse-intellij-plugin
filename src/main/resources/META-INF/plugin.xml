@@ -33,6 +33,20 @@
     ]]></description>
 
     <change-notes><![CDATA[
+    <b>0.5.1</b> — One macOS Keychain prompt instead of one per account (2026-09-23)<br>
+    <ul>
+        <li><b>Keychain fix:</b> all credentials now share a single Keychain entry, so IDE updates no longer re-prompt once for every account</li>
+        <li><b>Automatic migration:</b> existing per-account entries are moved into the shared entry on first use</li>
+    </ul>
+    <br>
+    <b>0.5.0</b> — New providers and platform 2025.3 (2026-08-18)<br>
+    <ul>
+        <li><b>DeepSeek provider:</b> track your DeepSeek API usage and quota</li>
+        <li><b>GitHub Copilot provider:</b> personal and organization budget tracking</li>
+        <li><b>Minimum platform raised to IntelliJ 2025.3</b> (build 253)</li>
+        <li><b>UI fix:</b> Add/Edit Account dialog hint no longer floods the log or gets stuck tall</li>
+    </ul>
+    <br>
     <b>0.4.0</b> — Session robustness, unified Xiaomi, and a richer tooltip (2026-07-23)<br>
     <ul>
         <li><b>Nebius session auto-refresh:</b> silently re-mints the CSRF token when it rotates, so a still-valid session keeps working without reconnecting</li>
